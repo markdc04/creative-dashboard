@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Creative Performance — Loudr Media</title>
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="wrap">
+
+  <div class="brandbar">
+    <img src="logo-loudr.svg" alt="Loudr Media" class="brandlogo">
+    <span id="live-pill" class="live-pill live-pill--stale">
+      <span class="live-dot"></span>
+      <span id="live-text">Connecting&hellip;</span>
+    </span>
+  </div>
+
+  <div class="topbar">
+    <div>
+      <p class="brand-eyebrow">Ad Creative Tracker</p>
+      <h1>Creative Performance</h1>
+      <p class="topbar-sub">Google &amp; Meta &middot; <span id="creative-count">&mdash;</span> active creatives &middot; live from Google Sheets</p>
+    </div>
+  </div>
+
+  <div class="kpi-row" id="kpi-row">
+    <div class="kpi">
+      <span class="kpi-label">Total Spend</span>
+      <span class="kpi-value num" id="kpi-spend">&mdash;</span>
+    </div>
+    <div class="kpi">
+      <span class="kpi-label">Total Revenue</span>
+      <span class="kpi-value num" id="kpi-revenue">&mdash;</span>
+    </div>
+    <div class="kpi">
+      <span class="kpi-label">Net Profit</span>
+      <span class="kpi-value num" id="kpi-profit">&mdash;</span>
+    </div>
+    <div class="kpi">
+      <span class="kpi-label">Blended ROAS</span>
+      <span class="kpi-value num" id="kpi-roas">&mdash;</span>
+    </div>
+    <div class="kpi">
+      <span class="kpi-label">Win Rate</span>
+      <span class="kpi-value num" id="kpi-winrate">&mdash;</span>
+    </div>
+  </div>
+
+  <p class="section-title">Platform Split</p>
+  <div class="platform-row" id="platform-row">
+    <div class="platform-card google">
+      <div class="platform-head">
+        <span class="platform-name"><span class="platform-swatch google"></span>Google</span>
+        <span class="platform-count" id="google-count">&mdash;</span>
+      </div>
+      <div class="platform-grid">
+        <div><div class="pg-label">Spend</div><div class="pg-value num" id="google-spend">&mdash;</div></div>
+        <div><div class="pg-label">Revenue</div><div class="pg-value num" id="google-revenue">&mdash;</div></div>
+        <div><div class="pg-label">Profit</div><div class="pg-value num" id="google-profit">&mdash;</div></div>
+      </div>
+      <span class="status-chip" id="google-chip">&nbsp;</span>
+    </div>
+    <div class="platform-card meta">
+      <div class="platform-head">
+        <span class="platform-name"><span class="platform-swatch meta"></span>Meta</span>
+        <span class="platform-count" id="meta-count">&mdash;</span>
+      </div>
+      <div class="platform-grid">
+        <div><div class="pg-label">Spend</div><div class="pg-value num" id="meta-spend">&mdash;</div></div>
+        <div><div class="pg-label">Revenue</div><div class="pg-value num" id="meta-revenue">&mdash;</div></div>
+        <div><div class="pg-label">Profit</div><div class="pg-value num" id="meta-profit">&mdash;</div></div>
+      </div>
+      <span class="status-chip" id="meta-chip">&nbsp;</span>
+    </div>
+  </div>
+
+  <div class="split">
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title win">Top Performers</span>
+        <span class="panel-count">ranked by profit</span>
+      </div>
+      <div class="row-list" id="top-list"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title lose">Needs Attention</span>
+        <span class="panel-count">biggest losses</span>
+      </div>
+      <div class="row-list" id="bottom-list"></div>
+    </div>
+  </div>
+
+  <p class="section-title table-title">All Creatives</p>
+  <div class="panel table-panel">
+    <div class="table-controls">
+      <div class="search-box">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="search" type="text" placeholder="Search ad or campaign name&hellip;" autocomplete="off">
+      </div>
+      <div class="chip-group" id="platform-filter">
+        <button class="chip is-active" data-platform="all">All</button>
+        <button class="chip" data-platform="google">Google</button>
+        <button class="chip" data-platform="meta">Meta</button>
+      </div>
+      <span class="row-count" id="row-count"></span>
+    </div>
+
+    <div class="table-scroll">
+      <table id="data-table">
+        <thead>
+          <tr>
+            <th data-key="adName" class="sortable is-sorted" data-dir="desc">Ad Name</th>
+            <th data-key="platform" class="sortable">Platform</th>
+            <th data-key="spend" class="sortable num-col">Spend</th>
+            <th data-key="revenue" class="sortable num-col">Revenue</th>
+            <th data-key="profit" class="sortable num-col is-sorted" data-dir="desc">Profit</th>
+            <th data-key="roas" class="sortable num-col">ROAS</th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Source: Ad_Creative_Tracker &middot; Creative Tracker 1 tab &middot; re-polled every 15s, pushed instantly on change</span>
+    <span id="updated-footer">&mdash;</span>
+  </div>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

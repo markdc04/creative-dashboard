@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 230" width="200" height="110">
+  <!-- yellow badge, rotated -->
+  <g transform="rotate(-7 210 85)">
+    <rect x="55" y="10" width="330" height="130" fill="#f0b429"/>
+    <text x="220" y="108" text-anchor="middle" font-family="'Arial Black', Arial, Helvetica, sans-serif"
+          font-weight="900" font-size="84" letter-spacing="1" fill="#ffffff">LOUDR</text>
+  </g>
+  <!-- MEDIA, overlapping bottom-right -->
+  <text x="410" y="222" text-anchor="end" font-family="'Arial Black', Arial, Helvetica, sans-serif" font-weight="900"
+        font-size="92" letter-spacing="0" fill="#ffffff">MEDIA</text>
+  <!-- speaking head, bottom-left -->
+  <g transform="translate(0,118)">
+    <path d="M62 4 C32 4 8 26 8 56 C8 74 17 87 28 96 L21 118 L48 103 C52.5 104 57 104.5 62 104.5
+             C96 104.5 116 82 116 56 C116 30 96 4 62 4 Z"
+          fill="none" stroke="#ffffff" stroke-width="5.5" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+  <!-- three stacked sound/shout chevrons in front of the mouth -->
+  <g fill="#ffffff">
+    <path d="M118 152 L146 142 L134 160 L118 152 Z"/>
+    <path d="M120 172 L150 172 L134 184 L120 172 Z"/>
+    <path d="M118 192 L146 202 L134 184 L118 192 Z"/>
+  </g>
+</svg>

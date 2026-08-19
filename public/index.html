@@ -77,7 +77,16 @@
     </div>
   </div>
 
-  <div class="split">
+  <p class="section-title">Leaderboard</p>
+  <div class="chip-group leaderboard-tabs" id="leaderboard-tabs">
+    <button class="chip is-active" data-board="ads">Ads</button>
+    <button class="chip" data-board="hookType">Hook Type</button>
+    <button class="chip" data-board="actor">Actor</button>
+    <button class="chip" data-board="writer">Writer</button>
+    <button class="chip" data-board="editor">Editor</button>
+  </div>
+
+  <div class="split" id="ads-board">
     <div class="panel">
       <div class="panel-head">
         <span class="panel-title win">Top Performers</span>
@@ -93,6 +102,14 @@
       </div>
       <div class="row-list" id="bottom-list"></div>
     </div>
+  </div>
+
+  <div class="panel" id="dimension-board" hidden>
+    <div class="panel-head">
+      <span class="panel-title" id="dimension-title">Leaderboard</span>
+      <span class="panel-count" id="dimension-count"></span>
+    </div>
+    <div class="row-list" id="dimension-list"></div>
   </div>
 
   <p class="section-title table-title">All Creatives</p>

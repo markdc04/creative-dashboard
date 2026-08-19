@@ -7,7 +7,10 @@
     platform: 'all',
     sortKey: 'profit',
     sortDir: 'desc',
+    board: 'ads', // 'ads' | 'hookType' | 'actor' | 'writer' | 'editor'
   };
+
+  const BOARD_LABELS = { hookType: 'Hook Type', actor: 'Actor', writer: 'Writer', editor: 'Editor' };
 
   const $ = (sel) => document.querySelector(sel);
   const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -103,6 +106,7 @@
           adId: r.adId, adName: r.adName, campaignName: r.campaignName, platform: r.platform,
           spend: 0, revenue: 0,
           youtubeUrl: r.youtubeUrl, landingPageUrl: r.landingPageUrl, frameIoUrl: r.frameIoUrl, fileName: r.fileName,
+          hookType: r.hookType, actor: r.actor, writer: r.writer, editor: r.editor,
         };
         byAd.set(r.adId, c);
       }
@@ -172,6 +176,52 @@
     $('#bottom-list').innerHTML = bottom.map((r, i) => rowItemHtml(r, i, maxBottom)).join('') || emptyMsg();
   }
 
+  // Aggregate ads by a metadata dimension (Hook Type / Actor / Writer / Editor), ranked by profit.
+  function aggregateByDimension(rows, field) {
+    const byValue = new Map();
+    for (const r of rows) {
+      const v = (r[field] || '').trim();
+      if (!v) continue;
+      let g = byValue.get(v);
+      if (!g) { g = { name: v, spend: 0, revenue: 0, count: 0 }; byValue.set(v, g); }
+      g.spend += r.spend;
+      g.revenue += r.revenue;
+      g.count += 1;
+    }
+    return [...byValue.values()]
+      .map((g) => ({ ...g, profit: g.revenue - g.spend }))
+      .sort((a, b) => b.profit - a.profit);
+  }
+
+  function dimensionRowHtml(g, idx, maxAbs) {
+    const isProfit = g.profit >= 0;
+    const pct = maxAbs > 0 ? Math.max(4, Math.round((Math.abs(g.profit) / maxAbs) * 100)) : 4;
+    return (
+      '<div class="dimension-row">' +
+        '<span class="rank">' + String(idx + 1).padStart(2, '0') + '</span>' +
+        '<div>' +
+          '<div class="dimension-name">' + escapeHtml(g.name) + '</div>' +
+          '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
+        '</div>' +
+        '<div class="dimension-figs">' +
+          '<div class="row-profit ' + (isProfit ? 'profit' : 'loss') + ' num">' + moneySigned(g.profit) + '</div>' +
+        '</div>' +
+        '<div class="dimension-bar-track"><div class="bar-fill ' + (isProfit ? 'profit' : 'loss') + '" style="width:' + pct + '%"></div></div>' +
+      '</div>'
+    );
+  }
+
+  function renderDimensionBoard(rows) {
+    const field = state.board;
+    const groups = aggregateByDimension(rows, field);
+    const maxAbs = Math.max(1, ...groups.map((g) => Math.abs(g.profit)));
+    $('#dimension-title').textContent = BOARD_LABELS[field] + ' Leaderboard';
+    $('#dimension-count').innerHTML = groups.length + ' ' + (groups.length === 1 ? 'entry' : 'entries') + ' &middot; ranked by profit';
+    $('#dimension-list').innerHTML = groups.length
+      ? groups.map((g, i) => dimensionRowHtml(g, i, maxAbs)).join('')
+      : '<div style="padding:24px 0;color:var(--text-faint);font-size:12.5px;">No ' + BOARD_LABELS[field].toLowerCase() + ' data tagged yet for this range.</div>';
+  }
+
   function emptyMsg() {
     return '<div style="padding:24px 0;color:var(--text-faint);font-size:12.5px;">No data in this range.</div>';
   }
@@ -235,7 +285,11 @@
     const rows = creativesForRange();
     const agg = aggregate(rows);
     renderKpis(agg);
-    renderRankedPanels(rows);
+    if (state.board === 'ads') {
+      renderRankedPanels(rows);
+    } else {
+      renderDimensionBoard(rows);
+    }
     renderTable(rows);
   }
 
@@ -272,6 +326,18 @@
     $('#date-start').value = '';
     $('#date-end').value = '';
     state.range = { key: 'all', start: null, end: null };
+    render();
+  });
+
+  // ---- leaderboard tabs ----
+  $('#leaderboard-tabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.chip');
+    if (!btn) return;
+    document.querySelectorAll('#leaderboard-tabs .chip').forEach((c) => c.classList.remove('is-active'));
+    btn.classList.add('is-active');
+    state.board = btn.dataset.board;
+    $('#ads-board').hidden = state.board !== 'ads';
+    $('#dimension-board').hidden = state.board === 'ads';
     render();
   });
 

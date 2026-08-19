@@ -139,16 +139,29 @@ async function pollAll() {
       bump(date, adId, 'spend', num(r[cfg.amountField]));
     }
 
+    // Sheet10 has duplicate rows per Ad ID (one per campaign it ran under); many of those
+    // duplicates are missing Hook Type/Actor/Writer/Editor. Merge field-by-field across all
+    // rows for an Ad ID instead of taking just the first row, so a populated value from any
+    // row wins rather than an early blank duplicate shadowing it.
     for (const r of creativeMetaRaw) {
       const adId = (r['adId'] || '').trim();
-      if (!adId || assets[adId]) continue;
-      assets[adId] = {
-        youtubeUrl: r['youtubeUrl'] || '',
-        landingPageUrl: r['LandingpageUrl'] || '',
-        frameIoUrl: r['frame.ioLink'] || '',
-        fileName: r['fileName'] || '',
-        videoTitle: r['videoTitle'] || '',
-      };
+      if (!adId) continue;
+      if (!assets[adId]) {
+        assets[adId] = {
+          youtubeUrl: '', landingPageUrl: '', frameIoUrl: '', fileName: '', videoTitle: '',
+          hookType: '', actor: '', writer: '', editor: '',
+        };
+      }
+      const a = assets[adId];
+      if (!a.youtubeUrl && r['youtubeUrl']) a.youtubeUrl = r['youtubeUrl'];
+      if (!a.landingPageUrl && r['LandingpageUrl']) a.landingPageUrl = r['LandingpageUrl'];
+      if (!a.frameIoUrl && r['frame.ioLink']) a.frameIoUrl = r['frame.ioLink'];
+      if (!a.fileName && r['fileName']) a.fileName = r['fileName'];
+      if (!a.videoTitle && r['videoTitle']) a.videoTitle = r['videoTitle'];
+      if (!a.hookType && r['Hook Type']) a.hookType = r['Hook Type'];
+      if (!a.actor && r['Actor']) a.actor = r['Actor'];
+      if (!a.writer && r['Writer']) a.writer = r['Writer'];
+      if (!a.editor && r['Editor']) a.editor = r['Editor'];
     }
 
     // Revenue sheets: read ONLY Date, AD ID, Payout. Every other field on `r` (name, email,
@@ -178,6 +191,10 @@ async function pollAll() {
         landingPageUrl: asset.landingPageUrl || '',
         frameIoUrl: asset.frameIoUrl || '',
         fileName: asset.fileName || '',
+        hookType: asset.hookType || '',
+        actor: asset.actor || '',
+        writer: asset.writer || '',
+        editor: asset.editor || '',
       };
     });
 

@@ -304,8 +304,20 @@
       if (end) $('#date-end').value = end;
       return; // wait for explicit date input before re-rendering
     }
-    customBox.hidden = true;
+    if (key === 'all') {
+      customBox.hidden = true;
+      $('#date-start').value = '';
+      $('#date-end').value = '';
+      state.range = { key, start: null, end: null };
+      render();
+      return;
+    }
+    // Quick ranges (Today, Yesterday, a month, ...) show their resolved dates in the same
+    // start/end fields as custom range, so the actual dates being applied are always visible.
     const { start, end } = computeRange(key);
+    customBox.hidden = false;
+    $('#date-start').value = start || '';
+    $('#date-end').value = end || '';
     state.range = { key, start, end };
     render();
   });

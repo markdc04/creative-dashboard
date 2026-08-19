@@ -1,7 +1,8 @@
 (function () {
   const state = {
-    rows: [],
+    dailyRows: [],       // raw: {date, adId, adName, campaignName, platform, spend, revenue}
     updatedAt: null,
+    range: { key: 'all', start: null, end: null }, // ISO date strings, inclusive
     search: '',
     platform: 'all',
     sortKey: 'profit',
@@ -12,11 +13,48 @@
   const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
   const moneySigned = (n) => (n < 0 ? '-$' : '+$') + Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
 
+  // ---------------- date helpers (all in local time, ISO YYYY-MM-DD strings) ----------------
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function toISO(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function fromISO(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+  function addDays(d, n) { const nd = new Date(d); nd.setDate(nd.getDate() + n); return nd; }
+  function startOfMonth(y, m) { return new Date(y, m - 1, 1); }
+  function endOfMonth(y, m) { return new Date(y, m, 0); }
+  // Monday-start week.
+  function mondayOf(d) { const day = d.getDay(); const diff = day === 0 ? -6 : 1 - day; return addDays(d, diff); }
+
+  function computeRange(key) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    switch (key) {
+      case 'today': return { start: toISO(today), end: toISO(today) };
+      case 'yesterday': { const y = addDays(today, -1); return { start: toISO(y), end: toISO(y) }; }
+      case 'wtd': return { start: toISO(mondayOf(today)), end: toISO(today) };
+      case 'lastweek': { const lastMon = addDays(mondayOf(today), -7); const lastSun = addDays(lastMon, 6); return { start: toISO(lastMon), end: toISO(lastSun) }; }
+      case 'all': return { start: null, end: null };
+      default: {
+        const m = /^(\d{4})-(\d{2})$/.exec(key);
+        if (m) {
+          const y = Number(m[1]), mo = Number(m[2]);
+          return { start: toISO(startOfMonth(y, mo)), end: toISO(endOfMonth(y, mo)) };
+        }
+        return { start: null, end: null };
+      }
+    }
+  }
+
+  function rangeLabel() {
+    const { key, start, end } = state.range;
+    const opt = document.querySelector(`#quick-range option[value="${key}"]`);
+    if (key !== 'custom' && opt) return key === 'all' ? '' : '· ' + opt.textContent.toLowerCase();
+    if (start && end) return '· ' + start + ' to ' + end;
+    return '';
+  }
+
   async function fetchData() {
     try {
       const res = await fetch('/api/data', { cache: 'no-store' });
       const json = await res.json();
-      state.rows = json.rows || [];
+      state.dailyRows = json.rows || [];
       state.updatedAt = json.updatedAt;
       render();
       setLive(true);
@@ -49,31 +87,46 @@
     return h + 'h ago';
   }
 
+  // Filter raw daily rows by the active date range, then collapse to one row per ad.
+  function creativesForRange() {
+    const { start, end } = state.range;
+    const filtered = (start && end)
+      ? state.dailyRows.filter((r) => r.date >= start && r.date <= end)
+      : state.dailyRows;
+
+    const byAd = new Map();
+    for (const r of filtered) {
+      if (r.platform === 'META') continue;
+      let c = byAd.get(r.adId);
+      if (!c) {
+        c = {
+          adId: r.adId, adName: r.adName, campaignName: r.campaignName, platform: r.platform,
+          spend: 0, revenue: 0,
+          youtubeUrl: r.youtubeUrl, landingPageUrl: r.landingPageUrl, frameIoUrl: r.frameIoUrl, fileName: r.fileName,
+        };
+        byAd.set(r.adId, c);
+      }
+      c.spend += r.spend;
+      c.revenue += r.revenue;
+    }
+    return [...byAd.values()].map((c) => ({ ...c, profit: c.revenue - c.spend }));
+  }
+
   function aggregate(rows) {
     const totalSpend = rows.reduce((a, r) => a + r.spend, 0);
     const totalRevenue = rows.reduce((a, r) => a + r.revenue, 0);
     const totalProfit = rows.reduce((a, r) => a + r.profit, 0);
     const profitable = rows.filter((r) => r.profit > 0).length;
-    const byPlatform = (name) => {
-      const sub = rows.filter((r) => r.platform === name);
-      return {
-        count: sub.length,
-        spend: sub.reduce((a, r) => a + r.spend, 0),
-        revenue: sub.reduce((a, r) => a + r.revenue, 0),
-        profit: sub.reduce((a, r) => a + r.profit, 0),
-      };
-    };
     return {
       totalSpend, totalRevenue, totalProfit, profitable,
       total: rows.length,
       roas: totalSpend > 0 ? totalRevenue / totalSpend : 0,
-      google: byPlatform('GOOGLE'),
-      meta: byPlatform('META'),
     };
   }
 
   function renderKpis(agg) {
     $('#creative-count').textContent = agg.total.toLocaleString();
+    $('#range-label').textContent = rangeLabel();
     $('#kpi-spend').textContent = money(agg.totalSpend);
     $('#kpi-revenue').textContent = money(agg.totalRevenue);
     const profitEl = $('#kpi-profit');
@@ -83,37 +136,15 @@
     $('#kpi-winrate').textContent = agg.profitable + ' / ' + agg.total;
   }
 
-  function renderPlatforms(agg) {
-    const set = (prefix, p) => {
-      $('#' + prefix + '-count').textContent = p.count + ' creatives';
-      $('#' + prefix + '-spend').textContent = money(p.spend);
-      $('#' + prefix + '-revenue').textContent = money(p.revenue);
-      const profEl = $('#' + prefix + '-profit');
-      profEl.textContent = moneySigned(p.profit);
-      profEl.style.color = p.profit >= 0 ? 'var(--profit)' : 'var(--loss)';
-      const chip = $('#' + prefix + '-chip');
-      if (p.profit >= 0) {
-        chip.className = 'status-chip ok';
-        chip.textContent = '↑ Profitable';
-      } else {
-        chip.className = 'status-chip bad';
-        chip.textContent = '↓ Losing money';
-      }
-    };
-    set('google', agg.google);
-    set('meta', agg.meta);
-  }
-
   function rowItemHtml(r, idx, maxAbs) {
     const isProfit = r.profit >= 0;
     const pct = maxAbs > 0 ? Math.max(4, Math.round((Math.abs(r.profit) / maxAbs) * 100)) : 4;
     return (
-      '<div class="row-item">' +
+      '<div class="row-item row-clickable" data-adname="' + escapeHtml(r.adName) + '">' +
         '<span class="rank">' + String(idx + 1).padStart(2, '0') + '</span>' +
         '<div class="row-main">' +
           '<div class="row-name" title="' + escapeHtml(r.adName) + '">' + escapeHtml(r.adName || '(untitled)') + '</div>' +
-          '<div class="row-meta"><span class="tag ' + (r.platform === 'META' ? 'meta' : 'google') + '">' + r.platform + '</span>' +
-          '<span class="row-spend num">' + money(r.spend) + ' spend</span></div>' +
+          '<div class="row-meta">' + assetIcons(r) + '<span class="row-spend num">' + money(r.spend) + ' spend</span></div>' +
         '</div>' +
         '<div class="row-figs">' +
           '<div class="row-profit ' + (isProfit ? 'profit' : 'loss') + ' num">' + moneySigned(r.profit) + '</div>' +
@@ -121,6 +152,14 @@
         '</div>' +
       '</div>'
     );
+  }
+
+  function assetIcons(r) {
+    let html = '';
+    if (r.youtubeUrl) html += '<a class="asset-link yt" href="' + escapeHtml(r.youtubeUrl) + '" target="_blank" rel="noopener" title="YouTube" onclick="event.stopPropagation()">YT</a>';
+    if (r.landingPageUrl) html += '<a class="asset-link lp" href="' + escapeHtml(r.landingPageUrl) + '" target="_blank" rel="noopener" title="Landing page" onclick="event.stopPropagation()">LP</a>';
+    if (r.frameIoUrl) html += '<a class="asset-link fio" href="' + escapeHtml(r.frameIoUrl) + '" target="_blank" rel="noopener" title="Frame.io" onclick="event.stopPropagation()">F.io</a>';
+    return html;
   }
 
   function renderRankedPanels(rows) {
@@ -134,7 +173,7 @@
   }
 
   function emptyMsg() {
-    return '<div style="padding:24px 0;color:var(--text-faint);font-size:12.5px;">No data yet.</div>';
+    return '<div style="padding:24px 0;color:var(--text-faint);font-size:12.5px;">No data in this range.</div>';
   }
 
   function escapeHtml(s) {
@@ -145,10 +184,6 @@
 
   function applyFilters(rows) {
     let out = rows;
-    if (state.platform !== 'all') {
-      const want = state.platform === 'google' ? 'GOOGLE' : 'META';
-      out = out.filter((r) => r.platform === want);
-    }
     if (state.search.trim()) {
       const q = state.search.trim().toLowerCase();
       out = out.filter(
@@ -169,10 +204,10 @@
     });
   }
 
-  function renderTable() {
-    const filtered = applyFilters(state.rows);
+  function renderTable(rows) {
+    const filtered = applyFilters(rows);
     const sorted = sortRows(filtered);
-    $('#row-count').textContent = sorted.length.toLocaleString() + ' of ' + state.rows.length.toLocaleString() + ' creatives';
+    $('#row-count').textContent = sorted.length.toLocaleString() + ' of ' + rows.length.toLocaleString() + ' creatives';
 
     const body = $('#table-body');
     if (!sorted.length) {
@@ -183,13 +218,13 @@
       .map((r) => {
         const roas = r.spend > 0 ? r.revenue / r.spend : 0;
         return (
-          '<tr>' +
-            '<td class="name-cell" title="' + escapeHtml(r.adName) + '">' + escapeHtml(r.adName || '(untitled)') + '</td>' +
-            '<td><span class="tag ' + (r.platform === 'META' ? 'meta' : 'google') + '">' + r.platform + '</span></td>' +
+          '<tr class="row-clickable" data-adname="' + escapeHtml(r.adName) + '">' +
+            '<td class="name-cell" title="' + escapeHtml(r.fileName || r.adName) + '">' + escapeHtml(r.adName || '(untitled)') + '</td>' +
             '<td class="num-col">' + money(r.spend) + '</td>' +
             '<td class="num-col">' + money(r.revenue) + '</td>' +
             '<td class="num-col ' + (r.profit >= 0 ? 'profit-pos' : 'profit-neg') + '">' + moneySigned(r.profit) + '</td>' +
             '<td class="num-col">' + roas.toFixed(2) + '×</td>' +
+            '<td class="assets-cell">' + (assetIcons(r) || '<span class="no-assets">&mdash;</span>') + '</td>' +
           '</tr>'
         );
       })
@@ -197,26 +232,64 @@
   }
 
   function render() {
-    const agg = aggregate(state.rows);
+    const rows = creativesForRange();
+    const agg = aggregate(rows);
     renderKpis(agg);
-    renderPlatforms(agg);
-    renderRankedPanels(state.rows);
-    renderTable();
+    renderRankedPanels(rows);
+    renderTable(rows);
   }
 
-  // ---- controls ----
-  $('#search').addEventListener('input', (e) => {
-    state.search = e.target.value;
-    renderTable();
+  // ---- date range controls ----
+  $('#quick-range').addEventListener('change', (e) => {
+    const key = e.target.value;
+    const customBox = $('#custom-dates');
+    if (key === 'custom') {
+      customBox.hidden = false;
+      const { start, end } = state.range;
+      if (start) $('#date-start').value = start;
+      if (end) $('#date-end').value = end;
+      return; // wait for explicit date input before re-rendering
+    }
+    customBox.hidden = true;
+    const { start, end } = computeRange(key);
+    state.range = { key, start, end };
+    render();
   });
 
-  $('#platform-filter').addEventListener('click', (e) => {
-    const btn = e.target.closest('.chip');
-    if (!btn) return;
-    document.querySelectorAll('#platform-filter .chip').forEach((c) => c.classList.remove('is-active'));
-    btn.classList.add('is-active');
-    state.platform = btn.dataset.platform;
-    renderTable();
+  function applyCustomRange() {
+    const start = $('#date-start').value;
+    const end = $('#date-end').value;
+    if (!start || !end) return;
+    state.range = { key: 'custom', start, end };
+    render();
+  }
+  $('#date-start').addEventListener('change', applyCustomRange);
+  $('#date-end').addEventListener('change', applyCustomRange);
+
+  $('#clear-range').addEventListener('click', () => {
+    $('#quick-range').value = 'all';
+    $('#custom-dates').hidden = true;
+    $('#date-start').value = '';
+    $('#date-end').value = '';
+    state.range = { key: 'all', start: null, end: null };
+    render();
+  });
+
+  // ---- table controls ----
+  $('#search').addEventListener('input', (e) => {
+    state.search = e.target.value;
+    render();
+  });
+
+  // Click any ad row (top/bottom panels or table) to filter the table to just that ad.
+  document.addEventListener('click', (e) => {
+    const row = e.target.closest('.row-clickable');
+    if (!row) return;
+    const name = row.dataset.adname;
+    $('#search').value = name;
+    state.search = name;
+    document.querySelector('.table-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    render();
   });
 
   document.querySelectorAll('#data-table thead th.sortable').forEach((th) => {
@@ -234,13 +307,13 @@
       });
       th.classList.add('is-sorted');
       th.dataset.dir = state.sortDir;
-      renderTable();
+      render();
     });
   });
 
   // ---- live updates ----
   fetchData();
-  setInterval(fetchData, 15000);
+  setInterval(fetchData, 30000);
   setInterval(() => { if (state.updatedAt) setLive(true); }, 1000);
 
   try {

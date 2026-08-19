@@ -3,20 +3,32 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
-// "Ad_Creative_Tracker" workbook — "Creative Tracker 1" tab holds the live, formula-computed
-// Ad ID / Ad Name / Campaign / Platform / Spend / Revenue / Profit table.
 const DOC_ID = '1YkpQh4hR96iMtvd_bvtrT0fN0zCaLQNKl3pa6Tix8BA';
-const GID = '623888576';
 
-const POLL_MS = 15000;
+// Daily-granular source tabs. Google/Meta give per-day spend per ad; CA/NW QMVA give per-lead
+// revenue ("Payout") per ad. Joined by Ad ID into a compact per-day-per-ad fact table below.
+//
+// IMPORTANT: CA/NW QMVA are lead-level sheets and also contain personal data (name, email,
+// phone). Only three columns are ever read from them — Date, AD ID, Payout — and only those
+// three fields are kept in memory; every other column (including all PII) is dropped the
+// instant a row is parsed and is never written to a variable, logged, or sent to the client.
+const SOURCES = {
+  googleSpend: { gid: '1803672839', kind: 'spend', platform: 'GOOGLE', dayField: 'Day', adIdField: 'Ad ID', amountField: 'Cost (Spend)', nameField: 'Ad Name', campaignField: 'Campaign Name' },
+  caRevenue:   { gid: '1896619489', kind: 'revenue', dayField: 'Date', adIdField: 'AD ID', amountField: 'Payout' },
+  nwRevenue:   { gid: '1741267253', kind: 'revenue', dayField: 'Date', adIdField: 'AD ID', amountField: 'Payout' },
+};
+
+// Creative asset/metadata lookup by Ad ID: YouTube URL, landing page URL, Frame.io URL, file name.
+const CREATIVE_META_GID = '1768337683';
+
+const POLL_MS = 30000;
 const PORT = process.env.PORT || 4174;
 
 let cache = { rows: [], updatedAt: null, hash: null };
 let clients = []; // SSE response objects
 
-// Direct CSV export works for any sheet shared "Anyone with the link can view" — no auth needed.
-function csvUrl(docId, gid) {
-  return `https://docs.google.com/spreadsheets/d/${docId}/export?format=csv&gid=${gid}`;
+function csvUrl(gid) {
+  return `https://docs.google.com/spreadsheets/d/${DOC_ID}/export?format=csv&gid=${gid}`;
 }
 
 function fetchText(url, redirects = 5) {
@@ -31,9 +43,7 @@ function fetchText(url, redirects = 5) {
       res.on('end', () => resolve(data));
     });
     req.on('error', reject);
-    // Google's export CDN occasionally hangs indefinitely on a large/redirected request — without
-    // this, a stuck request never resolves or rejects, so the poll loop silently stops.
-    req.setTimeout(15000, () => req.destroy(new Error('request timed out')));
+    req.setTimeout(20000, () => req.destroy(new Error('request timed out')));
   });
 }
 
@@ -76,44 +86,110 @@ function num(v) {
   return isNaN(n) ? 0 : n;
 }
 
-function normalizeRows(raw) {
-  return raw
-    .map((r) => ({
-      adId: r['Ad ID'] || '',
-      adName: r['Ad Name'] || '',
-      campaignId: r['Campaign ID'] || '',
-      campaignName: r['Campaign Name'] || '',
-      platform: (r['Platform'] || '').toUpperCase(),
-      spend: num(r['Spend ($)']),
-      revenue: num(r['Revenue ($)']),
-      qmva: num(r['QMVA']),
-      leads: num(r['Leads']),
-      acceptedLeads: num(r['Accepted Leads']),
-      costPerLead: num(r['Cost Per Lead']),
-      costPerAccept: num(r['Cost Per Accept']),
-      ctr: num(r['CTR %']),
-      cpqmva: num(r['CPQMVA']),
-      profit: num(r['Profit']),
-    }))
-    .filter((r) => r.adId);
+// Google's Day column is ISO (YYYY-MM-DD); Meta/QMVA use M/D/YYYY. Normalize everything to
+// ISO so the frontend's date-range math never has to guess a format.
+function toISODate(v) {
+  if (!v) return '';
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(v);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const mdy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(v);
+  if (mdy) return `${mdy[3]}-${String(mdy[1]).padStart(2, '0')}-${String(mdy[2]).padStart(2, '0')}`;
+  return '';
 }
 
-async function poll() {
+async function fetchSource(key) {
+  const cfg = SOURCES[key];
+  const text = await fetchText(csvUrl(cfg.gid));
+  return parseCSV(text);
+}
+
+async function pollAll() {
   try {
-    const text = await fetchText(csvUrl(DOC_ID, GID));
-    const raw = parseCSV(text);
-    const rows = normalizeRows(raw);
-    const hash = rows.length + ':' + text.length;
-    // Guard against a transient truncated/interstitial response from Google's export CDN
-    // flashing wrong (near-empty) numbers to the frontend over a good cached copy.
-    if (cache.rows.length > 5 && rows.length < cache.rows.length * 0.5) {
+    const [googleRaw, caRaw, nwRaw, metaCsv] = await Promise.all([
+      fetchSource('googleSpend'),
+      fetchSource('caRevenue'),
+      fetchSource('nwRevenue'),
+      fetchText(csvUrl(CREATIVE_META_GID)),
+    ]);
+    const creativeMetaRaw = parseCSV(metaCsv);
+
+    const adMeta = {}; // adId -> { adName, campaignName, platform }
+    const assets = {}; // adId -> { youtubeUrl, landingPageUrl, frameIoUrl, fileName, videoTitle }
+    const daily = {}; // `${date}|${adId}` -> { date, adId, spend, revenue }
+
+    const bump = (date, adId, field, amount) => {
+      if (!date || !adId || !amount) return;
+      const key = date + '|' + adId;
+      if (!daily[key]) daily[key] = { date, adId, spend: 0, revenue: 0 };
+      daily[key][field] += amount;
+    };
+
+    for (const r of googleRaw) {
+      const cfg = SOURCES.googleSpend;
+      const adId = (r[cfg.adIdField] || '').trim();
+      const date = toISODate(r[cfg.dayField]);
+      if (!adId || !date) continue;
+      if (!adMeta[adId]) {
+        adMeta[adId] = {
+          adName: r[cfg.nameField] || adId,
+          campaignName: r[cfg.campaignField] || '',
+          platform: cfg.platform,
+        };
+      }
+      bump(date, adId, 'spend', num(r[cfg.amountField]));
+    }
+
+    for (const r of creativeMetaRaw) {
+      const adId = (r['adId'] || '').trim();
+      if (!adId || assets[adId]) continue;
+      assets[adId] = {
+        youtubeUrl: r['youtubeUrl'] || '',
+        landingPageUrl: r['LandingpageUrl'] || '',
+        frameIoUrl: r['frame.ioLink'] || '',
+        fileName: r['fileName'] || '',
+        videoTitle: r['videoTitle'] || '',
+      };
+    }
+
+    // Revenue sheets: read ONLY Date, AD ID, Payout. Every other field on `r` (name, email,
+    // phone, incident details, ...) is discarded here and never touched again.
+    for (const raw of [caRaw, nwRaw]) {
+      for (const r of raw) {
+        const adId = (r['AD ID'] || '').trim();
+        const date = toISODate(r['Date']);
+        const payout = num(r['Payout']);
+        if (!adId || !date || !payout) continue;
+        bump(date, adId, 'revenue', payout);
+      }
+    }
+
+    const rows = Object.values(daily).map((d) => {
+      const meta = adMeta[d.adId] || { adName: 'Ad ' + d.adId, campaignName: '', platform: 'UNKNOWN' };
+      const asset = assets[d.adId] || {};
+      return {
+        date: d.date,
+        adId: d.adId,
+        adName: meta.adName,
+        campaignName: meta.campaignName,
+        platform: meta.platform,
+        spend: Math.round(d.spend * 100) / 100,
+        revenue: Math.round(d.revenue * 100) / 100,
+        youtubeUrl: asset.youtubeUrl || '',
+        landingPageUrl: asset.landingPageUrl || '',
+        frameIoUrl: asset.frameIoUrl || '',
+        fileName: asset.fileName || '',
+      };
+    });
+
+    const hash = rows.length + ':' + rows.reduce((a, r) => a + r.spend + r.revenue, 0).toFixed(2);
+    if (cache.rows.length > 20 && rows.length < cache.rows.length * 0.5) {
       console.warn(`[${new Date().toISOString()}] ignoring suspiciously short fetch (${rows.length} rows vs cached ${cache.rows.length})`);
       return;
     }
     if (cache.hash !== hash) {
       cache = { rows, hash, updatedAt: Date.now() };
       broadcast();
-      console.log(`[${new Date().toISOString()}] updated: ${rows.length} rows`);
+      console.log(`[${new Date().toISOString()}] updated: ${rows.length} day/ad rows`);
     }
   } catch (err) {
     console.error('poll error:', err.message);
@@ -161,8 +237,8 @@ const server = http.createServer((req, res) => {
   });
 });
 
-poll();
-setInterval(poll, POLL_MS);
+pollAll();
+setInterval(pollAll, POLL_MS);
 
 server.listen(PORT, () => {
   console.log(`Creative Dashboard running at http://localhost:${PORT}`);

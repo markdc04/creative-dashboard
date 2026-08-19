@@ -23,8 +23,35 @@
     <div>
       <p class="brand-eyebrow">Ad Creative Tracker</p>
       <h1>Creative Performance</h1>
-      <p class="topbar-sub">Google &amp; Meta &middot; <span id="creative-count">&mdash;</span> active creatives &middot; live from Google Sheets</p>
+      <p class="topbar-sub"><span id="creative-count">&mdash;</span> creatives <span id="range-label"></span> &middot; live from Google Sheets</p>
     </div>
+  </div>
+
+  <div class="date-bar">
+    <div class="select-wrap">
+      <select id="quick-range">
+        <option value="all">All time</option>
+        <option value="today">Today</option>
+        <option value="yesterday">Yesterday</option>
+        <option value="wtd">Week to date</option>
+        <option value="lastweek">Last week</option>
+        <option value="2026-08">August 2026</option>
+        <option value="2026-07">July 2026</option>
+        <option value="2026-06">June 2026</option>
+        <option value="2026-05">May 2026</option>
+        <option value="2026-04">April 2026</option>
+        <option value="2026-03">March 2026</option>
+        <option value="2026-02">February 2026</option>
+        <option value="custom">Custom range&hellip;</option>
+      </select>
+      <svg class="select-caret" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg>
+    </div>
+    <div class="date-inputs" id="custom-dates" hidden>
+      <input type="date" id="date-start">
+      <span class="date-arrow">&rarr;</span>
+      <input type="date" id="date-end">
+    </div>
+    <button class="clear-btn" id="clear-range">Clear</button>
   </div>
 
   <div class="kpi-row" id="kpi-row">
@@ -47,34 +74,6 @@
     <div class="kpi">
       <span class="kpi-label">Win Rate</span>
       <span class="kpi-value num" id="kpi-winrate">&mdash;</span>
-    </div>
-  </div>
-
-  <p class="section-title">Platform Split</p>
-  <div class="platform-row" id="platform-row">
-    <div class="platform-card google">
-      <div class="platform-head">
-        <span class="platform-name"><span class="platform-swatch google"></span>Google</span>
-        <span class="platform-count" id="google-count">&mdash;</span>
-      </div>
-      <div class="platform-grid">
-        <div><div class="pg-label">Spend</div><div class="pg-value num" id="google-spend">&mdash;</div></div>
-        <div><div class="pg-label">Revenue</div><div class="pg-value num" id="google-revenue">&mdash;</div></div>
-        <div><div class="pg-label">Profit</div><div class="pg-value num" id="google-profit">&mdash;</div></div>
-      </div>
-      <span class="status-chip" id="google-chip">&nbsp;</span>
-    </div>
-    <div class="platform-card meta">
-      <div class="platform-head">
-        <span class="platform-name"><span class="platform-swatch meta"></span>Meta</span>
-        <span class="platform-count" id="meta-count">&mdash;</span>
-      </div>
-      <div class="platform-grid">
-        <div><div class="pg-label">Spend</div><div class="pg-value num" id="meta-spend">&mdash;</div></div>
-        <div><div class="pg-label">Revenue</div><div class="pg-value num" id="meta-revenue">&mdash;</div></div>
-        <div><div class="pg-label">Profit</div><div class="pg-value num" id="meta-profit">&mdash;</div></div>
-      </div>
-      <span class="status-chip" id="meta-chip">&nbsp;</span>
     </div>
   </div>
 
@@ -103,11 +102,6 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input id="search" type="text" placeholder="Search ad or campaign name&hellip;" autocomplete="off">
       </div>
-      <div class="chip-group" id="platform-filter">
-        <button class="chip is-active" data-platform="all">All</button>
-        <button class="chip" data-platform="google">Google</button>
-        <button class="chip" data-platform="meta">Meta</button>
-      </div>
       <span class="row-count" id="row-count"></span>
     </div>
 
@@ -116,11 +110,11 @@
         <thead>
           <tr>
             <th data-key="adName" class="sortable is-sorted" data-dir="desc">Ad Name</th>
-            <th data-key="platform" class="sortable">Platform</th>
             <th data-key="spend" class="sortable num-col">Spend</th>
             <th data-key="revenue" class="sortable num-col">Revenue</th>
             <th data-key="profit" class="sortable num-col is-sorted" data-dir="desc">Profit</th>
             <th data-key="roas" class="sortable num-col">ROAS</th>
+            <th>Assets</th>
           </tr>
         </thead>
         <tbody id="table-body"></tbody>
@@ -129,7 +123,7 @@
   </div>
 
   <div class="footer">
-    <span>Source: Ad_Creative_Tracker &middot; Creative Tracker 1 tab &middot; re-polled every 15s, pushed instantly on change</span>
+    <span>Source: Ad_Creative_Tracker &middot; daily spend + revenue joined by Ad ID &middot; re-polled every 30s, pushed instantly on change</span>
     <span id="updated-footer">&mdash;</span>
   </div>
 

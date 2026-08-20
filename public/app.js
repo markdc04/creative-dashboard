@@ -17,16 +17,24 @@
   const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
   const moneySigned = (n) => (n < 0 ? '-$' : '+$') + Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
 
-  // ---------------- date helpers (all in local time, ISO YYYY-MM-DD strings) ----------------
+  // ---------------- date helpers (ISO YYYY-MM-DD strings; "today" is always Pacific time,
+  // regardless of the viewer's own timezone, since the underlying campaign data is PT-based) ----
   function pad(n) { return String(n).padStart(2, '0'); }
   function toISO(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
   function addDays(d, n) { const nd = new Date(d); nd.setDate(nd.getDate() + n); return nd; }
   function startOfMonth(y, m) { return new Date(y, m - 1, 1); }
   function endOfMonth(y, m) { return new Date(y, m, 0); }
   function mondayOf(d) { const day = d.getDay(); const diff = day === 0 ? -6 : 1 - day; return addDays(d, diff); }
+  function pacificToday() {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(new Date());
+    const get = (t) => Number(parts.find((p) => p.type === t).value);
+    return new Date(get('year'), get('month') - 1, get('day'));
+  }
 
   function computeRange(key) {
-    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const today = pacificToday();
     switch (key) {
       case 'today': return { start: toISO(today), end: toISO(today) };
       case 'yesterday': { const y = addDays(today, -1); return { start: toISO(y), end: toISO(y) }; }

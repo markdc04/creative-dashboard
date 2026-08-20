@@ -267,3 +267,54 @@ td.profit-neg{color:var(--loss);}
   .table-controls{flex-direction:column;align-items:stretch;}
   .row-count{margin-left:0;}
 }
+
+@media (max-width:640px){
+  .wrap{padding:14px 14px 84px;}
+
+  .brandbar{margin-bottom:14px;}
+  .brandlogo{height:26px;}
+  .live-pill{padding:5px 9px;font-size:10.5px;}
+  .live-pill .live-dot{width:6px;height:6px;}
+
+  h1{font-size:21px;}
+  .brand-eyebrow{font-size:10px;}
+  .topbar-sub{font-size:12px;}
+
+  .date-bar{flex-direction:column;align-items:stretch;gap:8px;margin-bottom:18px;}
+  .select-wrap,.select-wrap select{width:100%;}
+  .date-inputs{width:100%;}
+  .date-inputs input[type="date"]{flex:1;min-width:0;}
+  .clear-btn{width:100%;}
+
+  .leaderboard-tabs{display:flex;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin-left:-14px;margin-right:-14px;padding-left:14px;padding-right:14px;}
+  .leaderboard-tabs::-webkit-scrollbar{display:none;}
+  .leaderboard-tabs .chip{flex:none;margin-right:16px;padding:8px 2px;font-size:12.5px;white-space:nowrap;}
+
+  .board-controls{flex-direction:column;align-items:stretch;gap:10px;}
+  .board-controls .search-box{max-width:none;}
+  .sort-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;padding-bottom:2px;}
+  .sort-tabs::-webkit-scrollbar{display:none;}
+  .sort-label{white-space:nowrap;}
+
+  .panel{border-radius:14px;padding:14px 14px 4px;}
+  .panel-head{flex-wrap:wrap;gap:4px;}
+
+  .dimension-row{
+    grid-template-columns:18px 1fr;grid-template-areas:"rank name" "rank figs" "rank bar";
+    gap:2px 10px;padding:12px 4px;
+  }
+  .dimension-row .rank{grid-area:rank;align-self:start;}
+  .dimension-row>div:nth-child(2){grid-area:name;}
+  .dimension-figs{grid-area:figs;text-align:left;min-width:0;margin-top:8px;}
+  .dimension-bar-track{grid-area:bar;margin-left:0;margin-top:6px;width:100%;max-width:none;}
+  .dimension-name{font-size:13.5px;}
+  .dimension-meta{gap:5px;}
+  .dim-tag,.tag{font-size:9px;}
+
+  .table-scroll{margin:0 -14px;padding:0 14px;}
+  table{min-width:560px;}
+
+  .footer{flex-direction:column;gap:6px;font-size:10.5px;}
+
+  .back-to-top{right:14px;bottom:14px;width:40px;height:40px;}
+}

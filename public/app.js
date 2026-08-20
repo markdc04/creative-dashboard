@@ -10,6 +10,8 @@
   };
 
   const BOARD_LABELS = { fileName: 'Videos', hookType: 'Hook Type', actor: 'Actor', writer: 'Writer', editor: 'Editor', team: 'Collaborators', new: 'New Creatives' };
+  const TAG_LABELS = { hookType: 'Hook', actor: 'Actor', writer: 'Writer', editor: 'Editor' };
+  const ALL_TAG_FIELDS = ['hookType', 'actor', 'writer', 'editor'];
 
   const $ = (sel) => document.querySelector(sel);
   const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -163,7 +165,17 @@
       g.count += 1;
       g.ads.push(r);
     }
-    return [...byValue.values()].map((g) => ({ ...g, profit: g.revenue - g.spend, ads: [...g.ads].sort((a, b) => b.profit - a.profit) }));
+    return [...byValue.values()].map((g) => {
+      const pick = (f) => g.ads.map((ad) => (ad[f] || '').trim()).find(Boolean) || '';
+      const dated = g.ads.map((ad) => parseSheetDate(ad.dateUploaded)).filter(Boolean);
+      return {
+        ...g,
+        profit: g.revenue - g.spend,
+        ads: [...g.ads].sort((a, b) => b.profit - a.profit),
+        hookType: pick('hookType'), actor: pick('actor'), writer: pick('writer'), editor: pick('editor'),
+        uploadedAt: dated.length ? new Date(Math.max(...dated)) : null,
+      };
+    });
   }
 
   function sortGroups(groups) {
@@ -171,7 +183,22 @@
     return [...groups].sort((a, b) => b[key] - a[key]);
   }
 
-function dimensionRowHtml(field, g, idx, maxAbs) {
+  // Actor/Writer/Editor/Hook Type + upload date, shown under every leaderboard entry —
+  // skips whichever field the board is already grouped by (no "Actor: Ron" under Actor itself).
+  function metaTags(field, g) {
+    let tags = '';
+    for (const tf of ALL_TAG_FIELDS) {
+      if (tf === field) continue;
+      const v = g[tf];
+      if (v) tags += '<span class="tag dim-tag">' + TAG_LABELS[tf] + ': ' + escapeHtml(v) + '</span>';
+    }
+    tags += g.uploadedAt
+      ? '<span class="tag dim-tag date-tag">Uploaded ' + formatDate(g.uploadedAt) + '</span>'
+      : '<span class="tag dim-tag date-tag date-tag--unknown">No upload date</span>';
+    return tags;
+  }
+
+  function dimensionRowHtml(field, g, idx, maxAbs) {
     const val = g[state.sortBy];
     const isPos = val >= 0;
     const pct = maxAbs > 0 ? Math.max(4, Math.round((Math.abs(val) / maxAbs) * 100)) : 4;
@@ -182,6 +209,7 @@ function dimensionRowHtml(field, g, idx, maxAbs) {
         '<div>' +
           '<div class="dimension-name dimension-name-clickable" data-idx="' + idx + '">' + escapeHtml(g.name) + '</div>' +
           '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
+          '<div class="dimension-meta">' + metaTags(field, g) + '</div>' +
         '</div>' +
         '<div class="dimension-figs">' +
           '<div class="row-profit ' + (isPos ? 'profit' : 'loss') + ' num">' + valLabel + '</div>' +
@@ -198,8 +226,9 @@ function dimensionRowHtml(field, g, idx, maxAbs) {
         '<div>' +
           '<div class="dimension-name dimension-name-clickable" data-idx="' + idx + '">' + escapeHtml(g.name) + '</div>' +
           '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
+          '<div class="dimension-meta">' + metaTags('fileName', g) + '</div>' +
         '</div>' +
-        '<div class="dimension-figs"><span class="tag dim-tag new-date-tag">Uploaded ' + formatDate(g.uploadedAt) + '</span></div>' +
+        '<div class="dimension-figs"><span class="tag dim-tag date-tag">Uploaded ' + formatDate(g.uploadedAt) + '</span></div>' +
       '</div>'
     );
   }
@@ -218,12 +247,7 @@ function dimensionRowHtml(field, g, idx, maxAbs) {
 
     if (state.board === 'new') {
       const groups = aggregateByDimension(rows, 'fileName')
-        .filter((g) => matchesSearch(g.name))
-        .map((g) => {
-          const dated = g.ads.map((ad) => parseSheetDate(ad.dateUploaded)).filter(Boolean);
-          return dated.length ? { ...g, uploadedAt: new Date(Math.max(...dated)) } : null;
-        })
-        .filter(Boolean)
+        .filter((g) => matchesSearch(g.name) && g.uploadedAt)
         .sort((a, b) => b.uploadedAt - a.uploadedAt);
       state.lastGroups = groups;
       $('#board-count').innerHTML = groups.length + ' ' + (groups.length === 1 ? 'file' : 'files') + ' &middot; newest first';
@@ -354,6 +378,15 @@ function dimensionRowHtml(field, g, idx, maxAbs) {
   });
   $('#detail-close').addEventListener('click', () => {
     $('#detail-panel').hidden = true;
+  });
+
+  // ---- back to top ----
+  const backToTop = $('#back-to-top');
+  window.addEventListener('scroll', () => {
+    backToTop.hidden = window.scrollY < 400;
+  });
+  backToTop.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   });
 
   // ---- live updates ----

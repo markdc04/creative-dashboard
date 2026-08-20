@@ -6,6 +6,7 @@
     search: '',
     board: 'fileName', // 'fileName' | 'hookType' | 'actor' | 'writer' | 'editor' | 'team' | 'new'
     sortBy: 'profit', // 'profit' | 'revenue' | 'spend' — ignored by the 'new' board (always by date)
+    lastGroups: [], // the groups currently rendered in #board-list, indexed for click-to-detail
   };
 
   const BOARD_LABELS = { fileName: 'Videos', hookType: 'Hook Type', actor: 'Actor', writer: 'Writer', editor: 'Editor', team: 'Collaborators', new: 'New Creatives' };
@@ -201,7 +202,7 @@
       '<div class="dimension-row">' +
         '<span class="rank">' + String(idx + 1).padStart(2, '0') + '</span>' +
         '<div>' +
-          '<div class="dimension-name">' + escapeHtml(g.name) + '</div>' +
+          '<div class="dimension-name dimension-name-clickable" data-idx="' + idx + '">' + escapeHtml(g.name) + '</div>' +
           '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
         '</div>' +
         '<div class="dimension-figs">' +
@@ -218,7 +219,7 @@
       '<div class="dimension-row">' +
         '<span class="rank">' + String(idx + 1).padStart(2, '0') + '</span>' +
         '<div>' +
-          '<div class="dimension-name">' + escapeHtml(g.name) + '</div>' +
+          '<div class="dimension-name dimension-name-clickable" data-idx="' + idx + '">' + escapeHtml(g.name) + '</div>' +
           '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
         '</div>' +
         '<div class="dimension-figs"><span class="tag dim-tag new-date-tag">Uploaded ' + formatDate(g.uploadedAt) + '</span></div>' +
@@ -248,6 +249,7 @@
         })
         .filter(Boolean)
         .sort((a, b) => b.uploadedAt - a.uploadedAt);
+      state.lastGroups = groups;
       $('#board-count').innerHTML = groups.length + ' ' + (groups.length === 1 ? 'file' : 'files') + ' &middot; newest first';
       $('#board-list').innerHTML = groups.length ? groups.map((g, i) => newRowHtml(g, i)).join('') : emptyMsg('No upload dates tagged yet for this range.');
       return;
@@ -255,11 +257,36 @@
 
     const field = state.board;
     const groups = sortGroups(aggregateByDimension(rows, field).filter((g) => matchesSearch(g.name)));
+    state.lastGroups = groups;
     const maxAbs = Math.max(1, ...groups.map((g) => Math.abs(g[state.sortBy])));
     $('#board-count').innerHTML = groups.length + ' ' + (groups.length === 1 ? 'entry' : 'entries') + ' &middot; sorted by ' + state.sortBy;
     $('#board-list').innerHTML = groups.length
       ? groups.map((g, i) => dimensionRowHtml(field, g, i, maxAbs)).join('')
       : emptyMsg('No ' + BOARD_LABELS[field].toLowerCase() + ' data tagged yet for this range.');
+  }
+
+  function detailRowHtml(ad) {
+    const roas = ad.spend > 0 ? ad.revenue / ad.spend : 0;
+    return (
+      '<tr>' +
+        '<td class="name-cell" title="' + escapeHtml(ad.adName) + '">' + escapeHtml(ad.adName || '(untitled)') + '</td>' +
+        '<td class="num-col">' + money(ad.spend) + '</td>' +
+        '<td class="num-col">' + money(ad.revenue) + '</td>' +
+        '<td class="num-col ' + (ad.profit >= 0 ? 'profit-pos' : 'profit-neg') + '">' + moneySigned(ad.profit) + '</td>' +
+        '<td class="num-col">' + roas.toFixed(2) + '&times;</td>' +
+        '<td class="assets-cell">' + (assetIcons(ad) || '<span class="no-assets">&mdash;</span>') + '</td>' +
+      '</tr>'
+    );
+  }
+
+  function showDetailFor(idx) {
+    const g = state.lastGroups && state.lastGroups[idx];
+    if (!g) return;
+    $('#detail-title').textContent = g.name;
+    $('#detail-table-body').innerHTML = g.ads.map(detailRowHtml).join('');
+    const panel = $('#detail-panel');
+    panel.hidden = false;
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function render() {
@@ -323,6 +350,7 @@
     btn.classList.add('is-active');
     state.board = btn.dataset.board;
     $('#sort-tabs').hidden = state.board === 'new';
+    $('#detail-panel').hidden = true;
     render();
   });
 
@@ -340,6 +368,16 @@
   $('#search').addEventListener('input', (e) => {
     state.search = e.target.value;
     render();
+  });
+
+  // ---- click a leaderboard name to scroll down and see every ad for it ----
+  $('#board-list').addEventListener('click', (e) => {
+    const nameEl = e.target.closest('.dimension-name-clickable');
+    if (!nameEl) return;
+    showDetailFor(Number(nameEl.dataset.idx));
+  });
+  $('#detail-close').addEventListener('click', () => {
+    $('#detail-panel').hidden = true;
   });
 
   // ---- live updates ----

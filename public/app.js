@@ -219,7 +219,12 @@
     );
   }
 
-  function newRowHtml(g, idx) {
+  function newRowHtml(g, idx, maxAbs) {
+    const showMetric = state.sortBy !== 'date';
+    const val = showMetric ? g[state.sortBy] : 0;
+    const isPos = val >= 0;
+    const pct = showMetric && maxAbs > 0 ? Math.max(4, Math.round((Math.abs(val) / maxAbs) * 100)) : 0;
+    const valLabel = state.sortBy === 'profit' ? moneySigned(val) : money(val);
     return (
       '<div class="dimension-row">' +
         '<span class="rank">' + String(idx + 1).padStart(2, '0') + '</span>' +
@@ -228,7 +233,12 @@
           '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
           '<div class="dimension-meta">' + metaTags('fileName', g) + '</div>' +
         '</div>' +
-        '<div class="dimension-figs"><span class="tag dim-tag date-tag">Uploaded ' + formatDate(g.uploadedAt) + '</span></div>' +
+        '<div class="dimension-figs">' +
+          (showMetric
+            ? '<div class="row-profit ' + (isPos ? 'profit' : 'loss') + ' num">' + valLabel + '</div>'
+            : '<span class="tag dim-tag date-tag">Uploaded ' + formatDate(g.uploadedAt) + '</span>') +
+        '</div>' +
+        (showMetric ? '<div class="dimension-bar-track"><div class="bar-fill ' + (isPos ? 'profit' : 'loss') + '" style="width:' + pct + '%"></div></div>' : '') +
       '</div>'
     );
   }
@@ -248,10 +258,12 @@
     if (state.board === 'new') {
       const groups = aggregateByDimension(rows, 'fileName')
         .filter((g) => matchesSearch(g.name) && g.uploadedAt)
-        .sort((a, b) => b.uploadedAt - a.uploadedAt);
+        .sort((a, b) => (state.sortBy === 'date' ? b.uploadedAt - a.uploadedAt : b[state.sortBy] - a[state.sortBy]));
       state.lastGroups = groups;
-      $('#board-count').innerHTML = groups.length + ' ' + (groups.length === 1 ? 'file' : 'files') + ' &middot; newest first';
-      $('#board-list').innerHTML = groups.length ? groups.map((g, i) => newRowHtml(g, i)).join('') : emptyMsg('No upload dates tagged yet for this range.');
+      const maxAbs = Math.max(1, ...groups.map((g) => Math.abs(g[state.sortBy] || 0)));
+      const sortLabel = state.sortBy === 'date' ? 'newest first' : 'sorted by ' + state.sortBy;
+      $('#board-count').innerHTML = groups.length + ' ' + (groups.length === 1 ? 'file' : 'files') + ' &middot; ' + sortLabel;
+      $('#board-list').innerHTML = groups.length ? groups.map((g, i) => newRowHtml(g, i, maxAbs)).join('') : emptyMsg('No upload dates tagged yet for this range.');
       return;
     }
 
@@ -349,7 +361,16 @@
     document.querySelectorAll('#leaderboard-tabs .chip').forEach((c) => c.classList.remove('is-active'));
     btn.classList.add('is-active');
     state.board = btn.dataset.board;
-    $('#sort-tabs').hidden = state.board === 'new';
+    $('#sort-newest').hidden = state.board !== 'new';
+    if (state.board === 'new' && state.sortBy !== 'date') {
+      state.sortBy = 'date';
+      document.querySelectorAll('#sort-tabs .chip').forEach((c) => c.classList.remove('is-active'));
+      $('#sort-newest').classList.add('is-active');
+    } else if (state.board !== 'new' && state.sortBy === 'date') {
+      state.sortBy = 'profit';
+      document.querySelectorAll('#sort-tabs .chip').forEach((c) => c.classList.remove('is-active'));
+      $('#sort-tabs [data-sort="profit"]').classList.add('is-active');
+    }
     $('#detail-panel').hidden = true;
     render();
   });

@@ -289,7 +289,10 @@
     const roas = ad.spend > 0 ? ad.revenue / ad.spend : 0;
     return (
       '<tr>' +
-        '<td class="name-cell" title="' + escapeHtml(ad.adName) + '">' + escapeHtml(ad.adName || '(untitled)') + '</td>' +
+        '<td class="name-cell" title="' + escapeHtml(ad.adName) + '">' +
+          escapeHtml(ad.adName || '(untitled)') +
+          (ad.campaignName ? '<div class="name-sub">' + escapeHtml(ad.campaignName) + '</div>' : '') +
+        '</td>' +
         '<td class="num-col">' + money(ad.spend) + '</td>' +
         '<td class="num-col">' + money(ad.revenue) + '</td>' +
         '<td class="num-col ' + (ad.profit >= 0 ? 'profit-pos' : 'profit-neg') + '">' + moneySigned(ad.profit) + '</td>' +

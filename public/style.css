@@ -260,7 +260,8 @@ thead th .sort-arrow{font-size:9px;margin-left:3px;opacity:.7;}
 tbody td{padding:10px;border-bottom:1px solid var(--border-soft);white-space:nowrap;}
 tbody td.num-col{text-align:right;font-family:ui-monospace,"SF Mono","Roboto Mono",monospace;font-variant-numeric:tabular-nums;}
 tbody tr:hover{background:var(--surface-raised);}
-tbody td.name-cell{max-width:340px;overflow:hidden;text-overflow:ellipsis;font-weight:600;}
+tbody td.name-cell{max-width:340px;overflow:hidden;text-overflow:ellipsis;font-weight:600;white-space:normal;}
+.name-sub{margin-top:2px;font-size:10.5px;font-weight:500;color:var(--text-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 td.profit-pos{color:var(--profit);}
 td.profit-neg{color:var(--loss);}
 .empty-row td{text-align:center;color:var(--text-faint);padding:32px 10px;}

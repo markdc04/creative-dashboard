@@ -409,6 +409,15 @@
     $('#detail-panel').hidden = true;
   });
 
+  // ---- manual refresh ----
+  $('#refresh-btn').addEventListener('click', async () => {
+    const btn = $('#refresh-btn');
+    if (btn.classList.contains('is-spinning')) return;
+    btn.classList.add('is-spinning');
+    await fetchData();
+    setTimeout(() => btn.classList.remove('is-spinning'), 400);
+  });
+
   // ---- back to top ----
   const backToTop = $('#back-to-top');
   window.addEventListener('scroll', () => {

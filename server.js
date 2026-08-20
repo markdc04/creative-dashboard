@@ -234,6 +234,14 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (url.pathname === '/api/refresh' && req.method === 'POST') {
+    pollAll().finally(() => {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ rows: cache.rows, updatedAt: cache.updatedAt }));
+    });
+    return;
+  }
+
   if (url.pathname === '/api/events') {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',

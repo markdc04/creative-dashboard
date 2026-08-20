@@ -2,6 +2,7 @@
   const state = {
     dailyRows: [],
     updatedAt: null,
+    lastChecked: null, // when we last actually talked to the server, regardless of whether the data changed
     range: { key: 'all', start: null, end: null }, // ISO date strings, inclusive
     search: '',
     board: 'fileName', // 'fileName' | 'hookType' | 'actor' | 'writer' | 'editor' | 'team' | 'new'
@@ -60,12 +61,13 @@
     return '';
   }
 
-  async function fetchData() {
+  async function fetchData(url) {
     try {
-      const res = await fetch('/api/data', { cache: 'no-store' });
+      const res = await fetch(url || '/api/data', { cache: 'no-store', method: url ? 'POST' : 'GET' });
       const json = await res.json();
       state.dailyRows = json.rows || [];
       state.updatedAt = json.updatedAt;
+      state.lastChecked = Date.now();
       render();
       setLive(true);
     } catch (err) {
@@ -79,8 +81,9 @@
     pill.classList.toggle('live-pill--live', ok);
     pill.classList.toggle('live-pill--stale', !ok);
     if (ok) {
-      const t = state.updatedAt ? new Date(state.updatedAt) : new Date();
-      text.textContent = 'Live – updated ' + timeAgo(t);
+      const checked = state.lastChecked ? new Date(state.lastChecked) : new Date();
+      text.textContent = 'Live – checked ' + timeAgo(checked);
+      const t = state.updatedAt ? new Date(state.updatedAt) : checked;
       $('#updated-footer').textContent = 'Last data change: ' + t.toLocaleString();
     } else {
       text.textContent = 'Reconnecting…';
@@ -417,7 +420,7 @@
     const btn = $('#refresh-btn');
     if (btn.classList.contains('is-spinning')) return;
     btn.classList.add('is-spinning');
-    await fetchData();
+    await fetchData('/api/refresh');
     setTimeout(() => btn.classList.remove('is-spinning'), 400);
   });
 
@@ -432,12 +435,12 @@
 
   // ---- live updates ----
   fetchData();
-  setInterval(fetchData, 30000);
-  setInterval(() => { if (state.updatedAt) setLive(true); }, 1000);
+  setInterval(() => fetchData(), 30000);
+  setInterval(() => { if (state.lastChecked) setLive(true); }, 1000);
 
   try {
     const es = new EventSource('/api/events');
-    es.addEventListener('update', fetchData);
+    es.addEventListener('update', () => fetchData());
     es.onerror = () => setLive(false);
   } catch (err) {
     // SSE unsupported — polling above still keeps data fresh.

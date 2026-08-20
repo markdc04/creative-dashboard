@@ -10,10 +10,6 @@
   };
 
   const BOARD_LABELS = { fileName: 'Videos', hookType: 'Hook Type', actor: 'Actor', writer: 'Writer', editor: 'Editor', team: 'Collaborators', new: 'New Creatives' };
-  const TAG_LABELS = { hookType: 'Hook', actor: 'Actor', writer: 'Writer', editor: 'Editor', team: 'Team' };
-  // The metadata tags shown as context chips on each ad sub-row, for every board except the one
-  // it's already grouped by (no point tagging "Writer: zeke" under the Writer board itself).
-  const ALL_TAG_FIELDS = ['hookType', 'actor', 'writer', 'editor'];
 
   const $ = (sel) => document.querySelector(sel);
   const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -175,25 +171,7 @@
     return [...groups].sort((a, b) => b[key] - a[key]);
   }
 
-  function adSubRowHtml(field, ad) {
-    let tags = '';
-    for (const tf of ALL_TAG_FIELDS) {
-      if (tf === field) continue;
-      const v = (ad[tf] || '').trim();
-      if (v) tags += '<span class="tag dim-tag">' + TAG_LABELS[tf] + ': ' + escapeHtml(v) + '</span>';
-    }
-    return (
-      '<div class="ad-subrow">' +
-        '<div class="ad-subrow-main">' +
-          '<div class="ad-subrow-name" title="' + escapeHtml(ad.adName) + '">' + escapeHtml(ad.adName || '(untitled)') + '</div>' +
-          '<div class="ad-subrow-meta">' + tags + assetIcons(ad) + '</div>' +
-        '</div>' +
-        '<div class="row-profit ' + (ad.profit >= 0 ? 'profit' : 'loss') + ' num ad-subrow-profit">' + moneySigned(ad.profit) + '</div>' +
-      '</div>'
-    );
-  }
-
-  function dimensionRowHtml(field, g, idx, maxAbs) {
+function dimensionRowHtml(field, g, idx, maxAbs) {
     const val = g[state.sortBy];
     const isPos = val >= 0;
     const pct = maxAbs > 0 ? Math.max(4, Math.round((Math.abs(val) / maxAbs) * 100)) : 4;
@@ -209,8 +187,7 @@
           '<div class="row-profit ' + (isPos ? 'profit' : 'loss') + ' num">' + valLabel + '</div>' +
         '</div>' +
         '<div class="dimension-bar-track"><div class="bar-fill ' + (isPos ? 'profit' : 'loss') + '" style="width:' + pct + '%"></div></div>' +
-      '</div>' +
-      '<div class="ad-subrows">' + g.ads.map((ad) => adSubRowHtml(field, ad)).join('') + '</div>'
+      '</div>'
     );
   }
 
@@ -223,8 +200,7 @@
           '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
         '</div>' +
         '<div class="dimension-figs"><span class="tag dim-tag new-date-tag">Uploaded ' + formatDate(g.uploadedAt) + '</span></div>' +
-      '</div>' +
-      '<div class="ad-subrows">' + g.ads.map((ad) => adSubRowHtml('fileName', ad)).join('') + '</div>'
+      '</div>'
     );
   }
 

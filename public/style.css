@@ -107,6 +107,24 @@ h1{font-size:28px;font-weight:800;letter-spacing:-.01em;margin:0;text-wrap:balan
 .dimension-figs{text-align:right;min-width:150px;}
 .dimension-bar-track{width:110px;height:5px;border-radius:3px;background:var(--border-soft);margin-top:6px;overflow:hidden;margin-left:auto;}
 
+.ad-subrows{padding:0 0 14px 36px;}
+.ad-subrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 10px;border-radius:8px;}
+.ad-subrow:hover{background:var(--surface-raised);}
+.ad-subrow-main{min-width:0;flex:1;}
+.ad-subrow-name{font-size:12.5px;font-weight:600;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ad-subrow:hover .ad-subrow-name{color:var(--accent);}
+.ad-subrow-meta{display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap;}
+.ad-subrow-profit{font-size:12.5px;flex:none;}
+.dim-tag{background:var(--surface-raised);color:var(--text-faint);border:1px solid var(--border);}
+.dimension-name-clickable{cursor:pointer;}
+.dimension-name-clickable:hover{color:var(--accent);text-decoration:underline;}
+.dimension-filter-pill{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--accent);border:1px solid var(--accent);color:var(--accent-ink);
+  font-size:12px;font-weight:700;padding:7px 12px;border-radius:8px;cursor:pointer;
+}
+.dimension-filter-pill:hover{opacity:.85;}
+
 /* ---------- platform cards ---------- */
 .platform-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:30px;}
 .platform-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px 22px;position:relative;overflow:hidden;}

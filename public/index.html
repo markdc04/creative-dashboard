@@ -54,54 +54,24 @@
     <button class="clear-btn" id="clear-range">Clear</button>
   </div>
 
-  <div class="kpi-row" id="kpi-row">
-    <div class="kpi">
-      <span class="kpi-label">Total Spend</span>
-      <span class="kpi-value num" id="kpi-spend">&mdash;</span>
-    </div>
-    <div class="kpi">
-      <span class="kpi-label">Total Revenue</span>
-      <span class="kpi-value num" id="kpi-revenue">&mdash;</span>
-    </div>
-    <div class="kpi">
-      <span class="kpi-label">Net Profit</span>
-      <span class="kpi-value num" id="kpi-profit">&mdash;</span>
-    </div>
-    <div class="kpi">
-      <span class="kpi-label">Blended ROAS</span>
-      <span class="kpi-value num" id="kpi-roas">&mdash;</span>
-    </div>
-    <div class="kpi">
-      <span class="kpi-label">Win Rate</span>
-      <span class="kpi-value num" id="kpi-winrate">&mdash;</span>
-    </div>
-  </div>
-
   <p class="section-title">Leaderboard</p>
   <div class="chip-group leaderboard-tabs" id="leaderboard-tabs">
     <button class="chip is-active" data-board="ads">Ads</button>
+    <button class="chip" data-board="fileName">File Name</button>
     <button class="chip" data-board="hookType">Hook Type</button>
     <button class="chip" data-board="actor">Actor</button>
     <button class="chip" data-board="writer">Writer</button>
     <button class="chip" data-board="editor">Editor</button>
+    <button class="chip" data-board="team">Collaborators</button>
+    <button class="chip" data-board="new">New Creatives</button>
   </div>
 
-  <div class="split" id="ads-board">
-    <div class="panel">
-      <div class="panel-head">
-        <span class="panel-title win">Top Performers</span>
-        <span class="panel-count">ranked by profit</span>
-      </div>
-      <div class="row-list" id="top-list"></div>
+  <div class="panel" id="ads-board">
+    <div class="panel-head">
+      <span class="panel-title win">Top Performers</span>
+      <span class="panel-count">ranked by profit</span>
     </div>
-
-    <div class="panel">
-      <div class="panel-head">
-        <span class="panel-title lose">Needs Attention</span>
-        <span class="panel-count">biggest losses</span>
-      </div>
-      <div class="row-list" id="bottom-list"></div>
-    </div>
+    <div class="row-list" id="top-list"></div>
   </div>
 
   <div class="panel" id="dimension-board" hidden>
@@ -112,6 +82,14 @@
     <div class="row-list" id="dimension-list"></div>
   </div>
 
+  <div class="panel" id="new-board" hidden>
+    <div class="panel-head">
+      <span class="panel-title">New Creatives</span>
+      <span class="panel-count" id="new-count"></span>
+    </div>
+    <div class="row-list" id="new-list"></div>
+  </div>
+
   <p class="section-title table-title">All Creatives</p>
   <div class="panel table-panel">
     <div class="table-controls">
@@ -119,6 +97,7 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input id="search" type="text" placeholder="Search ad or campaign name&hellip;" autocomplete="off">
       </div>
+      <button class="chip dimension-filter-pill" id="dimension-filter-pill" hidden></button>
       <span class="row-count" id="row-count"></span>
     </div>
 

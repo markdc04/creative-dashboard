@@ -149,7 +149,7 @@ async function pollAll() {
       if (!assets[adId]) {
         assets[adId] = {
           youtubeUrl: '', landingPageUrl: '', frameIoUrl: '', fileName: '', videoTitle: '',
-          hookType: '', actor: '', writer: '', editor: '',
+          hookType: '', actor: '', writer: '', editor: '', dateUploaded: '',
         };
       }
       const a = assets[adId];
@@ -162,6 +162,7 @@ async function pollAll() {
       if (!a.actor && r['Actor']) a.actor = r['Actor'];
       if (!a.writer && r['Writer']) a.writer = r['Writer'];
       if (!a.editor && r['Editor']) a.editor = r['Editor'];
+      if (!a.dateUploaded && r['Date Uploaded']) a.dateUploaded = r['Date Uploaded'];
     }
 
     // Revenue sheets: read ONLY Date, AD ID, Payout. Every other field on `r` (name, email,
@@ -195,6 +196,7 @@ async function pollAll() {
         actor: asset.actor || '',
         writer: asset.writer || '',
         editor: asset.editor || '',
+        dateUploaded: asset.dateUploaded || '',
       };
     });
 

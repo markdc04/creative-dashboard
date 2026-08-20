@@ -9,7 +9,7 @@
     lastGroups: [], // the groups currently rendered in #board-list, indexed for click-to-detail
   };
 
-  const BOARD_LABELS = { fileName: 'Videos', hookType: 'Hook Type', actor: 'Actor', writer: 'Writer', editor: 'Editor', team: 'Collaborators', new: 'New Creatives' };
+  const BOARD_LABELS = { fileName: 'All Creatives', hookType: 'Hook Type', actor: 'Actor', writer: 'Writer', editor: 'Editor', team: 'Collaborators', new: 'New Creatives' };
   const TAG_LABELS = { hookType: 'Hook', actor: 'Actor', writer: 'Writer', editor: 'Editor' };
   const ALL_TAG_FIELDS = ['hookType', 'actor', 'writer', 'editor'];
 

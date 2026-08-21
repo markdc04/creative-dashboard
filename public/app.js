@@ -7,7 +7,7 @@
     search: '',
     board: 'fileName', // 'fileName' | 'hookType' | 'actor' | 'writer' | 'editor' | 'team' | 'new'
     sortBy: 'profit', // 'profit' | 'revenue' | 'spend' — ignored by the 'new' board (always by date)
-    lastGroups: [], // the groups currently rendered in #board-list, indexed for click-to-detail
+    expanded: new Set(), // keys ("board::name") of entries with their ad-list dropdown open
   };
 
   const BOARD_LABELS = { fileName: 'All Creatives', hookType: 'Hook Type', actor: 'Actor', writer: 'Writer', editor: 'Editor', team: 'Collaborators', new: 'New Creatives' };
@@ -219,26 +219,49 @@
     return '<span class="rank">' + String(idx + 1).padStart(2, '0') + '</span>';
   }
 
+  function chevronMarkup(isOpen) {
+    return '<svg class="dimension-chevron' + (isOpen ? ' is-open' : '') + '" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+  }
+
+  function expandHtml(g) {
+    return (
+      '<div class="dimension-expand">' +
+        '<div class="table-scroll">' +
+          '<table>' +
+            '<thead><tr><th>Ad Name</th><th class="num-col">Spend</th><th class="num-col">Revenue</th><th class="num-col">Profit</th><th class="num-col">ROAS</th><th>Assets</th></tr></thead>' +
+            '<tbody>' + g.ads.map(detailRowHtml).join('') + '</tbody>' +
+          '</table>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
   function dimensionRowHtml(field, g, idx, maxAbs) {
     const val = g[state.sortBy];
     const isPos = val >= 0;
     const isTop = idx === 0 && isPos;
     const pct = maxAbs > 0 ? Math.max(4, Math.round((Math.abs(val) / maxAbs) * 100)) : 4;
     const valLabel = state.sortBy === 'profit' ? moneySigned(val) : money(val);
+    const key = state.board + '::' + g.name;
+    const isOpen = state.expanded.has(key);
     return (
-      '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + '">' +
-        rankMarkup(idx, isTop) +
-        '<div>' +
-          '<div class="dimension-name dimension-name-clickable" data-idx="' + idx + '">' + escapeHtml(g.name) +
-            (isTop ? '<span class="top-badge">' + TOP_LABELS[state.board] + '</span>' : '') +
+      '<div class="dimension-entry">' +
+        '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + '" data-key="' + escapeHtml(key) + '">' +
+          rankMarkup(idx, isTop) +
+          '<div>' +
+            '<div class="dimension-name dimension-name-clickable">' + escapeHtml(g.name) +
+              (isTop ? '<span class="top-badge">' + TOP_LABELS[state.board] + '</span>' : '') +
+              chevronMarkup(isOpen) +
+            '</div>' +
+            '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
+            '<div class="dimension-meta">' + metaTags(field, g) + '</div>' +
           '</div>' +
-          '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
-          '<div class="dimension-meta">' + metaTags(field, g) + '</div>' +
+          '<div class="dimension-figs">' +
+            '<div class="row-profit ' + (isPos ? 'profit' : 'loss') + ' num">' + valLabel + '</div>' +
+          '</div>' +
+          '<div class="dimension-bar-track"><div class="bar-fill ' + (isPos ? 'profit' : 'loss') + '" style="width:' + pct + '%"></div></div>' +
         '</div>' +
-        '<div class="dimension-figs">' +
-          '<div class="row-profit ' + (isPos ? 'profit' : 'loss') + ' num">' + valLabel + '</div>' +
-        '</div>' +
-        '<div class="dimension-bar-track"><div class="bar-fill ' + (isPos ? 'profit' : 'loss') + '" style="width:' + pct + '%"></div></div>' +
+        (isOpen ? expandHtml(g) : '') +
       '</div>'
     );
   }
@@ -250,22 +273,28 @@
     const isTop = idx === 0 && showMetric && isPos;
     const pct = showMetric && maxAbs > 0 ? Math.max(4, Math.round((Math.abs(val) / maxAbs) * 100)) : 0;
     const valLabel = state.sortBy === 'profit' ? moneySigned(val) : money(val);
+    const key = state.board + '::' + g.name;
+    const isOpen = state.expanded.has(key);
     return (
-      '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + '">' +
-        rankMarkup(idx, isTop) +
-        '<div>' +
-          '<div class="dimension-name dimension-name-clickable" data-idx="' + idx + '">' + escapeHtml(g.name) +
-            (isTop ? '<span class="top-badge">' + TOP_LABELS[state.board] + '</span>' : '') +
+      '<div class="dimension-entry">' +
+        '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + '" data-key="' + escapeHtml(key) + '">' +
+          rankMarkup(idx, isTop) +
+          '<div>' +
+            '<div class="dimension-name dimension-name-clickable">' + escapeHtml(g.name) +
+              (isTop ? '<span class="top-badge">' + TOP_LABELS[state.board] + '</span>' : '') +
+              chevronMarkup(isOpen) +
+            '</div>' +
+            '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
+            '<div class="dimension-meta">' + metaTags('fileName', g) + '</div>' +
           '</div>' +
-          '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
-          '<div class="dimension-meta">' + metaTags('fileName', g) + '</div>' +
+          '<div class="dimension-figs">' +
+            (showMetric
+              ? '<div class="row-profit ' + (isPos ? 'profit' : 'loss') + ' num">' + valLabel + '</div>'
+              : '<span class="tag dim-tag date-tag">Uploaded ' + formatDate(g.uploadedAt) + '</span>') +
+          '</div>' +
+          (showMetric ? '<div class="dimension-bar-track"><div class="bar-fill ' + (isPos ? 'profit' : 'loss') + '" style="width:' + pct + '%"></div></div>' : '') +
         '</div>' +
-        '<div class="dimension-figs">' +
-          (showMetric
-            ? '<div class="row-profit ' + (isPos ? 'profit' : 'loss') + ' num">' + valLabel + '</div>'
-            : '<span class="tag dim-tag date-tag">Uploaded ' + formatDate(g.uploadedAt) + '</span>') +
-        '</div>' +
-        (showMetric ? '<div class="dimension-bar-track"><div class="bar-fill ' + (isPos ? 'profit' : 'loss') + '" style="width:' + pct + '%"></div></div>' : '') +
+        (isOpen ? expandHtml(g) : '') +
       '</div>'
     );
   }
@@ -286,7 +315,6 @@
       const groups = aggregateByDimension(rows, 'fileName')
         .filter((g) => matchesSearch(g.name) && g.uploadedAt)
         .sort((a, b) => (state.sortBy === 'date' ? b.uploadedAt - a.uploadedAt : b[state.sortBy] - a[state.sortBy]));
-      state.lastGroups = groups;
       const maxAbs = Math.max(1, ...groups.map((g) => Math.abs(g[state.sortBy] || 0)));
       const sortLabel = state.sortBy === 'date' ? 'newest first' : 'sorted by ' + state.sortBy;
       $('#board-count').innerHTML = groups.length + ' ' + (groups.length === 1 ? 'file' : 'files') + ' &middot; ' + sortLabel;
@@ -296,7 +324,6 @@
 
     const field = state.board;
     const groups = sortGroups(aggregateByDimension(rows, field).filter((g) => matchesSearch(g.name)));
-    state.lastGroups = groups;
     const maxAbs = Math.max(1, ...groups.map((g) => Math.abs(g[state.sortBy])));
     $('#board-count').innerHTML = groups.length + ' ' + (groups.length === 1 ? 'entry' : 'entries') + ' &middot; sorted by ' + state.sortBy;
     $('#board-list').innerHTML = groups.length
@@ -319,16 +346,6 @@
         '<td class="assets-cell">' + (assetIcons(ad) || '<span class="no-assets">&mdash;</span>') + '</td>' +
       '</tr>'
     );
-  }
-
-  function showDetailFor(idx) {
-    const g = state.lastGroups && state.lastGroups[idx];
-    if (!g) return;
-    $('#detail-title').textContent = g.name;
-    $('#detail-table-body').innerHTML = g.ads.map(detailRowHtml).join('');
-    const panel = $('#detail-panel');
-    panel.hidden = false;
-    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function render() {
@@ -401,7 +418,7 @@
       document.querySelectorAll('#sort-tabs .chip').forEach((c) => c.classList.remove('is-active'));
       $('#sort-tabs [data-sort="profit"]').classList.add('is-active');
     }
-    $('#detail-panel').hidden = true;
+    state.expanded.clear();
     render();
   });
 
@@ -421,14 +438,14 @@
     render();
   });
 
-  // ---- click a leaderboard name to scroll down and see every ad for it ----
+  // ---- click a leaderboard row to expand/collapse its ad list inline ----
   $('#board-list').addEventListener('click', (e) => {
-    const nameEl = e.target.closest('.dimension-name-clickable');
-    if (!nameEl) return;
-    showDetailFor(Number(nameEl.dataset.idx));
-  });
-  $('#detail-close').addEventListener('click', () => {
-    $('#detail-panel').hidden = true;
+    const row = e.target.closest('.dimension-row');
+    if (!row) return;
+    const key = row.dataset.key;
+    if (state.expanded.has(key)) state.expanded.delete(key);
+    else state.expanded.add(key);
+    render();
   });
 
   // ---- manual refresh ----

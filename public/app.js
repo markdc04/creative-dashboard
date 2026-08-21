@@ -263,11 +263,11 @@
   // The Spend/Revenue/Profit/ROAS mini-table shown beside the main sort value on every row.
   function figsTableHtml(g) {
     return (
-      '<div class="figs-table">' +
-        '<div class="figs-col"><div class="figs-label">Spend</div><div class="figs-value">' + money(g.spend) + '</div></div>' +
-        '<div class="figs-col"><div class="figs-label">Revenue</div><div class="figs-value">' + money(g.revenue) + '</div></div>' +
-        '<div class="figs-col"><div class="figs-label">Profit</div><div class="figs-value ' + (g.profit >= 0 ? 'profit-pos' : 'profit-neg') + '">' + moneySigned(g.profit) + '</div></div>' +
-        '<div class="figs-col"><div class="figs-label">ROAS</div><div class="figs-value">' + roasOf(g).toFixed(2) + '&times;</div></div>' +
+      '<div class="figs-inline">' +
+        'Spend ' + money(g.spend) +
+        ' &middot; Revenue ' + money(g.revenue) +
+        ' &middot; Profit <span class="' + (g.profit >= 0 ? 'profit-pos' : 'profit-neg') + '">' + moneySigned(g.profit) + '</span>' +
+        ' &middot; ROAS ' + roasOf(g).toFixed(2) + '&times;' +
       '</div>'
     );
   }

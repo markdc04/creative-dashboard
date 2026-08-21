@@ -132,12 +132,12 @@ async function pollAll() {
 
     const adMeta = {}; // adId -> { adName, campaignName, platform }
     const assets = {}; // adId -> { youtubeUrl, landingPageUrl, frameIoUrl, fileName, videoTitle }
-    const daily = {}; // `${date}|${adId}` -> { date, adId, spend, revenue }
+    const daily = {}; // `${date}|${adId}` -> { date, adId, spend, revenue, leads, qmva }
 
     const bump = (date, adId, field, amount) => {
       if (!date || !adId || !amount) return;
       const key = date + '|' + adId;
-      if (!daily[key]) daily[key] = { date, adId, spend: 0, revenue: 0 };
+      if (!daily[key]) daily[key] = { date, adId, spend: 0, revenue: 0, leads: 0, qmva: 0 };
       daily[key][field] += amount;
     };
 
@@ -197,14 +197,19 @@ async function pollAll() {
     }
 
     // Revenue sheets: read ONLY Date, AD ID, Payout. Every other field on `r` (name, email,
-    // phone, incident details, ...) is discarded here and never touched again.
+    // phone, incident details, ...) is discarded here and never touched again. Every row is a
+    // submitted lead; a row with a positive Payout is one that got accepted/paid out (a QMVA).
     for (const raw of [caRaw, nwRaw]) {
       for (const r of raw) {
         const adId = (r['AD ID'] || '').trim();
         const date = toISODate(r['Date']);
+        if (!adId || !date) continue;
         const payout = num(r['Payout']);
-        if (!adId || !date || !payout) continue;
-        bump(date, adId, 'revenue', payout);
+        bump(date, adId, 'leads', 1);
+        if (payout > 0) {
+          bump(date, adId, 'qmva', 1);
+          bump(date, adId, 'revenue', payout);
+        }
       }
     }
 
@@ -219,6 +224,8 @@ async function pollAll() {
         platform: meta.platform,
         spend: Math.round(d.spend * 100) / 100,
         revenue: Math.round(d.revenue * 100) / 100,
+        leads: d.leads,
+        qmva: d.qmva,
         youtubeUrl: asset.youtubeUrl || '',
         landingPageUrl: asset.landingPageUrl || '',
         frameIoUrl: asset.frameIoUrl || '',

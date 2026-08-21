@@ -124,7 +124,7 @@
       if (!c) {
         c = {
           adId: r.adId, adName: r.adName, campaignName: r.campaignName, platform: r.platform,
-          spend: 0, revenue: 0,
+          spend: 0, revenue: 0, leads: 0, qmva: 0,
           youtubeUrl: r.youtubeUrl, landingPageUrl: r.landingPageUrl, frameIoUrl: r.frameIoUrl, fileName: r.fileName,
           hookType: r.hookType, actor: r.actor, writer: r.writer, editor: r.editor, dateUploaded: r.dateUploaded,
         };
@@ -132,6 +132,8 @@
       }
       c.spend += r.spend;
       c.revenue += r.revenue;
+      c.leads += r.leads || 0;
+      c.qmva += r.qmva || 0;
     }
     return [...byAd.values()].map((c) => ({ ...c, profit: c.revenue - c.spend, team: teamKey(c) }));
   }
@@ -171,9 +173,11 @@
       const v = (r[field] || '').trim();
       if (!v) continue;
       let g = byValue.get(v);
-      if (!g) { g = { name: v, spend: 0, revenue: 0, count: 0, ads: [] }; byValue.set(v, g); }
+      if (!g) { g = { name: v, spend: 0, revenue: 0, leads: 0, qmva: 0, count: 0, ads: [] }; byValue.set(v, g); }
       g.spend += r.spend;
       g.revenue += r.revenue;
+      g.leads += r.leads;
+      g.qmva += r.qmva;
       g.count += 1;
       g.ads.push(r);
     }
@@ -183,6 +187,7 @@
       return {
         ...g,
         profit: g.revenue - g.spend,
+        conversionRate: g.leads > 0 ? (g.qmva / g.leads) * 100 : null,
         ads: [...g.ads].sort((a, b) => b.profit - a.profit),
         hookType: pick('hookType'), actor: pick('actor'), writer: pick('writer'), editor: pick('editor'),
         uploadedAt: dated.length ? new Date(Math.max(...dated)) : null,
@@ -208,6 +213,22 @@
       ? '<span class="tag dim-tag date-tag">Uploaded ' + formatDate(g.uploadedAt) + '</span>'
       : '<span class="tag dim-tag date-tag date-tag--unknown">No upload date</span>';
     return tags;
+  }
+
+  function pct(n) { return n.toLocaleString('en-US', { maximumFractionDigits: 1 }) + '%'; }
+
+  // Profit contribution = this entry's share of total profit across every currently-filtered
+  // creative; conversion rate = accepted leads (QMVA, positive payout) ÷ total submitted leads.
+  // Cost-per-lead is deliberately omitted: ~2/3 of ads have real spend but zero leads matched
+  // to that specific Ad ID (Google Ads IDs don't always line up 1:1 with the lead sheets'
+  // Ad ID due to multi-touch attribution), which makes a per-ad cost figure unreliable.
+  function statsHtml(g, totalProfit) {
+    const contribution = totalProfit > 0 ? (g.profit / totalProfit) * 100 : null;
+    let html = '';
+    html += '<span class="tag stat-tag">Profit contribution: ' + (contribution != null ? pct(contribution) : '&mdash;') + '</span>';
+    html += '<span class="tag stat-tag">Conversion rate: ' + (g.conversionRate != null ? pct(g.conversionRate) : '&mdash;') + '</span>';
+    html += '<span class="tag stat-tag stat-tag--cost">Leads: ' + g.leads.toLocaleString('en-US') + '</span>';
+    return html;
   }
 
   function rankMarkup(idx, isTop) {
@@ -239,7 +260,7 @@
   // it — rather than straight into a flat ad list; opening one of those creatives is what
   // reveals its actual running ads. "All Creatives" and "New Creatives" are already grouped
   // by video, so they skip straight to the ad list.
-  function subRowHtml(parentKey, cg) {
+  function subRowHtml(parentKey, cg, totalProfit) {
     const subKey = parentKey + '::fileName::' + cg.name;
     const isOpen = state.expanded.has(subKey);
     return (
@@ -249,6 +270,7 @@
             '<div class="dimension-name">' + escapeHtml(cg.name) + chevronMarkup(isOpen) + '</div>' +
             '<div class="dimension-count">' + cg.count + ' ' + (cg.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(cg.spend) + ' spend</div>' +
             '<div class="dimension-meta">' + metaTags(state.board, cg) + '</div>' +
+            '<div class="dimension-stats">' + statsHtml(cg, totalProfit) + '</div>' +
           '</div>' +
         '</div>' +
         (isOpen ? '<div class="dimension-expand">' + adsTableHtml(cg.ads) + '</div>' : '') +
@@ -256,15 +278,15 @@
     );
   }
 
-  function expandHtml(g, key) {
+  function expandHtml(g, key, totalProfit) {
     if (state.board === 'fileName' || state.board === 'new') {
       return '<div class="dimension-expand">' + adsTableHtml(g.ads) + '</div>';
     }
     const creatives = aggregateByDimension(g.ads, 'fileName');
-    return '<div class="dimension-expand dimension-expand--nested">' + creatives.map((cg) => subRowHtml(key, cg)).join('') + '</div>';
+    return '<div class="dimension-expand dimension-expand--nested">' + creatives.map((cg) => subRowHtml(key, cg, totalProfit)).join('') + '</div>';
   }
 
-  function dimensionRowHtml(field, g, idx, maxAbs) {
+  function dimensionRowHtml(field, g, idx, maxAbs, totalProfit) {
     const val = g[state.sortBy];
     const isPos = val >= 0;
     const isTop = idx === 0 && isPos;
@@ -283,18 +305,19 @@
             '</div>' +
             '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
             '<div class="dimension-meta">' + metaTags(field, g) + '</div>' +
+            '<div class="dimension-stats">' + statsHtml(g, totalProfit) + '</div>' +
           '</div>' +
           '<div class="dimension-figs">' +
             '<div class="row-profit ' + (isPos ? 'profit' : 'loss') + ' num">' + valLabel + '</div>' +
           '</div>' +
           '<div class="dimension-bar-track"><div class="bar-fill ' + (isPos ? 'profit' : 'loss') + '" style="width:' + pct + '%"></div></div>' +
         '</div>' +
-        (isOpen ? expandHtml(g, key) : '') +
+        (isOpen ? expandHtml(g, key, totalProfit) : '') +
       '</div>'
     );
   }
 
-  function newRowHtml(g, idx, maxAbs) {
+  function newRowHtml(g, idx, maxAbs, totalProfit) {
     const showMetric = state.sortBy !== 'date';
     const val = showMetric ? g[state.sortBy] : 0;
     const isPos = val >= 0;
@@ -314,6 +337,7 @@
             '</div>' +
             '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
             '<div class="dimension-meta">' + metaTags('fileName', g) + '</div>' +
+            '<div class="dimension-stats">' + statsHtml(g, totalProfit) + '</div>' +
           '</div>' +
           '<div class="dimension-figs">' +
             (showMetric
@@ -322,7 +346,7 @@
           '</div>' +
           (showMetric ? '<div class="dimension-bar-track"><div class="bar-fill ' + (isPos ? 'profit' : 'loss') + '" style="width:' + pct + '%"></div></div>' : '') +
         '</div>' +
-        (isOpen ? expandHtml(g, key) : '') +
+        (isOpen ? expandHtml(g, key, totalProfit) : '') +
       '</div>'
     );
   }
@@ -336,7 +360,7 @@
     return !q || name.toLowerCase().includes(q);
   }
 
-  function renderBoard(rows) {
+  function renderBoard(rows, totalProfit) {
     $('#board-title').textContent = BOARD_LABELS[state.board];
 
     if (state.board === 'new') {
@@ -346,7 +370,7 @@
       const maxAbs = Math.max(1, ...groups.map((g) => Math.abs(g[state.sortBy] || 0)));
       const sortLabel = state.sortBy === 'date' ? 'newest first' : 'sorted by ' + state.sortBy;
       $('#board-count').innerHTML = groups.length + ' ' + (groups.length === 1 ? 'file' : 'files') + ' &middot; ' + sortLabel;
-      $('#board-list').innerHTML = groups.length ? groups.map((g, i) => newRowHtml(g, i, maxAbs)).join('') : emptyMsg('No upload dates tagged yet for this range.');
+      $('#board-list').innerHTML = groups.length ? groups.map((g, i) => newRowHtml(g, i, maxAbs, totalProfit)).join('') : emptyMsg('No upload dates tagged yet for this range.');
       return;
     }
 
@@ -355,7 +379,7 @@
     const maxAbs = Math.max(1, ...groups.map((g) => Math.abs(g[state.sortBy])));
     $('#board-count').innerHTML = groups.length + ' ' + (groups.length === 1 ? 'entry' : 'entries') + ' &middot; sorted by ' + state.sortBy;
     $('#board-list').innerHTML = groups.length
-      ? groups.map((g, i) => dimensionRowHtml(field, g, i, maxAbs)).join('')
+      ? groups.map((g, i) => dimensionRowHtml(field, g, i, maxAbs, totalProfit)).join('')
       : emptyMsg('No ' + BOARD_LABELS[field].toLowerCase() + ' data tagged yet for this range.');
   }
 
@@ -380,7 +404,8 @@
     const rows = creativesForRange();
     $('#creative-count').textContent = rows.length.toLocaleString();
     $('#range-label').textContent = rangeLabel();
-    renderBoard(rows);
+    const totalProfit = rows.reduce((a, r) => a + r.profit, 0);
+    renderBoard(rows, totalProfit);
   }
 
   // ---- date range controls ----

@@ -26,6 +26,9 @@ const PORT = process.env.PORT || 4174;
 
 let cache = { rows: [], updatedAt: null, hash: null };
 let clients = []; // SSE response objects
+let lastGoodAssets = {}; // adId -> asset/metadata object, kept across polls where the metadata
+                          // sheet comes back broken (e.g. a formula error) so a temporary sheet
+                          // outage doesn't wipe out already-known Hook Type/Actor/Writer/Editor data
 
 function csvUrl(gid) {
   return `https://docs.google.com/spreadsheets/d/${DOC_ID}/export?format=csv&gid=${gid}`;
@@ -78,6 +81,15 @@ function parseCSV(text) {
       headers.forEach((h, idx) => { obj[h] = (r[idx] || '').trim(); });
       return obj;
     });
+}
+
+function fnv1a(str) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16);
 }
 
 function isDateLike(v) {
@@ -172,6 +184,18 @@ async function pollAll() {
       if (!a.dateUploaded && r['Date Uploaded']) a.dateUploaded = r['Date Uploaded'];
     }
 
+    // The metadata sheet occasionally comes back broken (e.g. a formula error like #VALUE!
+    // collapses its whole CSV export to a single line) — a suspiciously low row count means
+    // that happened, so fall back to the last known-good metadata instead of blanking
+    // everyone's Hook Type/Actor/Writer/Editor/fileName out.
+    let effectiveAssets = assets;
+    if (creativeMetaRaw.length < 100) {
+      console.warn(`[${new Date().toISOString()}] creative metadata sheet looks broken (${creativeMetaRaw.length} rows) — reusing last known-good metadata`);
+      effectiveAssets = lastGoodAssets;
+    } else {
+      lastGoodAssets = assets;
+    }
+
     // Revenue sheets: read ONLY Date, AD ID, Payout. Every other field on `r` (name, email,
     // phone, incident details, ...) is discarded here and never touched again.
     for (const raw of [caRaw, nwRaw]) {
@@ -186,7 +210,7 @@ async function pollAll() {
 
     const rows = Object.values(daily).map((d) => {
       const meta = adMeta[d.adId] || { adName: 'Ad ' + d.adId, campaignName: '', platform: 'UNKNOWN' };
-      const asset = assets[d.adId] || {};
+      const asset = effectiveAssets[d.adId] || {};
       return {
         date: d.date,
         adId: d.adId,
@@ -207,7 +231,11 @@ async function pollAll() {
       };
     });
 
-    const hash = rows.length + ':' + rows.reduce((a, r) => a + r.spend + r.revenue, 0).toFixed(2);
+    // Include a fingerprint of the metadata fields too — spend/revenue totals alone don't
+    // change when someone only fills in Hook Type/Actor/Writer/Editor/Date Uploaded, so a
+    // hash based on money alone would never notice a metadata-only edit and go stale forever.
+    const metaFingerprint = fnv1a(rows.map((r) => r.fileName + '|' + r.hookType + '|' + r.actor + '|' + r.writer + '|' + r.editor + '|' + r.dateUploaded).join('~'));
+    const hash = rows.length + ':' + rows.reduce((a, r) => a + r.spend + r.revenue, 0).toFixed(2) + ':' + metaFingerprint;
     if (cache.rows.length > 20 && rows.length < cache.rows.length * 0.5) {
       console.warn(`[${new Date().toISOString()}] ignoring suspiciously short fetch (${rows.length} rows vs cached ${cache.rows.length})`);
       return;

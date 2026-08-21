@@ -80,6 +80,11 @@ function parseCSV(text) {
     });
 }
 
+function isDateLike(v) {
+  const s = String(v).trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) || /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s);
+}
+
 function num(v) {
   if (v == null) return 0;
   const n = parseFloat(String(v).replace(/[$,%]/g, ''));
@@ -158,7 +163,9 @@ async function pollAll() {
       if (!a.frameIoUrl && r['frame.ioLink']) a.frameIoUrl = r['frame.ioLink'];
       if (!a.fileName && r['fileName']) a.fileName = r['fileName'];
       if (!a.videoTitle && r['videoTitle']) a.videoTitle = r['videoTitle'];
-      if (!a.hookType && r['Hook Type']) a.hookType = r['Hook Type'];
+      // Some rows have a date typed into "Hook Type" by mistake (belongs in Date Uploaded) —
+      // treat date-shaped values as blank so a stray date never shows as a hook type.
+      if (!a.hookType && r['Hook Type'] && !isDateLike(r['Hook Type'])) a.hookType = r['Hook Type'];
       if (!a.actor && r['Actor']) a.actor = r['Actor'];
       if (!a.writer && r['Writer']) a.writer = r['Writer'];
       if (!a.editor && r['Editor']) a.editor = r['Editor'];

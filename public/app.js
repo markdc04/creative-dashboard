@@ -8,6 +8,7 @@
     board: 'fileName', // 'fileName' | 'hookType' | 'actor' | 'writer' | 'editor' | 'team' | 'new'
     sortBy: 'profit', // 'profit' | 'revenue' | 'spend' — ignored by the 'new' board (always by date)
     expanded: new Set(), // keys ("board::name") of entries with their ad-list dropdown open
+    viewMode: 'cards', // 'cards' | 'table'
   };
 
   const BOARD_LABELS = { fileName: 'All Creatives', hookType: 'Hook Type', actor: 'Actor', writer: 'Writer', editor: 'Editor', team: 'Collaborators', new: 'New Creatives' };
@@ -387,6 +388,54 @@
     return !q || name.toLowerCase().includes(q);
   }
 
+  function roasOf(g) { return g.spend > 0 ? g.revenue / g.spend : 0; }
+
+  // A flat, spreadsheet-style alternative to the card rows — same underlying groups, just
+  // laid out as sortable-by-eye columns instead of stacked tags. Person/hook/team boards
+  // suppress the Actor/Writer/Editor/Hook columns for the same reason the cards do: those
+  // values are picked from just one of many ads and would misrepresent the whole entry.
+  function tableHtml(field, groups, totalProfit, dateColLabel) {
+    const showPeople = field === 'fileName';
+    const showLeads = state.range.key === 'all';
+    const numCols = ['Ads', 'Spend', 'Revenue', 'Profit', 'ROAS', 'Contribution', 'Leads'];
+    const cols = ['#', 'Name'];
+    if (showPeople) cols.push('Actor', 'Writer', 'Editor', 'Hook');
+    cols.push('Ads', 'Spend', 'Revenue', 'Profit', 'ROAS', 'Contribution');
+    if (showLeads) cols.push('Leads');
+    cols.push(dateColLabel);
+
+    const thead = '<thead><tr>' + cols.map((c) => '<th' + (numCols.includes(c) ? ' class="num-col"' : '') + '>' + c + '</th>').join('') + '</tr></thead>';
+
+    const bodyRows = groups.map((g, i) => {
+      const contribution = totalProfit > 0 ? (g.profit / totalProfit) * 100 : null;
+      let cells = '<td class="num-col">' + (i + 1) + '</td>';
+      cells += '<td class="name-cell">' + escapeHtml(g.name) + '</td>';
+      if (showPeople) {
+        cells += '<td>' + (g.actor ? escapeHtml(g.actor) : '&mdash;') + '</td>';
+        cells += '<td>' + (g.writer ? escapeHtml(g.writer) : '&mdash;') + '</td>';
+        cells += '<td>' + (g.editor ? escapeHtml(g.editor) : '&mdash;') + '</td>';
+        cells += '<td>' + (g.hookType ? escapeHtml(g.hookType) : '&mdash;') + '</td>';
+      }
+      cells += '<td class="num-col">' + g.count + '</td>';
+      cells += '<td class="num-col">' + money(g.spend) + '</td>';
+      cells += '<td class="num-col">' + money(g.revenue) + '</td>';
+      cells += '<td class="num-col ' + (g.profit >= 0 ? 'profit-pos' : 'profit-neg') + '">' + moneySigned(g.profit) + '</td>';
+      cells += '<td class="num-col">' + roasOf(g).toFixed(2) + '&times;</td>';
+      cells += '<td class="num-col">' + (contribution != null ? pct(contribution) : '&mdash;') + '</td>';
+      if (showLeads) cells += '<td class="num-col">' + g.leadsAllTime.toLocaleString('en-US') + '</td>';
+      cells += '<td>' + (g.uploadedAt ? formatDate(g.uploadedAt) : '&mdash;') + '</td>';
+      return '<tr>' + cells + '</tr>';
+    }).join('');
+
+    return (
+      '<div class="table-scroll">' +
+        '<table>' + thead +
+          '<tbody>' + (bodyRows || '<tr class="empty-row"><td colspan="' + cols.length + '">No data for this range.</td></tr>') + '</tbody>' +
+        '</table>' +
+      '</div>'
+    );
+  }
+
   function renderBoard(rows, totalProfit) {
     $('#board-title').textContent = BOARD_LABELS[state.board];
 
@@ -397,7 +446,11 @@
       const maxAbs = Math.max(1, ...groups.map((g) => Math.abs(g[state.sortBy] || 0)));
       const sortLabel = state.sortBy === 'date' ? 'newest first' : 'sorted by ' + state.sortBy;
       $('#board-count').innerHTML = groups.length + ' ' + (groups.length === 1 ? 'file' : 'files') + ' &middot; ' + sortLabel;
-      $('#board-list').innerHTML = groups.length ? groups.map((g, i) => newRowHtml(g, i, maxAbs, totalProfit)).join('') : emptyMsg('No upload dates tagged yet for this range.');
+      $('#board-list').innerHTML = !groups.length
+        ? emptyMsg('No upload dates tagged yet for this range.')
+        : state.viewMode === 'table'
+          ? tableHtml('fileName', groups, totalProfit, 'Uploaded')
+          : groups.map((g, i) => newRowHtml(g, i, maxAbs, totalProfit)).join('');
       return;
     }
 
@@ -405,9 +458,11 @@
     const groups = sortGroups(aggregateByDimension(rows, field).filter((g) => matchesSearch(g.name)));
     const maxAbs = Math.max(1, ...groups.map((g) => Math.abs(g[state.sortBy])));
     $('#board-count').innerHTML = groups.length + ' ' + (groups.length === 1 ? 'entry' : 'entries') + ' &middot; sorted by ' + state.sortBy;
-    $('#board-list').innerHTML = groups.length
-      ? groups.map((g, i) => dimensionRowHtml(field, g, i, maxAbs, totalProfit)).join('')
-      : emptyMsg('No ' + BOARD_LABELS[field].toLowerCase() + ' data tagged yet for this range.');
+    $('#board-list').innerHTML = !groups.length
+      ? emptyMsg('No ' + BOARD_LABELS[field].toLowerCase() + ' data tagged yet for this range.')
+      : state.viewMode === 'table'
+        ? tableHtml(field, groups, totalProfit, field === 'fileName' ? 'Uploaded' : 'Most Recent')
+        : groups.map((g, i) => dimensionRowHtml(field, g, i, maxAbs, totalProfit)).join('');
   }
 
   function detailRowHtml(ad) {
@@ -509,6 +564,16 @@
     document.querySelectorAll('#sort-tabs .chip').forEach((c) => c.classList.remove('is-active'));
     btn.classList.add('is-active');
     state.sortBy = btn.dataset.sort;
+    render();
+  });
+
+  // ---- table/cards view toggle ----
+  $('#view-toggle').addEventListener('click', () => {
+    state.viewMode = state.viewMode === 'table' ? 'cards' : 'table';
+    const btn = $('#view-toggle');
+    btn.classList.toggle('is-active', state.viewMode === 'table');
+    btn.title = state.viewMode === 'table' ? 'Switch to card view' : 'Switch to table view';
+    $('#view-toggle-label').textContent = state.viewMode === 'table' ? 'Card view' : 'Table view';
     render();
   });
 

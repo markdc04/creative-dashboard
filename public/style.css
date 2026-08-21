@@ -251,6 +251,7 @@ h1{font-size:28px;font-weight:800;letter-spacing:-.01em;margin:0;text-wrap:balan
 
 /* ---------- board controls (search + sort) ---------- */
 .board-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
+.view-toggle{display:inline-flex;align-items:center;gap:6px;margin-left:auto;}
 .board-controls .search-box{flex:1;min-width:180px;max-width:320px;}
 .sort-tabs{align-items:center;}
 .sort-label{font-size:11.5px;color:var(--text-faint);font-weight:600;margin-right:2px;}

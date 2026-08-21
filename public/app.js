@@ -218,6 +218,17 @@
     return tags;
   }
 
+  // Top-level rows on a person/hook/team board (Actor, Writer, Editor, Hook Type,
+  // Collaborators) represent a person or category, not one creative — so tags like
+  // "Writer: zeke" picked from just one of their many ads would be misleading. Those role
+  // tags only make sense once you drill into a specific creative (via subRowHtml), so the
+  // top-level row just shows a most-recent-upload date.
+  function personMetaTags(g) {
+    return g.uploadedAt
+      ? '<span class="tag dim-tag date-tag">Most recent: ' + formatDate(g.uploadedAt) + '</span>'
+      : '<span class="tag dim-tag date-tag date-tag--unknown">No upload date</span>';
+  }
+
   function pct(n) { return n.toLocaleString('en-US', { maximumFractionDigits: 1 }) + '%'; }
 
   // Profit contribution = this entry's share of total profit across every currently-filtered
@@ -307,7 +318,7 @@
               chevronMarkup(isOpen) +
             '</div>' +
             '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
-            '<div class="dimension-meta">' + metaTags(field, g) + '</div>' +
+            '<div class="dimension-meta">' + (field === 'fileName' ? metaTags(field, g) : personMetaTags(g)) + '</div>' +
             '<div class="dimension-stats">' + statsHtml(g, totalProfit) + '</div>' +
           '</div>' +
           '<div class="dimension-figs">' +

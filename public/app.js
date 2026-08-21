@@ -188,7 +188,6 @@
       return {
         ...g,
         profit: g.revenue - g.spend,
-        conversionRate: g.leads > 0 ? (g.qmva / g.leads) * 100 : null,
         ads: [...g.ads].sort((a, b) => b.profit - a.profit),
         hookType: pick('hookType'), actor: pick('actor'), writer: pick('writer'), editor: pick('editor'),
         uploadedAt: dated.length ? new Date(Math.max(...dated)) : null,
@@ -251,7 +250,6 @@
     const contribution = totalProfit > 0 ? (g.profit / totalProfit) * 100 : null;
     let html = '';
     html += '<span class="tag stat-tag">Profit contribution: ' + (contribution != null ? pct(contribution) : '&mdash;') + '</span>';
-    html += '<span class="tag stat-tag">Conversion rate: ' + (g.conversionRate != null ? pct(g.conversionRate) : '&mdash;') + '</span>';
     html += '<span class="tag stat-tag stat-tag--cost">Leads: ' + g.leads.toLocaleString('en-US') + '</span>';
     return html;
   }

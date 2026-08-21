@@ -263,13 +263,17 @@
   // The Spend/Revenue/Profit/ROAS mini-table shown beside the main sort value on every row.
   // Skips whichever metric the big colored figure to the right is already showing (the
   // active sort field), so the same number never appears twice on the same row.
+  // Labeled Spend/Revenue/Profit/ROAS columns — this is the row's only figure display, so
+  // Profit is never duplicated elsewhere (no separate colored number floating beside it).
   function figsTableHtml(g) {
-    const parts = [];
-    if (state.sortBy !== 'spend') parts.push('Spend ' + money(g.spend));
-    if (state.sortBy !== 'revenue') parts.push('Revenue ' + money(g.revenue));
-    if (state.sortBy !== 'profit') parts.push('Profit <span class="' + (g.profit >= 0 ? 'profit-pos' : 'profit-neg') + '">' + moneySigned(g.profit) + '</span>');
-    parts.push('ROAS ' + roasOf(g).toFixed(2) + '&times;');
-    return '<div class="figs-inline">' + parts.join(' &middot; ') + '</div>';
+    return (
+      '<div class="figs-table">' +
+        '<div class="figs-col"><div class="figs-label">Spend</div><div class="figs-value">' + money(g.spend) + '</div></div>' +
+        '<div class="figs-col"><div class="figs-label">Revenue</div><div class="figs-value">' + money(g.revenue) + '</div></div>' +
+        '<div class="figs-col"><div class="figs-label">Profit</div><div class="figs-value ' + (g.profit >= 0 ? 'profit-pos' : 'profit-neg') + '">' + moneySigned(g.profit) + '</div></div>' +
+        '<div class="figs-col"><div class="figs-label">ROAS</div><div class="figs-value">' + roasOf(g).toFixed(2) + '&times;</div></div>' +
+      '</div>'
+    );
   }
 
   function rankMarkup(idx, isTop) {
@@ -333,7 +337,6 @@
     const isPos = val >= 0;
     const isTop = idx === 0 && isPos;
     const pct = maxAbs > 0 ? Math.max(4, Math.round((Math.abs(val) / maxAbs) * 100)) : 4;
-    const valLabel = state.sortBy === 'profit' ? moneySigned(val) : money(val);
     const key = state.board + '::' + g.name;
     const isOpen = state.expanded.has(key);
     return (
@@ -349,10 +352,7 @@
             '<div class="dimension-meta">' + (field === 'fileName' ? peopleTags(field, g) : '') + '</div>' +
             '<div class="dimension-stats">' + (field === 'fileName' ? secondaryTags(field, g) : personMetaTags(g)) + statsHtml(g, totalProfit) + '</div>' +
           '</div>' +
-          '<div class="dimension-figs">' +
-            figsTableHtml(g) +
-            '<div class="row-profit ' + (isPos ? 'profit' : 'loss') + ' num">' + valLabel + '</div>' +
-          '</div>' +
+          '<div class="dimension-figs">' + figsTableHtml(g) + '</div>' +
           '<div class="dimension-bar-track"><div class="bar-fill ' + (isPos ? 'profit' : 'loss') + '" style="width:' + pct + '%"></div></div>' +
         '</div>' +
         (isOpen ? expandHtml(g, key, totalProfit) : '') +
@@ -366,7 +366,6 @@
     const isPos = val >= 0;
     const isTop = idx === 0 && showMetric && isPos;
     const pct = showMetric && maxAbs > 0 ? Math.max(4, Math.round((Math.abs(val) / maxAbs) * 100)) : 0;
-    const valLabel = state.sortBy === 'profit' ? moneySigned(val) : money(val);
     const key = state.board + '::' + g.name;
     const isOpen = state.expanded.has(key);
     return (
@@ -384,7 +383,7 @@
           '</div>' +
           '<div class="dimension-figs">' +
             (showMetric
-              ? figsTableHtml(g) + '<div class="row-profit ' + (isPos ? 'profit' : 'loss') + ' num">' + valLabel + '</div>'
+              ? figsTableHtml(g)
               : '<span class="tag dim-tag date-tag">Uploaded ' + formatDate(g.uploadedAt) + '</span>') +
           '</div>' +
           (showMetric ? '<div class="dimension-bar-track"><div class="bar-fill ' + (isPos ? 'profit' : 'loss') + '" style="width:' + pct + '%"></div></div>' : '') +

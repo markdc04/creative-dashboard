@@ -202,13 +202,16 @@
 
   // Actor/Writer/Editor/Hook Type + upload date, shown under every leaderboard entry —
   // skips whichever field the board is already grouped by (no "Actor: Ron" under Actor itself).
-  function metaTags(field, g) {
+  // skipDate omits the upload-date tag when it's already shown elsewhere on the row (the New
+  // Creatives board shows it as a standalone badge, so it shouldn't also repeat here).
+  function metaTags(field, g, skipDate) {
     let tags = '';
     for (const tf of ALL_TAG_FIELDS) {
       if (tf === field) continue;
       const v = g[tf];
       if (v) tags += '<span class="tag dim-tag dim-tag--' + tf + '">' + TAG_LABELS[tf] + ': ' + escapeHtml(v) + '</span>';
     }
+    if (skipDate) return tags;
     tags += g.uploadedAt
       ? '<span class="tag dim-tag date-tag">Uploaded ' + formatDate(g.uploadedAt) + '</span>'
       : '<span class="tag dim-tag date-tag date-tag--unknown">No upload date</span>';
@@ -336,7 +339,7 @@
               chevronMarkup(isOpen) +
             '</div>' +
             '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
-            '<div class="dimension-meta">' + metaTags('fileName', g) + '</div>' +
+            '<div class="dimension-meta">' + metaTags('fileName', g, !showMetric) + '</div>' +
             '<div class="dimension-stats">' + statsHtml(g, totalProfit) + '</div>' +
           '</div>' +
           '<div class="dimension-figs">' +

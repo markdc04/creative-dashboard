@@ -148,8 +148,8 @@ h1{font-size:28px;font-weight:800;letter-spacing:-.01em;margin:0;text-wrap:balan
 .dimension-expand .table-scroll{border-top:none;margin-top:6px;}
 .dimension-count{font-size:11.5px;color:var(--text-faint);margin-top:2px;}
 .dimension-meta{display:flex;align-items:center;gap:9px;row-gap:8px;margin-top:8px;flex-wrap:wrap;}
-.dimension-figs{text-align:right;min-width:150px;max-width:230px;padding-top:1px;display:flex;flex-direction:column;align-items:flex-end;gap:4px;}
-.figs-inline{font-size:11px;color:var(--text-faint);font-family:ui-monospace,"SF Mono","Roboto Mono",monospace;font-variant-numeric:tabular-nums;white-space:normal;line-height:1.4;}
+.dimension-figs{text-align:right;min-width:150px;padding-top:1px;display:flex;flex-direction:column;align-items:flex-end;gap:4px;}
+.figs-inline{font-size:11px;color:var(--text-faint);font-family:ui-monospace,"SF Mono","Roboto Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap;}
 .dimension-bar-track{width:110px;height:5px;border-radius:3px;background:var(--border-soft);margin-top:6px;overflow:hidden;margin-left:auto;}
 .dimension-bar-track .bar-fill{transition:width .35s ease;}
 

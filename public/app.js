@@ -125,7 +125,11 @@
       if (!c) {
         c = {
           adId: r.adId, adName: r.adName, campaignName: r.campaignName, platform: r.platform,
-          spend: 0, revenue: 0, leads: 0, qmva: 0,
+          spend: 0, revenue: 0,
+          // All-time totals from the Creative Tracker sheet — identical on every daily row for
+          // this ad, so they're set once here rather than summed across days (which would
+          // multiply them by however many days are in the selected range).
+          leadsAllTime: r.leadsAllTime || 0, qmvaAllTime: r.qmvaAllTime || 0,
           youtubeUrl: r.youtubeUrl, landingPageUrl: r.landingPageUrl, frameIoUrl: r.frameIoUrl, fileName: r.fileName,
           hookType: r.hookType, actor: r.actor, writer: r.writer, editor: r.editor, dateUploaded: r.dateUploaded,
         };
@@ -133,8 +137,6 @@
       }
       c.spend += r.spend;
       c.revenue += r.revenue;
-      c.leads += r.leads || 0;
-      c.qmva += r.qmva || 0;
     }
     return [...byAd.values()].map((c) => ({ ...c, profit: c.revenue - c.spend, team: teamKey(c) }));
   }
@@ -174,11 +176,11 @@
       const v = (r[field] || '').trim();
       if (!v) continue;
       let g = byValue.get(v);
-      if (!g) { g = { name: v, spend: 0, revenue: 0, leads: 0, qmva: 0, count: 0, ads: [] }; byValue.set(v, g); }
+      if (!g) { g = { name: v, spend: 0, revenue: 0, leadsAllTime: 0, qmvaAllTime: 0, count: 0, ads: [] }; byValue.set(v, g); }
       g.spend += r.spend;
       g.revenue += r.revenue;
-      g.leads += r.leads;
-      g.qmva += r.qmva;
+      g.leadsAllTime += r.leadsAllTime;
+      g.qmvaAllTime += r.qmvaAllTime;
       g.count += 1;
       g.ads.push(r);
     }
@@ -242,15 +244,17 @@
   function pct(n) { return n.toLocaleString('en-US', { maximumFractionDigits: 1 }) + '%'; }
 
   // Profit contribution = this entry's share of total profit across every currently-filtered
-  // creative; conversion rate = accepted leads (QMVA, positive payout) ÷ total submitted leads.
-  // Cost-per-lead is deliberately omitted: ~2/3 of ads have real spend but zero leads matched
-  // to that specific Ad ID (Google Ads IDs don't always line up 1:1 with the lead sheets'
-  // Ad ID due to multi-touch attribution), which makes a per-ad cost figure unreliable.
+  // creative. Leads comes from the Creative Tracker sheet's own accurate Leads column — but
+  // that sheet only has all-time totals, no daily breakdown, so it's only shown when no date
+  // filter is narrowing the range (otherwise it'd silently show the all-time count as if it
+  // were scoped to the selected range).
   function statsHtml(g, totalProfit) {
     const contribution = totalProfit > 0 ? (g.profit / totalProfit) * 100 : null;
     let html = '';
     html += '<span class="tag stat-tag">Profit contribution: ' + (contribution != null ? pct(contribution) : '&mdash;') + '</span>';
-    html += '<span class="tag stat-tag stat-tag--cost">Leads: ' + g.leads.toLocaleString('en-US') + '</span>';
+    if (state.range.key === 'all') {
+      html += '<span class="tag stat-tag stat-tag--cost">Leads: ' + g.leadsAllTime.toLocaleString('en-US') + '</span>';
+    }
     return html;
   }
 

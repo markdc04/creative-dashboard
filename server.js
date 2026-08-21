@@ -21,6 +21,13 @@ const SOURCES = {
 // Creative asset/metadata lookup by Ad ID: YouTube URL, landing page URL, Frame.io URL, file name.
 const CREATIVE_META_GID = '1768337683';
 
+// "Creative Tracker 1" — a pre-joined, one-row-per-Ad-ID master sheet with genuinely accurate
+// all-time QMVA/Leads/Accepted Leads/Cost Per Lead columns (unlike our own row-counting attempt
+// against the raw CA/NW QMVA payout sheets, which only ever logs already-accepted leads and
+// therefore can't distinguish submitted vs. accepted). These are all-time totals only — there's
+// no daily breakdown available — so the client only surfaces them when no date filter is active.
+const CREATIVE_TRACKER_GID = '623888576';
+
 const POLL_MS = 30000;
 const PORT = process.env.PORT || 4174;
 
@@ -29,6 +36,7 @@ let clients = []; // SSE response objects
 let lastGoodAssets = {}; // adId -> asset/metadata object, kept across polls where the metadata
                           // sheet comes back broken (e.g. a formula error) so a temporary sheet
                           // outage doesn't wipe out already-known Hook Type/Actor/Writer/Editor data
+let lastGoodLeadStats = {}; // adId -> { leads, qmva }, same staleness-guard as lastGoodAssets
 
 function csvUrl(gid) {
   return `https://docs.google.com/spreadsheets/d/${DOC_ID}/export?format=csv&gid=${gid}`;
@@ -122,22 +130,24 @@ async function fetchSource(key) {
 
 async function pollAll() {
   try {
-    const [googleRaw, caRaw, nwRaw, metaCsv] = await Promise.all([
+    const [googleRaw, caRaw, nwRaw, metaCsv, trackerCsv] = await Promise.all([
       fetchSource('googleSpend'),
       fetchSource('caRevenue'),
       fetchSource('nwRevenue'),
       fetchText(csvUrl(CREATIVE_META_GID)),
+      fetchText(csvUrl(CREATIVE_TRACKER_GID)),
     ]);
     const creativeMetaRaw = parseCSV(metaCsv);
+    const creativeTrackerRaw = parseCSV(trackerCsv);
 
     const adMeta = {}; // adId -> { adName, campaignName, platform }
     const assets = {}; // adId -> { youtubeUrl, landingPageUrl, frameIoUrl, fileName, videoTitle }
-    const daily = {}; // `${date}|${adId}` -> { date, adId, spend, revenue, leads, qmva }
+    const daily = {}; // `${date}|${adId}` -> { date, adId, spend, revenue }
 
     const bump = (date, adId, field, amount) => {
       if (!date || !adId || !amount) return;
       const key = date + '|' + adId;
-      if (!daily[key]) daily[key] = { date, adId, spend: 0, revenue: 0, leads: 0, qmva: 0 };
+      if (!daily[key]) daily[key] = { date, adId, spend: 0, revenue: 0 };
       daily[key][field] += amount;
     };
 
@@ -197,25 +207,38 @@ async function pollAll() {
     }
 
     // Revenue sheets: read ONLY Date, AD ID, Payout. Every other field on `r` (name, email,
-    // phone, incident details, ...) is discarded here and never touched again. Every row is a
-    // submitted lead; a row with a positive Payout is one that got accepted/paid out (a QMVA).
+    // phone, incident details, ...) is discarded here and never touched again.
     for (const raw of [caRaw, nwRaw]) {
       for (const r of raw) {
         const adId = (r['AD ID'] || '').trim();
         const date = toISODate(r['Date']);
-        if (!adId || !date) continue;
         const payout = num(r['Payout']);
-        bump(date, adId, 'leads', 1);
-        if (payout > 0) {
-          bump(date, adId, 'qmva', 1);
-          bump(date, adId, 'revenue', payout);
-        }
+        if (!adId || !date || !payout) continue;
+        bump(date, adId, 'revenue', payout);
       }
+    }
+
+    // Creative Tracker 1's own Leads/QMVA columns are genuinely accurate (unlike counting rows
+    // in the raw CA/NW sheets, which only ever logs already-accepted leads). All-time totals
+    // only — same broken-sheet fallback pattern as the metadata merge above.
+    const leadStats = {}; // adId -> { leads, qmva }
+    for (const r of creativeTrackerRaw) {
+      const adId = (r['Ad ID'] || '').trim();
+      if (!adId) continue;
+      leadStats[adId] = { leads: num(r['Leads']), qmva: num(r['QMVA']) };
+    }
+    let effectiveLeadStats = leadStats;
+    if (creativeTrackerRaw.length < 100) {
+      console.warn(`[${new Date().toISOString()}] creative tracker sheet looks broken (${creativeTrackerRaw.length} rows) — reusing last known-good lead stats`);
+      effectiveLeadStats = lastGoodLeadStats;
+    } else {
+      lastGoodLeadStats = leadStats;
     }
 
     const rows = Object.values(daily).map((d) => {
       const meta = adMeta[d.adId] || { adName: 'Ad ' + d.adId, campaignName: '', platform: 'UNKNOWN' };
       const asset = effectiveAssets[d.adId] || {};
+      const lead = effectiveLeadStats[d.adId] || {};
       return {
         date: d.date,
         adId: d.adId,
@@ -224,8 +247,8 @@ async function pollAll() {
         platform: meta.platform,
         spend: Math.round(d.spend * 100) / 100,
         revenue: Math.round(d.revenue * 100) / 100,
-        leads: d.leads,
-        qmva: d.qmva,
+        leadsAllTime: lead.leads || 0,
+        qmvaAllTime: lead.qmva || 0,
         youtubeUrl: asset.youtubeUrl || '',
         landingPageUrl: asset.landingPageUrl || '',
         frameIoUrl: asset.frameIoUrl || '',
@@ -241,7 +264,7 @@ async function pollAll() {
     // Include a fingerprint of the metadata fields too — spend/revenue totals alone don't
     // change when someone only fills in Hook Type/Actor/Writer/Editor/Date Uploaded, so a
     // hash based on money alone would never notice a metadata-only edit and go stale forever.
-    const metaFingerprint = fnv1a(rows.map((r) => r.fileName + '|' + r.hookType + '|' + r.actor + '|' + r.writer + '|' + r.editor + '|' + r.dateUploaded).join('~'));
+    const metaFingerprint = fnv1a(rows.map((r) => r.fileName + '|' + r.hookType + '|' + r.actor + '|' + r.writer + '|' + r.editor + '|' + r.dateUploaded + '|' + r.leadsAllTime + '|' + r.qmvaAllTime).join('~'));
     const hash = rows.length + ':' + rows.reduce((a, r) => a + r.spend + r.revenue, 0).toFixed(2) + ':' + metaFingerprint;
     if (cache.rows.length > 20 && rows.length < cache.rows.length * 0.5) {
       console.warn(`[${new Date().toISOString()}] ignoring suspiciously short fetch (${rows.length} rows vs cached ${cache.rows.length})`);

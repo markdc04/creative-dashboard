@@ -142,13 +142,17 @@ h1{font-size:28px;font-weight:800;letter-spacing:-.01em;margin:0;text-wrap:balan
   margin:0 10px 10px;padding:2px 0 2px 14px;
   border-top:1px dashed var(--border);border-left:2px solid var(--border);
 }
-.dimension-row--sub{grid-template-columns:1fr;gap:0;padding:10px 10px;}
+.dimension-row--sub{grid-template-columns:1fr auto;gap:14px;padding:10px 10px;}
 .dimension-row--sub .dimension-name{font-size:13px;}
 .dimension-row--sub .dimension-expand{margin:0;padding:6px 0 2px;}
 .dimension-expand .table-scroll{border-top:none;margin-top:6px;}
 .dimension-count{font-size:11.5px;color:var(--text-faint);margin-top:2px;}
 .dimension-meta{display:flex;align-items:center;gap:9px;row-gap:8px;margin-top:8px;flex-wrap:wrap;}
-.dimension-figs{text-align:right;min-width:150px;padding-top:1px;}
+.dimension-figs{text-align:right;min-width:150px;padding-top:1px;display:flex;align-items:flex-start;gap:22px;}
+.figs-table{display:flex;gap:18px;}
+.figs-col{text-align:right;min-width:56px;}
+.figs-label{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint);font-weight:700;margin-bottom:3px;}
+.figs-value{font-size:13px;font-weight:700;font-family:ui-monospace,"SF Mono","Roboto Mono",monospace;font-variant-numeric:tabular-nums;}
 .dimension-bar-track{width:110px;height:5px;border-radius:3px;background:var(--border-soft);margin-top:6px;overflow:hidden;margin-left:auto;}
 .dimension-bar-track .bar-fill{transition:width .35s ease;}
 

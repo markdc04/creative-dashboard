@@ -260,13 +260,15 @@
   }
 
   // Compact "23 ads · $1.2M spend · $1.7M revenue · +$458K profit · 1.37x ROAS" summary line.
-  function summaryLine(g) {
+  // The Spend/Revenue/Profit/ROAS mini-table shown beside the main sort value on every row.
+  function figsTableHtml(g) {
     return (
-      g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') +
-      ' &middot; ' + money(g.spend) + ' spend' +
-      ' &middot; ' + money(g.revenue) + ' revenue' +
-      ' &middot; <span class="' + (g.profit >= 0 ? 'profit-pos' : 'profit-neg') + '">' + moneySigned(g.profit) + ' profit</span>' +
-      ' &middot; ' + roasOf(g).toFixed(2) + '&times; ROAS'
+      '<div class="figs-table">' +
+        '<div class="figs-col"><div class="figs-label">Spend</div><div class="figs-value">' + money(g.spend) + '</div></div>' +
+        '<div class="figs-col"><div class="figs-label">Revenue</div><div class="figs-value">' + money(g.revenue) + '</div></div>' +
+        '<div class="figs-col"><div class="figs-label">Profit</div><div class="figs-value ' + (g.profit >= 0 ? 'profit-pos' : 'profit-neg') + '">' + moneySigned(g.profit) + '</div></div>' +
+        '<div class="figs-col"><div class="figs-label">ROAS</div><div class="figs-value">' + roasOf(g).toFixed(2) + '&times;</div></div>' +
+      '</div>'
     );
   }
 
@@ -307,10 +309,11 @@
         '<div class="dimension-row dimension-row--sub" data-key="' + escapeHtml(subKey) + '">' +
           '<div>' +
             '<div class="dimension-name">' + escapeHtml(cg.name) + chevronMarkup(isOpen) + '</div>' +
-            '<div class="dimension-count">' + summaryLine(cg) + '</div>' +
+            '<div class="dimension-count">' + cg.count + ' ' + (cg.count === 1 ? 'ad' : 'ads') + '</div>' +
             '<div class="dimension-meta">' + peopleTags(state.board, cg) + '</div>' +
             '<div class="dimension-stats">' + secondaryTags(state.board, cg) + statsHtml(cg, totalProfit) + '</div>' +
           '</div>' +
+          '<div class="dimension-figs">' + figsTableHtml(cg) + '</div>' +
         '</div>' +
         (isOpen ? '<div class="dimension-expand">' + adsTableHtml(cg.ads) + '</div>' : '') +
       '</div>'
@@ -342,11 +345,12 @@
               (isTop ? '<span class="top-badge">' + TOP_LABELS[state.board] + '</span>' : '') +
               chevronMarkup(isOpen) +
             '</div>' +
-            '<div class="dimension-count">' + summaryLine(g) + '</div>' +
+            '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + '</div>' +
             '<div class="dimension-meta">' + (field === 'fileName' ? peopleTags(field, g) : '') + '</div>' +
             '<div class="dimension-stats">' + (field === 'fileName' ? secondaryTags(field, g) : personMetaTags(g)) + statsHtml(g, totalProfit) + '</div>' +
           '</div>' +
           '<div class="dimension-figs">' +
+            figsTableHtml(g) +
             '<div class="row-profit ' + (isPos ? 'profit' : 'loss') + ' num">' + valLabel + '</div>' +
           '</div>' +
           '<div class="dimension-bar-track"><div class="bar-fill ' + (isPos ? 'profit' : 'loss') + '" style="width:' + pct + '%"></div></div>' +
@@ -374,13 +378,13 @@
               (isTop ? '<span class="top-badge">' + TOP_LABELS[state.board] + '</span>' : '') +
               chevronMarkup(isOpen) +
             '</div>' +
-            '<div class="dimension-count">' + summaryLine(g) + '</div>' +
+            '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + '</div>' +
             '<div class="dimension-meta">' + peopleTags('fileName', g) + '</div>' +
             '<div class="dimension-stats">' + secondaryTags('fileName', g, !showMetric) + statsHtml(g, totalProfit) + '</div>' +
           '</div>' +
           '<div class="dimension-figs">' +
             (showMetric
-              ? '<div class="row-profit ' + (isPos ? 'profit' : 'loss') + ' num">' + valLabel + '</div>'
+              ? figsTableHtml(g) + '<div class="row-profit ' + (isPos ? 'profit' : 'loss') + ' num">' + valLabel + '</div>'
               : '<span class="tag dim-tag date-tag">Uploaded ' + formatDate(g.uploadedAt) + '</span>') +
           '</div>' +
           (showMetric ? '<div class="dimension-bar-track"><div class="bar-fill ' + (isPos ? 'profit' : 'loss') + '" style="width:' + pct + '%"></div></div>' : '') +

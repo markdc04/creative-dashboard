@@ -323,6 +323,11 @@ thead th .sort-arrow{font-size:9px;margin-left:3px;opacity:.7;}
 tbody td{padding:10px;border-bottom:1px solid var(--border-soft);white-space:nowrap;}
 tbody td.num-col{text-align:right;font-family:ui-monospace,"SF Mono","Roboto Mono",monospace;font-variant-numeric:tabular-nums;}
 tbody tr:hover{background:var(--surface-raised);}
+.table-toggle-row{cursor:pointer;}
+.table-toggle-row .dimension-chevron{margin-left:7px;}
+.table-expand-row td{background:var(--surface);padding:12px 10px 14px;border-bottom:1px solid var(--border-soft);white-space:normal;}
+.table-expand-row .dimension-expand{margin:0;padding:0;border-top:none;}
+.table-expand-row .dimension-expand--nested{margin:0;padding:0 0 0 14px;border-top:none;}
 tbody td.name-cell{max-width:340px;overflow:hidden;text-overflow:ellipsis;font-weight:600;white-space:normal;}
 .name-sub{margin-top:2px;font-size:10.5px;font-weight:500;color:var(--text-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 td.profit-pos,.profit-pos{color:var(--profit);}

@@ -423,8 +423,10 @@
 
     const bodyRows = groups.map((g, i) => {
       const contribution = totalProfit > 0 ? (g.profit / totalProfit) * 100 : null;
+      const key = state.board + '::' + g.name;
+      const isOpen = state.expanded.has(key);
       let cells = '<td class="num-col">' + (i + 1) + '</td>';
-      cells += '<td class="name-cell">' + escapeHtml(g.name) + '</td>';
+      cells += '<td class="name-cell">' + escapeHtml(g.name) + chevronMarkup(isOpen) + '</td>';
       if (showPeople) {
         cells += '<td>' + (g.actor ? escapeHtml(g.actor) : '&mdash;') + '</td>';
         cells += '<td>' + (g.writer ? escapeHtml(g.writer) : '&mdash;') + '</td>';
@@ -439,7 +441,11 @@
       cells += '<td class="num-col">' + (contribution != null ? pct(contribution) : '&mdash;') + '</td>';
       if (showLeads) cells += '<td class="num-col">' + g.leadsAllTime.toLocaleString('en-US') + '</td>';
       cells += '<td>' + (g.uploadedAt ? formatDate(g.uploadedAt) : '&mdash;') + '</td>';
-      return '<tr>' + cells + '</tr>';
+      let html = '<tr class="table-toggle-row" data-key="' + escapeHtml(key) + '">' + cells + '</tr>';
+      if (isOpen) {
+        html += '<tr class="table-expand-row"><td colspan="' + cols.length + '">' + expandHtml(g, key, totalProfit) + '</td></tr>';
+      }
+      return html;
     }).join('');
 
     return (
@@ -598,9 +604,10 @@
     render();
   });
 
-  // ---- click a leaderboard row to expand/collapse its ad list inline ----
+  // ---- click a leaderboard row to expand/collapse its ad list inline (both card and
+  // table view use the same data-key + state.expanded toggle) ----
   $('#board-list').addEventListener('click', (e) => {
-    const row = e.target.closest('.dimension-row');
+    const row = e.target.closest('.dimension-row, .table-toggle-row');
     if (!row) return;
     const key = row.dataset.key;
     if (state.expanded.has(key)) state.expanded.delete(key);

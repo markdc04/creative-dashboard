@@ -202,7 +202,7 @@
     for (const tf of ALL_TAG_FIELDS) {
       if (tf === field) continue;
       const v = g[tf];
-      if (v) tags += '<span class="tag dim-tag">' + TAG_LABELS[tf] + ': ' + escapeHtml(v) + '</span>';
+      if (v) tags += '<span class="tag dim-tag dim-tag--' + tf + '">' + TAG_LABELS[tf] + ': ' + escapeHtml(v) + '</span>';
     }
     tags += g.uploadedAt
       ? '<span class="tag dim-tag date-tag">Uploaded ' + formatDate(g.uploadedAt) + '</span>'

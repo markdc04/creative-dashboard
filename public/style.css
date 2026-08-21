@@ -184,6 +184,9 @@ h1{font-size:28px;font-weight:800;letter-spacing:-.01em;margin:0;text-wrap:balan
 .dimension-stats{display:flex;align-items:center;gap:6px;row-gap:6px;margin-top:7px;flex-wrap:wrap;}
 .stat-tag{background:rgba(91,141,239,.12);color:var(--google);border:1px solid rgba(91,141,239,.3);letter-spacing:.02em;}
 .stat-tag--cost{background:rgba(52,211,153,.12);color:var(--profit);border-color:rgba(52,211,153,.3);}
+.stat-tag--spend,.stat-tag--revenue,.stat-tag--roas{background:var(--surface-raised);color:var(--text-dim);border-color:var(--border);}
+.stat-tag--profit-pos{background:rgba(52,211,153,.12);color:var(--profit);border-color:rgba(52,211,153,.3);}
+.stat-tag--profit-neg{background:rgba(251,111,111,.12);color:var(--loss);border-color:rgba(251,111,111,.3);}
 .date-tag{background:var(--surface-raised);color:var(--text-dim);border-color:var(--border);}
 .date-tag--unknown{color:var(--text-faint);border-color:var(--border);font-style:italic;}
 .dimension-name-clickable{cursor:pointer;}

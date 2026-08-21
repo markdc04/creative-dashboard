@@ -252,6 +252,10 @@
   function statsHtml(g, totalProfit) {
     const contribution = totalProfit > 0 ? (g.profit / totalProfit) * 100 : null;
     let html = '';
+    html += '<span class="tag stat-tag stat-tag--spend">Spend: ' + money(g.spend) + '</span>';
+    html += '<span class="tag stat-tag stat-tag--revenue">Revenue: ' + money(g.revenue) + '</span>';
+    html += '<span class="tag stat-tag ' + (g.profit >= 0 ? 'stat-tag--profit-pos' : 'stat-tag--profit-neg') + '">Profit: ' + moneySigned(g.profit) + '</span>';
+    html += '<span class="tag stat-tag stat-tag--roas">ROAS: ' + roasOf(g).toFixed(2) + '&times;</span>';
     html += '<span class="tag stat-tag">Profit contribution: ' + (contribution != null ? pct(contribution) : '&mdash;') + '</span>';
     if (state.range.key === 'all') {
       html += '<span class="tag stat-tag stat-tag--cost">Leads: ' + g.leadsAllTime.toLocaleString('en-US') + '</span>';

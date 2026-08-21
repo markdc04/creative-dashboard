@@ -266,11 +266,12 @@
   // Labeled Spend/Revenue/Profit/ROAS columns — this is the row's only figure display, so
   // Profit is never duplicated elsewhere (no separate colored number floating beside it).
   function figsTableHtml(g) {
+    const active = (f) => (state.sortBy === f ? ' figs-col--active' : '');
     return (
       '<div class="figs-table">' +
-        '<div class="figs-col"><div class="figs-label">Spend</div><div class="figs-value">' + money(g.spend) + '</div></div>' +
-        '<div class="figs-col"><div class="figs-label">Revenue</div><div class="figs-value">' + money(g.revenue) + '</div></div>' +
-        '<div class="figs-col"><div class="figs-label">Profit</div><div class="figs-value ' + (g.profit >= 0 ? 'profit-pos' : 'profit-neg') + '">' + moneySigned(g.profit) + '</div></div>' +
+        '<div class="figs-col' + active('spend') + '"><div class="figs-label">Spend</div><div class="figs-value">' + money(g.spend) + '</div></div>' +
+        '<div class="figs-col' + active('revenue') + '"><div class="figs-label">Revenue</div><div class="figs-value">' + money(g.revenue) + '</div></div>' +
+        '<div class="figs-col' + active('profit') + '"><div class="figs-label">Profit</div><div class="figs-value ' + (g.profit >= 0 ? 'profit-pos' : 'profit-neg') + '">' + moneySigned(g.profit) + '</div></div>' +
         '<div class="figs-col"><div class="figs-label">ROAS</div><div class="figs-value">' + roasOf(g).toFixed(2) + '&times;</div></div>' +
       '</div>'
     );

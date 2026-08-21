@@ -153,6 +153,8 @@ h1{font-size:28px;font-weight:800;letter-spacing:-.01em;margin:0;text-wrap:balan
 .figs-col{text-align:right;min-width:56px;}
 .figs-label{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint);font-weight:700;margin-bottom:3px;}
 .figs-value{font-size:14px;font-weight:700;font-family:ui-monospace,"SF Mono","Roboto Mono",monospace;font-variant-numeric:tabular-nums;}
+.figs-col--active .figs-label{color:var(--accent);}
+.figs-col--active .figs-value{font-size:15px;}
 .dimension-bar-track{width:110px;height:5px;border-radius:3px;background:var(--border-soft);margin-top:6px;overflow:hidden;margin-left:auto;}
 .dimension-bar-track .bar-fill{transition:width .35s ease;}
 
@@ -323,8 +325,8 @@ tbody td.num-col{text-align:right;font-family:ui-monospace,"SF Mono","Roboto Mon
 tbody tr:hover{background:var(--surface-raised);}
 tbody td.name-cell{max-width:340px;overflow:hidden;text-overflow:ellipsis;font-weight:600;white-space:normal;}
 .name-sub{margin-top:2px;font-size:10.5px;font-weight:500;color:var(--text-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-td.profit-pos{color:var(--profit);}
-td.profit-neg{color:var(--loss);}
+td.profit-pos,.profit-pos{color:var(--profit);}
+td.profit-neg,.profit-neg{color:var(--loss);}
 .empty-row td{text-align:center;color:var(--text-faint);padding:32px 10px;}
 
 .footer{margin-top:28px;padding-top:16px;border-top:1px solid var(--border);font-size:11.5px;color:var(--text-faint);display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;}

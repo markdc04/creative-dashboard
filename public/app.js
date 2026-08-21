@@ -261,15 +261,15 @@
 
   // Compact "23 ads · $1.2M spend · $1.7M revenue · +$458K profit · 1.37x ROAS" summary line.
   // The Spend/Revenue/Profit/ROAS mini-table shown beside the main sort value on every row.
+  // Skips whichever metric the big colored figure to the right is already showing (the
+  // active sort field), so the same number never appears twice on the same row.
   function figsTableHtml(g) {
-    return (
-      '<div class="figs-inline">' +
-        'Spend ' + money(g.spend) +
-        ' &middot; Revenue ' + money(g.revenue) +
-        ' &middot; Profit <span class="' + (g.profit >= 0 ? 'profit-pos' : 'profit-neg') + '">' + moneySigned(g.profit) + '</span>' +
-        ' &middot; ROAS ' + roasOf(g).toFixed(2) + '&times;' +
-      '</div>'
-    );
+    const parts = [];
+    if (state.sortBy !== 'spend') parts.push('Spend ' + money(g.spend));
+    if (state.sortBy !== 'revenue') parts.push('Revenue ' + money(g.revenue));
+    if (state.sortBy !== 'profit') parts.push('Profit <span class="' + (g.profit >= 0 ? 'profit-pos' : 'profit-neg') + '">' + moneySigned(g.profit) + '</span>');
+    parts.push('ROAS ' + roasOf(g).toFixed(2) + '&times;');
+    return '<div class="figs-inline">' + parts.join(' &middot; ') + '</div>';
   }
 
   function rankMarkup(idx, isTop) {

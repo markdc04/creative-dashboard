@@ -209,16 +209,28 @@
     return tags;
   }
 
+  function rankMarkup(idx, isTop) {
+    if (isTop) {
+      return '<span class="rank rank-top" title="Top creative">' +
+        '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M5 19h14v2H5v-2Zm.6-3L4 7l5.2 3L12 5l2.8 5L20 7l-1.6 9H5.6Z"/></svg>' +
+      '</span>';
+    }
+    return '<span class="rank">' + String(idx + 1).padStart(2, '0') + '</span>';
+  }
+
   function dimensionRowHtml(field, g, idx, maxAbs) {
     const val = g[state.sortBy];
     const isPos = val >= 0;
+    const isTop = idx === 0 && isPos;
     const pct = maxAbs > 0 ? Math.max(4, Math.round((Math.abs(val) / maxAbs) * 100)) : 4;
     const valLabel = state.sortBy === 'profit' ? moneySigned(val) : money(val);
     return (
-      '<div class="dimension-row">' +
-        '<span class="rank">' + String(idx + 1).padStart(2, '0') + '</span>' +
+      '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + '">' +
+        rankMarkup(idx, isTop) +
         '<div>' +
-          '<div class="dimension-name dimension-name-clickable" data-idx="' + idx + '">' + escapeHtml(g.name) + '</div>' +
+          '<div class="dimension-name dimension-name-clickable" data-idx="' + idx + '">' + escapeHtml(g.name) +
+            (isTop ? '<span class="top-badge">Top Creative</span>' : '') +
+          '</div>' +
           '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
           '<div class="dimension-meta">' + metaTags(field, g) + '</div>' +
         '</div>' +
@@ -234,13 +246,16 @@
     const showMetric = state.sortBy !== 'date';
     const val = showMetric ? g[state.sortBy] : 0;
     const isPos = val >= 0;
+    const isTop = idx === 0 && showMetric && isPos;
     const pct = showMetric && maxAbs > 0 ? Math.max(4, Math.round((Math.abs(val) / maxAbs) * 100)) : 0;
     const valLabel = state.sortBy === 'profit' ? moneySigned(val) : money(val);
     return (
-      '<div class="dimension-row">' +
-        '<span class="rank">' + String(idx + 1).padStart(2, '0') + '</span>' +
+      '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + '">' +
+        rankMarkup(idx, isTop) +
         '<div>' +
-          '<div class="dimension-name dimension-name-clickable" data-idx="' + idx + '">' + escapeHtml(g.name) + '</div>' +
+          '<div class="dimension-name dimension-name-clickable" data-idx="' + idx + '">' + escapeHtml(g.name) +
+            (isTop ? '<span class="top-badge">Top Creative</span>' : '') +
+          '</div>' +
           '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
           '<div class="dimension-meta">' + metaTags('fileName', g) + '</div>' +
         '</div>' +

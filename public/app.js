@@ -14,6 +14,7 @@
   const TOP_LABELS = { fileName: 'Top Creative', hookType: 'Top Hook Type', actor: 'Top Actor', writer: 'Top Writer', editor: 'Top Editor', team: 'Top Collaboration', new: 'Top Creative' };
   const TAG_LABELS = { hookType: 'Hook', actor: 'Actor', writer: 'Writer', editor: 'Editor' };
   const ALL_TAG_FIELDS = ['hookType', 'actor', 'writer', 'editor'];
+  const PEOPLE_FIELDS = ['actor', 'writer', 'editor'];
 
   const $ = (sel) => document.querySelector(sel);
   const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -200,16 +201,26 @@
     return [...groups].sort((a, b) => b[key] - a[key]);
   }
 
-  // Actor/Writer/Editor/Hook Type + upload date, shown under every leaderboard entry —
-  // skips whichever field the board is already grouped by (no "Actor: Ron" under Actor itself).
-  // skipDate omits the upload-date tag when it's already shown elsewhere on the row (the New
-  // Creatives board shows it as a standalone badge, so it shouldn't also repeat here).
-  function metaTags(field, g, skipDate) {
+  // Actor/Writer/Editor are the headline info — who's actually credited — so they get their
+  // own prominent line up top. Skips whichever field the board is already grouped by (no
+  // "Actor: Ron" under Actor itself).
+  function peopleTags(field, g) {
     let tags = '';
-    for (const tf of ALL_TAG_FIELDS) {
+    for (const tf of PEOPLE_FIELDS) {
       if (tf === field) continue;
       const v = g[tf];
       if (v) tags += '<span class="tag dim-tag dim-tag--' + tf + '">' + TAG_LABELS[tf] + ': ' + escapeHtml(v) + '</span>';
+    }
+    return tags;
+  }
+
+  // Hook Type + upload date are secondary context, shown in the same line as the performance
+  // stats below the people tags. skipDate omits the upload-date tag when it's already shown
+  // elsewhere on the row (the New Creatives board shows it as a standalone badge).
+  function secondaryTags(field, g, skipDate) {
+    let tags = '';
+    if (field !== 'hookType' && g.hookType) {
+      tags += '<span class="tag dim-tag dim-tag--hookType">' + TAG_LABELS.hookType + ': ' + escapeHtml(g.hookType) + '</span>';
     }
     if (skipDate) return tags;
     tags += g.uploadedAt
@@ -222,7 +233,7 @@
   // Collaborators) represent a person or category, not one creative — so tags like
   // "Writer: zeke" picked from just one of their many ads would be misleading. Those role
   // tags only make sense once you drill into a specific creative (via subRowHtml), so the
-  // top-level row just shows a most-recent-upload date.
+  // top-level row just shows a most-recent-upload date alongside the stats.
   function personMetaTags(g) {
     return g.uploadedAt
       ? '<span class="tag dim-tag date-tag">Most recent: ' + formatDate(g.uploadedAt) + '</span>'
@@ -283,8 +294,8 @@
           '<div>' +
             '<div class="dimension-name">' + escapeHtml(cg.name) + chevronMarkup(isOpen) + '</div>' +
             '<div class="dimension-count">' + cg.count + ' ' + (cg.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(cg.spend) + ' spend</div>' +
-            '<div class="dimension-meta">' + metaTags(state.board, cg) + '</div>' +
-            '<div class="dimension-stats">' + statsHtml(cg, totalProfit) + '</div>' +
+            '<div class="dimension-meta">' + peopleTags(state.board, cg) + '</div>' +
+            '<div class="dimension-stats">' + secondaryTags(state.board, cg) + statsHtml(cg, totalProfit) + '</div>' +
           '</div>' +
         '</div>' +
         (isOpen ? '<div class="dimension-expand">' + adsTableHtml(cg.ads) + '</div>' : '') +
@@ -318,8 +329,8 @@
               chevronMarkup(isOpen) +
             '</div>' +
             '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
-            '<div class="dimension-meta">' + (field === 'fileName' ? metaTags(field, g) : personMetaTags(g)) + '</div>' +
-            '<div class="dimension-stats">' + statsHtml(g, totalProfit) + '</div>' +
+            '<div class="dimension-meta">' + (field === 'fileName' ? peopleTags(field, g) : '') + '</div>' +
+            '<div class="dimension-stats">' + (field === 'fileName' ? secondaryTags(field, g) : personMetaTags(g)) + statsHtml(g, totalProfit) + '</div>' +
           '</div>' +
           '<div class="dimension-figs">' +
             '<div class="row-profit ' + (isPos ? 'profit' : 'loss') + ' num">' + valLabel + '</div>' +
@@ -350,8 +361,8 @@
               chevronMarkup(isOpen) +
             '</div>' +
             '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
-            '<div class="dimension-meta">' + metaTags('fileName', g, !showMetric) + '</div>' +
-            '<div class="dimension-stats">' + statsHtml(g, totalProfit) + '</div>' +
+            '<div class="dimension-meta">' + peopleTags('fileName', g) + '</div>' +
+            '<div class="dimension-stats">' + secondaryTags('fileName', g, !showMetric) + statsHtml(g, totalProfit) + '</div>' +
           '</div>' +
           '<div class="dimension-figs">' +
             (showMetric

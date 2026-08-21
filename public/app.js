@@ -252,15 +252,22 @@
   function statsHtml(g, totalProfit) {
     const contribution = totalProfit > 0 ? (g.profit / totalProfit) * 100 : null;
     let html = '';
-    html += '<span class="tag stat-tag stat-tag--spend">Spend: ' + money(g.spend) + '</span>';
-    html += '<span class="tag stat-tag stat-tag--revenue">Revenue: ' + money(g.revenue) + '</span>';
-    html += '<span class="tag stat-tag ' + (g.profit >= 0 ? 'stat-tag--profit-pos' : 'stat-tag--profit-neg') + '">Profit: ' + moneySigned(g.profit) + '</span>';
-    html += '<span class="tag stat-tag stat-tag--roas">ROAS: ' + roasOf(g).toFixed(2) + '&times;</span>';
     html += '<span class="tag stat-tag">Profit contribution: ' + (contribution != null ? pct(contribution) : '&mdash;') + '</span>';
     if (state.range.key === 'all') {
       html += '<span class="tag stat-tag stat-tag--cost">Leads: ' + g.leadsAllTime.toLocaleString('en-US') + '</span>';
     }
     return html;
+  }
+
+  // Compact "23 ads · $1.2M spend · $1.7M revenue · +$458K profit · 1.37x ROAS" summary line.
+  function summaryLine(g) {
+    return (
+      g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') +
+      ' &middot; ' + money(g.spend) + ' spend' +
+      ' &middot; ' + money(g.revenue) + ' revenue' +
+      ' &middot; <span class="' + (g.profit >= 0 ? 'profit-pos' : 'profit-neg') + '">' + moneySigned(g.profit) + ' profit</span>' +
+      ' &middot; ' + roasOf(g).toFixed(2) + '&times; ROAS'
+    );
   }
 
   function rankMarkup(idx, isTop) {
@@ -300,7 +307,7 @@
         '<div class="dimension-row dimension-row--sub" data-key="' + escapeHtml(subKey) + '">' +
           '<div>' +
             '<div class="dimension-name">' + escapeHtml(cg.name) + chevronMarkup(isOpen) + '</div>' +
-            '<div class="dimension-count">' + cg.count + ' ' + (cg.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(cg.spend) + ' spend</div>' +
+            '<div class="dimension-count">' + summaryLine(cg) + '</div>' +
             '<div class="dimension-meta">' + peopleTags(state.board, cg) + '</div>' +
             '<div class="dimension-stats">' + secondaryTags(state.board, cg) + statsHtml(cg, totalProfit) + '</div>' +
           '</div>' +
@@ -335,7 +342,7 @@
               (isTop ? '<span class="top-badge">' + TOP_LABELS[state.board] + '</span>' : '') +
               chevronMarkup(isOpen) +
             '</div>' +
-            '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
+            '<div class="dimension-count">' + summaryLine(g) + '</div>' +
             '<div class="dimension-meta">' + (field === 'fileName' ? peopleTags(field, g) : '') + '</div>' +
             '<div class="dimension-stats">' + (field === 'fileName' ? secondaryTags(field, g) : personMetaTags(g)) + statsHtml(g, totalProfit) + '</div>' +
           '</div>' +
@@ -367,7 +374,7 @@
               (isTop ? '<span class="top-badge">' + TOP_LABELS[state.board] + '</span>' : '') +
               chevronMarkup(isOpen) +
             '</div>' +
-            '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
+            '<div class="dimension-count">' + summaryLine(g) + '</div>' +
             '<div class="dimension-meta">' + peopleTags('fileName', g) + '</div>' +
             '<div class="dimension-stats">' + secondaryTags('fileName', g, !showMetric) + statsHtml(g, totalProfit) + '</div>' +
           '</div>' +

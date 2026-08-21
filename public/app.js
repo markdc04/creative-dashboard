@@ -223,17 +223,45 @@
     return '<svg class="dimension-chevron' + (isOpen ? ' is-open' : '') + '" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
   }
 
-  function expandHtml(g) {
+  function adsTableHtml(ads) {
     return (
-      '<div class="dimension-expand">' +
-        '<div class="table-scroll">' +
-          '<table>' +
-            '<thead><tr><th>Ad Name</th><th class="num-col">Spend</th><th class="num-col">Revenue</th><th class="num-col">Profit</th><th class="num-col">ROAS</th><th>Assets</th></tr></thead>' +
-            '<tbody>' + g.ads.map(detailRowHtml).join('') + '</tbody>' +
-          '</table>' +
-        '</div>' +
+      '<div class="table-scroll">' +
+        '<table>' +
+          '<thead><tr><th>Ad Name</th><th class="num-col">Spend</th><th class="num-col">Revenue</th><th class="num-col">Profit</th><th class="num-col">ROAS</th><th>Assets</th></tr></thead>' +
+          '<tbody>' + ads.map(detailRowHtml).join('') + '</tbody>' +
+        '</table>' +
       '</div>'
     );
+  }
+
+  // A person/hook/team entry (Actor, Writer, Editor, Hook Type, Collaborators) expands one
+  // level into the distinct creatives they're credited on — each showing who else worked on
+  // it — rather than straight into a flat ad list; opening one of those creatives is what
+  // reveals its actual running ads. "All Creatives" and "New Creatives" are already grouped
+  // by video, so they skip straight to the ad list.
+  function subRowHtml(parentKey, cg) {
+    const subKey = parentKey + '::fileName::' + cg.name;
+    const isOpen = state.expanded.has(subKey);
+    return (
+      '<div class="dimension-entry">' +
+        '<div class="dimension-row dimension-row--sub" data-key="' + escapeHtml(subKey) + '">' +
+          '<div>' +
+            '<div class="dimension-name">' + escapeHtml(cg.name) + chevronMarkup(isOpen) + '</div>' +
+            '<div class="dimension-count">' + cg.count + ' ' + (cg.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(cg.spend) + ' spend</div>' +
+            '<div class="dimension-meta">' + metaTags(state.board, cg) + '</div>' +
+          '</div>' +
+        '</div>' +
+        (isOpen ? '<div class="dimension-expand">' + adsTableHtml(cg.ads) + '</div>' : '') +
+      '</div>'
+    );
+  }
+
+  function expandHtml(g, key) {
+    if (state.board === 'fileName' || state.board === 'new') {
+      return '<div class="dimension-expand">' + adsTableHtml(g.ads) + '</div>';
+    }
+    const creatives = aggregateByDimension(g.ads, 'fileName');
+    return '<div class="dimension-expand dimension-expand--nested">' + creatives.map((cg) => subRowHtml(key, cg)).join('') + '</div>';
   }
 
   function dimensionRowHtml(field, g, idx, maxAbs) {
@@ -261,7 +289,7 @@
           '</div>' +
           '<div class="dimension-bar-track"><div class="bar-fill ' + (isPos ? 'profit' : 'loss') + '" style="width:' + pct + '%"></div></div>' +
         '</div>' +
-        (isOpen ? expandHtml(g) : '') +
+        (isOpen ? expandHtml(g, key) : '') +
       '</div>'
     );
   }
@@ -294,7 +322,7 @@
           '</div>' +
           (showMetric ? '<div class="dimension-bar-track"><div class="bar-fill ' + (isPos ? 'profit' : 'loss') + '" style="width:' + pct + '%"></div></div>' : '') +
         '</div>' +
-        (isOpen ? expandHtml(g) : '') +
+        (isOpen ? expandHtml(g, key) : '') +
       '</div>'
     );
   }

@@ -11,6 +11,7 @@
   };
 
   const BOARD_LABELS = { fileName: 'All Creatives', hookType: 'Hook Type', actor: 'Actor', writer: 'Writer', editor: 'Editor', team: 'Collaborators', new: 'New Creatives' };
+  const TOP_LABELS = { fileName: 'Top Creative', hookType: 'Top Hook Type', actor: 'Top Actor', writer: 'Top Writer', editor: 'Top Editor', team: 'Top Collaboration', new: 'Top Creative' };
   const TAG_LABELS = { hookType: 'Hook', actor: 'Actor', writer: 'Writer', editor: 'Editor' };
   const ALL_TAG_FIELDS = ['hookType', 'actor', 'writer', 'editor'];
 
@@ -229,7 +230,7 @@
         rankMarkup(idx, isTop) +
         '<div>' +
           '<div class="dimension-name dimension-name-clickable" data-idx="' + idx + '">' + escapeHtml(g.name) +
-            (isTop ? '<span class="top-badge">Top Creative</span>' : '') +
+            (isTop ? '<span class="top-badge">' + TOP_LABELS[state.board] + '</span>' : '') +
           '</div>' +
           '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
           '<div class="dimension-meta">' + metaTags(field, g) + '</div>' +
@@ -254,7 +255,7 @@
         rankMarkup(idx, isTop) +
         '<div>' +
           '<div class="dimension-name dimension-name-clickable" data-idx="' + idx + '">' + escapeHtml(g.name) +
-            (isTop ? '<span class="top-badge">Top Creative</span>' : '') +
+            (isTop ? '<span class="top-badge">' + TOP_LABELS[state.board] + '</span>' : '') +
           '</div>' +
           '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + ' &middot; ' + money(g.spend) + ' spend</div>' +
           '<div class="dimension-meta">' + metaTags('fileName', g) + '</div>' +

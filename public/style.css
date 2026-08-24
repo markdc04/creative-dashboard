@@ -402,6 +402,11 @@ body.video-panel-open .back-to-top{right:calc(24px + min(440px,92vw));}
 .video-panel-figs{justify-content:space-between;gap:8px;}
 .video-panel-figs .figs-col{text-align:left;min-width:0;}
 
+.variant-heading{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-faint);font-weight:700;margin:18px 0 8px;}
+.variant-strip{display:flex;flex-wrap:wrap;gap:8px;}
+.variant-thumb{width:72px;height:41px;padding:0;}
+.variant-thumb.is-active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);}
+
 @media (max-width:640px){
   .wrap{padding:14px 14px 84px;}
 

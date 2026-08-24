@@ -297,12 +297,18 @@
     return '<svg class="dimension-chevron' + (isOpen ? ' is-open' : '') + '" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
   }
 
+  // Lets the video panel show "other ads using this video" without re-plumbing the ad list
+  // through every call site — keyed by fileName, which every ad and creative-level group
+  // shares, so a click from either the row thumbnail or the ad table finds the same siblings.
+  const groupAdsRegistry = new Map();
+
   function adsTableHtml(ads) {
+    if (ads.length && ads[0].fileName) groupAdsRegistry.set(ads[0].fileName, ads);
     return (
       '<div class="table-scroll">' +
         '<table>' +
           '<thead><tr><th></th><th>Ad Name</th><th class="num-col">Spend</th><th class="num-col">Revenue</th><th class="num-col">Profit</th><th class="num-col">ROAS</th><th>Assets</th></tr></thead>' +
-          '<tbody>' + ads.map(detailRowHtml).join('') + '</tbody>' +
+          '<tbody>' + ads.map((ad) => detailRowHtml(ad, ads[0].fileName)).join('') + '</tbody>' +
         '</table>' +
       '</div>'
     );
@@ -316,10 +322,12 @@
   function rowThumbHtml(g) {
     const ytId = youtubeId(g.youtubeUrl);
     const roas = roasOf(g);
+    if (g.ads && g.ads.length) groupAdsRegistry.set(g.name, g.ads);
     return '<div class="row-thumb-slot">' + (
       ytId
         ? '<button class="ad-thumb" data-yt-id="' + escapeHtml(ytId) + '" data-ad-name="' + escapeHtml(g.name || '') + '"' +
             ' data-spend="' + g.spend + '" data-revenue="' + g.revenue + '" data-profit="' + g.profit + '" data-roas="' + roas + '"' +
+            ' data-group-key="' + escapeHtml(g.name || '') + '"' +
             ' title="Play video">' +
             '<img src="https://img.youtube.com/vi/' + escapeHtml(ytId) + '/mqdefault.jpg" alt="" loading="lazy">' +
             '<span class="ad-thumb-play">&#9658;</span>' +
@@ -513,7 +521,7 @@
         : groups.map((g, i) => dimensionRowHtml(field, g, i, maxAbs, totalProfit)).join('');
   }
 
-  function detailRowHtml(ad) {
+  function detailRowHtml(ad, groupKey) {
     const roas = ad.spend > 0 ? ad.revenue / ad.spend : 0;
     const ytId = youtubeId(ad.youtubeUrl);
     return (
@@ -522,6 +530,7 @@
           (ytId
             ? '<button class="ad-thumb" data-yt-id="' + escapeHtml(ytId) + '" data-ad-name="' + escapeHtml(ad.adName || '') + '"' +
                 ' data-spend="' + ad.spend + '" data-revenue="' + ad.revenue + '" data-profit="' + ad.profit + '" data-roas="' + roas + '"' +
+                ' data-group-key="' + escapeHtml(groupKey || '') + '"' +
                 ' title="Play video">' +
                 '<img src="https://img.youtube.com/vi/' + escapeHtml(ytId) + '/mqdefault.jpg" alt="" loading="lazy">' +
                 '<span class="ad-thumb-play">&#9658;</span>' +
@@ -656,9 +665,33 @@
 
   // ---- inline video preview: click a thumbnail to watch the ad in a side panel, without
   // leaving or blocking the rest of the leaderboard ----
-  function openVideoPanel(ytId, title, stats) {
+  // Other ads sharing the same creative — shown as a row of thumbnails under the stats,
+  // so switching between variants doesn't require closing the panel and dropping down into
+  // the ad table separately.
+  function otherAdsHtml(groupKey, currentYtId) {
+    const ads = groupAdsRegistry.get(groupKey);
+    if (!ads || ads.length < 2) return '';
+    const items = ads.map((ad) => {
+      const ytId = youtubeId(ad.youtubeUrl);
+      if (!ytId) return '';
+      const roas = ad.spend > 0 ? ad.revenue / ad.spend : 0;
+      return '<button class="variant-thumb ad-thumb' + (ytId === currentYtId ? ' is-active' : '') + '"' +
+        ' data-yt-id="' + escapeHtml(ytId) + '" data-ad-name="' + escapeHtml(ad.adName || '') + '"' +
+        ' data-spend="' + ad.spend + '" data-revenue="' + ad.revenue + '" data-profit="' + ad.profit + '" data-roas="' + roas + '"' +
+        ' data-group-key="' + escapeHtml(groupKey) + '"' +
+        ' title="' + escapeHtml(ad.adName || '') + '">' +
+        '<img src="https://img.youtube.com/vi/' + escapeHtml(ytId) + '/mqdefault.jpg" alt="" loading="lazy">' +
+      '</button>';
+    }).join('');
+    return !items ? '' : (
+      '<div class="variant-heading">Other ads using this video</div>' +
+      '<div class="variant-strip">' + items + '</div>'
+    );
+  }
+
+  function openVideoPanel(ytId, title, stats, groupKey) {
     $('#video-panel-embed').innerHTML =
-      '<iframe src="https://www.youtube.com/embed/' + ytId + '?autoplay=1&rel=0" ' +
+      '<iframe src="https://www.youtube.com/embed/' + ytId + '?rel=0" ' +
       'title="Ad preview" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>';
     $('#video-panel-title').textContent = title || 'Preview';
     $('#video-panel-body').innerHTML = !stats ? '' : (
@@ -667,7 +700,8 @@
         '<div class="figs-col"><div class="figs-label">Revenue</div><div class="figs-value">' + money(stats.revenue) + '</div></div>' +
         '<div class="figs-col"><div class="figs-label">Profit</div><div class="figs-value ' + (stats.profit >= 0 ? 'profit-pos' : 'profit-neg') + '">' + moneySigned(stats.profit) + '</div></div>' +
         '<div class="figs-col"><div class="figs-label">ROAS</div><div class="figs-value">' + stats.roas.toFixed(2) + '&times;</div></div>' +
-      '</div>'
+      '</div>' +
+      otherAdsHtml(groupKey, ytId)
     );
     $('#video-panel').classList.add('is-open');
     document.body.classList.add('video-panel-open'); // pushes the page over, doesn't cover it
@@ -678,15 +712,17 @@
     $('#video-panel-body').innerHTML = '';
     document.body.classList.remove('video-panel-open');
   }
-  $('#board-list').addEventListener('click', (e) => {
+  function handleThumbClick(e) {
     const thumb = e.target.closest('.ad-thumb');
     if (!thumb || !thumb.dataset.ytId) return;
     e.stopPropagation();
     openVideoPanel(thumb.dataset.ytId, thumb.dataset.adName, {
       spend: Number(thumb.dataset.spend), revenue: Number(thumb.dataset.revenue),
       profit: Number(thumb.dataset.profit), roas: Number(thumb.dataset.roas),
-    });
-  });
+    }, thumb.dataset.groupKey);
+  }
+  $('#board-list').addEventListener('click', handleThumbClick);
+  $('#video-panel-body').addEventListener('click', handleThumbClick);
   $('#video-panel-close').addEventListener('click', closeVideoPanel);
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && $('#video-panel').classList.contains('is-open')) closeVideoPanel();

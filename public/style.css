@@ -127,7 +127,10 @@ h1{font-size:28px;font-weight:800;letter-spacing:-.01em;margin:0;text-wrap:balan
   box-shadow:0 0 10px rgba(240,180,41,.55);
 }
 .dimension-entry:first-child .dimension-row{border-top:none;}
-.dimension-row{display:grid;grid-template-columns:22px 1fr auto auto;align-items:start;gap:14px;padding:13px 10px;border-top:1px solid var(--border-soft);border-radius:10px;transition:background .12s;cursor:pointer;}
+.dimension-row{display:grid;grid-template-columns:22px auto 1fr auto auto;align-items:start;gap:14px;padding:13px 10px;border-top:1px solid var(--border-soft);border-radius:10px;transition:background .12s;cursor:pointer;}
+.row-thumb-slot{width:64px;flex:none;}
+.row-thumb-slot:empty{width:0;}
+.row-thumb-slot .ad-thumb{width:64px;height:36px;}
 .dimension-row:hover{background:var(--surface-raised);}
 .dimension-name{font-size:14px;font-weight:700;}
 .dimension-chevron{color:var(--text-faint);margin-left:7px;vertical-align:middle;transition:transform .18s ease,color .12s;}
@@ -143,7 +146,7 @@ h1{font-size:28px;font-weight:800;letter-spacing:-.01em;margin:0;text-wrap:balan
   margin:0 10px 10px;padding:2px 0 2px 14px;
   border-top:1px dashed var(--border);border-left:2px solid var(--border);
 }
-.dimension-row--sub{grid-template-columns:1fr auto;gap:14px;padding:10px 10px;}
+.dimension-row--sub{grid-template-columns:auto 1fr auto;gap:14px;padding:10px 10px;}
 .dimension-row--sub .dimension-name{font-size:13px;}
 .dimension-row--sub .dimension-expand{margin:0;padding:6px 0 2px;}
 .dimension-expand .table-scroll{border-top:none;margin-top:6px;}
@@ -432,7 +435,8 @@ body.video-panel-open .back-to-top{right:calc(24px + min(440px,92vw));}
     gap:2px 10px;padding:12px 4px;
   }
   .dimension-row .rank{grid-area:rank;align-self:start;}
-  .dimension-row>div:nth-child(2){grid-area:name;}
+  .dimension-row .row-thumb-slot{display:none;}
+  .dimension-row>div:nth-child(3){grid-area:name;}
   .dimension-figs{grid-area:figs;text-align:left;min-width:0;margin-top:8px;}
   .dimension-bar-track{grid-area:bar;margin-left:0;margin-top:6px;width:100%;max-width:none;}
   .dimension-name{font-size:13.5px;}

@@ -199,6 +199,7 @@
         profit: g.revenue - g.spend,
         ads: [...g.ads].sort((a, b) => b.profit - a.profit),
         hookType: pick('hookType'), actor: pick('actor'), writer: pick('writer'), editor: pick('editor'),
+        youtubeUrl: pick('youtubeUrl'),
         uploadedAt: dated.length ? new Date(Math.max(...dated)) : null,
       };
     });
@@ -312,12 +313,25 @@
   // it — rather than straight into a flat ad list; opening one of those creatives is what
   // reveals its actual running ads. "All Creatives" and "New Creatives" are already grouped
   // by video, so they skip straight to the ad list.
+  function rowThumbHtml(g) {
+    const ytId = youtubeId(g.youtubeUrl);
+    return '<div class="row-thumb-slot">' + (
+      ytId
+        ? '<button class="ad-thumb" data-yt-id="' + escapeHtml(ytId) + '" data-ad-name="' + escapeHtml(g.name || '') + '" title="Play video">' +
+            '<img src="https://img.youtube.com/vi/' + escapeHtml(ytId) + '/mqdefault.jpg" alt="" loading="lazy">' +
+            '<span class="ad-thumb-play">&#9658;</span>' +
+          '</button>'
+        : ''
+    ) + '</div>';
+  }
+
   function subRowHtml(parentKey, cg, totalProfit) {
     const subKey = parentKey + '::fileName::' + cg.name;
     const isOpen = state.expanded.has(subKey);
     return (
       '<div class="dimension-entry">' +
         '<div class="dimension-row dimension-row--sub" data-key="' + escapeHtml(subKey) + '">' +
+          rowThumbHtml(cg) +
           '<div>' +
             '<div class="dimension-name">' + escapeHtml(cg.name) + chevronMarkup(isOpen) + '</div>' +
             '<div class="dimension-count">' + cg.count + ' ' + (cg.count === 1 ? 'ad' : 'ads') + '</div>' +
@@ -350,6 +364,7 @@
       '<div class="dimension-entry">' +
         '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + '" data-key="' + escapeHtml(key) + '">' +
           rankMarkup(idx, isTop) +
+          (field === 'fileName' ? rowThumbHtml(g) : '<div class="row-thumb-slot"></div>') +
           '<div>' +
             '<div class="dimension-name dimension-name-clickable">' + escapeHtml(g.name) +
               (isTop ? '<span class="top-badge">' + TOP_LABELS[state.board] + '</span>' : '') +
@@ -379,6 +394,7 @@
       '<div class="dimension-entry">' +
         '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + '" data-key="' + escapeHtml(key) + '">' +
           rankMarkup(idx, isTop) +
+          rowThumbHtml(g) +
           '<div>' +
             '<div class="dimension-name dimension-name-clickable">' + escapeHtml(g.name) +
               (isTop ? '<span class="top-badge">' + TOP_LABELS[state.board] + '</span>' : '') +
@@ -626,6 +642,7 @@
   // ---- click a leaderboard row to expand/collapse its ad list inline (both card and
   // table view use the same data-key + state.expanded toggle) ----
   $('#board-list').addEventListener('click', (e) => {
+    if (e.target.closest('.ad-thumb')) return;
     const row = e.target.closest('.dimension-row, .table-toggle-row');
     if (!row) return;
     const key = row.dataset.key;
@@ -652,6 +669,7 @@
   $('#board-list').addEventListener('click', (e) => {
     const thumb = e.target.closest('.ad-thumb');
     if (!thumb || !thumb.dataset.ytId) return;
+    e.stopPropagation();
     openVideoPanel(thumb.dataset.ytId, thumb.dataset.adName);
   });
   $('#video-panel-close').addEventListener('click', closeVideoPanel);

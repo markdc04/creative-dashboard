@@ -108,11 +108,12 @@
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
 </button>
 
-<div id="video-modal" class="video-modal" hidden>
-  <div class="video-modal-inner">
-    <button id="video-modal-close" class="video-modal-close" aria-label="Close">&times;</button>
-    <div id="video-modal-embed" class="video-modal-embed"></div>
+<div id="video-panel" class="video-panel">
+  <div class="video-panel-head">
+    <span id="video-panel-title" class="video-panel-title">Preview</span>
+    <button id="video-panel-close" class="video-panel-close" aria-label="Close preview">&times;</button>
   </div>
+  <div id="video-panel-embed" class="video-panel-embed"></div>
 </div>
 
 <script src="app.js"></script>

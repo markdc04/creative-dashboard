@@ -503,7 +503,7 @@
       '<tr>' +
         '<td class="thumb-cell">' +
           (ytId
-            ? '<button class="ad-thumb" data-yt-id="' + escapeHtml(ytId) + '" title="Play video">' +
+            ? '<button class="ad-thumb" data-yt-id="' + escapeHtml(ytId) + '" data-ad-name="' + escapeHtml(ad.adName || '') + '" title="Play video">' +
                 '<img src="https://img.youtube.com/vi/' + escapeHtml(ytId) + '/mqdefault.jpg" alt="" loading="lazy">' +
                 '<span class="ad-thumb-play">&#9658;</span>' +
               '</button>'
@@ -634,28 +634,27 @@
     render();
   });
 
-  // ---- inline video preview: click a thumbnail to watch the ad without leaving the page ----
-  function openVideoModal(ytId) {
-    $('#video-modal-embed').innerHTML =
+  // ---- inline video preview: click a thumbnail to watch the ad in a side panel, without
+  // leaving or blocking the rest of the leaderboard ----
+  function openVideoPanel(ytId, title) {
+    $('#video-panel-embed').innerHTML =
       '<iframe src="https://www.youtube.com/embed/' + ytId + '?autoplay=1&rel=0" ' +
       'title="Ad preview" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>';
-    $('#video-modal').hidden = false;
+    $('#video-panel-title').textContent = title || 'Preview';
+    $('#video-panel').classList.add('is-open');
   }
-  function closeVideoModal() {
-    $('#video-modal').hidden = true;
-    $('#video-modal-embed').innerHTML = ''; // clear so playback actually stops
+  function closeVideoPanel() {
+    $('#video-panel').classList.remove('is-open');
+    $('#video-panel-embed').innerHTML = ''; // clear so playback actually stops
   }
   $('#board-list').addEventListener('click', (e) => {
     const thumb = e.target.closest('.ad-thumb');
     if (!thumb || !thumb.dataset.ytId) return;
-    openVideoModal(thumb.dataset.ytId);
+    openVideoPanel(thumb.dataset.ytId, thumb.dataset.adName);
   });
-  $('#video-modal-close').addEventListener('click', closeVideoModal);
-  $('#video-modal').addEventListener('click', (e) => {
-    if (e.target.id === 'video-modal') closeVideoModal();
-  });
+  $('#video-panel-close').addEventListener('click', closeVideoPanel);
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !$('#video-modal').hidden) closeVideoModal();
+    if (e.key === 'Escape' && $('#video-panel').classList.contains('is-open')) closeVideoPanel();
   });
 
   // ---- manual refresh ----

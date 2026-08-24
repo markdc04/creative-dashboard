@@ -11,8 +11,8 @@
     viewMode: 'cards', // 'cards' | 'table'
   };
 
-  const BOARD_LABELS = { fileName: 'All Creatives', hookType: 'Hook Type', actor: 'Actor', writer: 'Writer', editor: 'Editor', team: 'Collaborators', new: 'New Creatives' };
-  const TOP_LABELS = { fileName: 'Top Creative', hookType: 'Top Hook Type', actor: 'Top Actor', writer: 'Top Writer', editor: 'Top Editor', team: 'Top Collaboration', new: 'Top Creative' };
+  const BOARD_LABELS = { fileName: 'All Creatives', active: 'Active Creatives', hookType: 'Hook Type', actor: 'Actor', writer: 'Writer', editor: 'Editor', team: 'Collaborators', new: 'New Creatives' };
+  const TOP_LABELS = { fileName: 'Top Creative', active: 'Top Active Creative', hookType: 'Top Hook Type', actor: 'Top Actor', writer: 'Top Writer', editor: 'Top Editor', team: 'Top Collaboration', new: 'Top Creative' };
   const TAG_LABELS = { hookType: 'Hook', actor: 'Actor', writer: 'Writer', editor: 'Editor' };
   const ALL_TAG_FIELDS = ['hookType', 'actor', 'writer', 'editor'];
   const PEOPLE_FIELDS = ['actor', 'writer', 'editor'];
@@ -475,12 +475,16 @@
       return;
     }
 
-    const field = state.board;
-    const groups = sortGroups(aggregateByDimension(rows, field).filter((g) => matchesSearch(g.name)));
+    // "Active Creatives" is All Creatives grouped the same way, just pre-filtered to ads that
+    // actually have spend in the current range — i.e. videos that are currently running.
+    const isActiveBoard = state.board === 'active';
+    const sourceRows = isActiveBoard ? rows.filter((r) => r.spend > 0) : rows;
+    const field = isActiveBoard ? 'fileName' : state.board;
+    const groups = sortGroups(aggregateByDimension(sourceRows, field).filter((g) => matchesSearch(g.name)));
     const maxAbs = Math.max(1, ...groups.map((g) => Math.abs(g[state.sortBy])));
     $('#board-count').innerHTML = groups.length + ' ' + (groups.length === 1 ? 'entry' : 'entries') + ' &middot; sorted by ' + state.sortBy;
     $('#board-list').innerHTML = !groups.length
-      ? emptyMsg('No ' + BOARD_LABELS[field].toLowerCase() + ' data tagged yet for this range.')
+      ? emptyMsg('No ' + (isActiveBoard ? 'currently active ads' : BOARD_LABELS[field].toLowerCase() + ' data') + ' for this range.')
       : state.viewMode === 'table'
         ? tableHtml(field, groups, totalProfit, field === 'fileName' ? 'Uploaded' : 'Most Recent')
         : groups.map((g, i) => dimensionRowHtml(field, g, i, maxAbs, totalProfit)).join('');

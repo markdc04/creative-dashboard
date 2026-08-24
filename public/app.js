@@ -315,9 +315,12 @@
   // by video, so they skip straight to the ad list.
   function rowThumbHtml(g) {
     const ytId = youtubeId(g.youtubeUrl);
+    const roas = roasOf(g);
     return '<div class="row-thumb-slot">' + (
       ytId
-        ? '<button class="ad-thumb" data-yt-id="' + escapeHtml(ytId) + '" data-ad-name="' + escapeHtml(g.name || '') + '" title="Play video">' +
+        ? '<button class="ad-thumb" data-yt-id="' + escapeHtml(ytId) + '" data-ad-name="' + escapeHtml(g.name || '') + '"' +
+            ' data-spend="' + g.spend + '" data-revenue="' + g.revenue + '" data-profit="' + g.profit + '" data-roas="' + roas + '"' +
+            ' title="Play video">' +
             '<img src="https://img.youtube.com/vi/' + escapeHtml(ytId) + '/mqdefault.jpg" alt="" loading="lazy">' +
             '<span class="ad-thumb-play">&#9658;</span>' +
           '</button>'
@@ -519,7 +522,9 @@
       '<tr>' +
         '<td class="thumb-cell">' +
           (ytId
-            ? '<button class="ad-thumb" data-yt-id="' + escapeHtml(ytId) + '" data-ad-name="' + escapeHtml(ad.adName || '') + '" title="Play video">' +
+            ? '<button class="ad-thumb" data-yt-id="' + escapeHtml(ytId) + '" data-ad-name="' + escapeHtml(ad.adName || '') + '"' +
+                ' data-spend="' + ad.spend + '" data-revenue="' + ad.revenue + '" data-profit="' + ad.profit + '" data-roas="' + roas + '"' +
+                ' title="Play video">' +
                 '<img src="https://img.youtube.com/vi/' + escapeHtml(ytId) + '/mqdefault.jpg" alt="" loading="lazy">' +
                 '<span class="ad-thumb-play">&#9658;</span>' +
               '</button>'
@@ -653,24 +658,36 @@
 
   // ---- inline video preview: click a thumbnail to watch the ad in a side panel, without
   // leaving or blocking the rest of the leaderboard ----
-  function openVideoPanel(ytId, title) {
+  function openVideoPanel(ytId, title, stats) {
     $('#video-panel-embed').innerHTML =
       '<iframe src="https://www.youtube.com/embed/' + ytId + '?autoplay=1&rel=0" ' +
       'title="Ad preview" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>';
     $('#video-panel-title').textContent = title || 'Preview';
+    $('#video-panel-body').innerHTML = !stats ? '' : (
+      '<div class="figs-table video-panel-figs">' +
+        '<div class="figs-col"><div class="figs-label">Spend</div><div class="figs-value">' + money(stats.spend) + '</div></div>' +
+        '<div class="figs-col"><div class="figs-label">Revenue</div><div class="figs-value">' + money(stats.revenue) + '</div></div>' +
+        '<div class="figs-col"><div class="figs-label">Profit</div><div class="figs-value ' + (stats.profit >= 0 ? 'profit-pos' : 'profit-neg') + '">' + moneySigned(stats.profit) + '</div></div>' +
+        '<div class="figs-col"><div class="figs-label">ROAS</div><div class="figs-value">' + stats.roas.toFixed(2) + '&times;</div></div>' +
+      '</div>'
+    );
     $('#video-panel').classList.add('is-open');
     document.body.classList.add('video-panel-open'); // pushes the page over, doesn't cover it
   }
   function closeVideoPanel() {
     $('#video-panel').classList.remove('is-open');
     $('#video-panel-embed').innerHTML = ''; // clear so playback actually stops
+    $('#video-panel-body').innerHTML = '';
     document.body.classList.remove('video-panel-open');
   }
   $('#board-list').addEventListener('click', (e) => {
     const thumb = e.target.closest('.ad-thumb');
     if (!thumb || !thumb.dataset.ytId) return;
     e.stopPropagation();
-    openVideoPanel(thumb.dataset.ytId, thumb.dataset.adName);
+    openVideoPanel(thumb.dataset.ytId, thumb.dataset.adName, {
+      spend: Number(thumb.dataset.spend), revenue: Number(thumb.dataset.revenue),
+      profit: Number(thumb.dataset.profit), roas: Number(thumb.dataset.roas),
+    });
   });
   $('#video-panel-close').addEventListener('click', closeVideoPanel);
   document.addEventListener('keydown', (e) => {

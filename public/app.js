@@ -338,20 +338,18 @@
 
   function subRowHtml(parentKey, cg, totalProfit) {
     const subKey = parentKey + '::fileName::' + cg.name;
-    const isOpen = state.expanded.has(subKey);
     return (
       '<div class="dimension-entry">' +
-        '<div class="dimension-row dimension-row--sub" data-key="' + escapeHtml(subKey) + '">' +
+        '<div class="dimension-row dimension-row--sub" data-key="' + escapeHtml(subKey) + '" data-creative="1" data-group-key="' + escapeHtml(cg.name) + '">' +
           rowThumbHtml(cg) +
           '<div>' +
-            '<div class="dimension-name">' + escapeHtml(cg.name) + chevronMarkup(isOpen) + '</div>' +
+            '<div class="dimension-name">' + escapeHtml(cg.name) + '</div>' +
             '<div class="dimension-count">' + cg.count + ' ' + (cg.count === 1 ? 'ad' : 'ads') + '</div>' +
             '<div class="dimension-meta">' + peopleTags(state.board, cg) + '</div>' +
             '<div class="dimension-stats">' + secondaryTags(state.board, cg) + statsHtml(cg, totalProfit) + '</div>' +
           '</div>' +
           '<div class="dimension-figs">' + figsTableHtml(cg) + '</div>' +
         '</div>' +
-        (isOpen ? '<div class="dimension-expand">' + adsTableHtml(cg.ads) + '</div>' : '') +
       '</div>'
     );
   }
@@ -371,14 +369,17 @@
     const pct = maxAbs > 0 ? Math.max(4, Math.round((Math.abs(val) / maxAbs) * 100)) : 4;
     const key = state.board + '::' + g.name;
     const isOpen = state.expanded.has(key);
+    const isCreative = field === 'fileName';
+    if (isCreative && g.ads && g.ads.length) groupAdsRegistry.set(g.name, g.ads);
     return (
       '<div class="dimension-entry">' +
-        '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + '" data-key="' + escapeHtml(key) + '">' +
+        '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + '" data-key="' + escapeHtml(key) + '"' +
+          (isCreative ? ' data-creative="1" data-group-key="' + escapeHtml(g.name) + '"' : '') + '>' +
           rankMarkup(idx, isTop) +
           '<div>' +
             '<div class="dimension-name dimension-name-clickable">' + escapeHtml(g.name) +
               (isTop ? '<span class="top-badge">' + TOP_LABELS[state.board] + '</span>' : '') +
-              chevronMarkup(isOpen) +
+              (isCreative ? '' : chevronMarkup(isOpen)) +
             '</div>' +
             '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + '</div>' +
             '<div class="dimension-meta">' + (field === 'fileName' ? peopleTags(field, g) : '') + '</div>' +
@@ -387,7 +388,7 @@
           '<div class="dimension-figs">' + figsTableHtml(g) + '</div>' +
           '<div class="dimension-bar-track"><div class="bar-fill ' + (isPos ? 'profit' : 'loss') + '" style="width:' + pct + '%"></div></div>' +
         '</div>' +
-        (isOpen ? expandHtml(g, key, totalProfit) : '') +
+        (isOpen && !isCreative ? expandHtml(g, key, totalProfit) : '') +
       '</div>'
     );
   }
@@ -400,14 +401,14 @@
     const pct = showMetric && maxAbs > 0 ? Math.max(4, Math.round((Math.abs(val) / maxAbs) * 100)) : 0;
     const key = state.board + '::' + g.name;
     const isOpen = state.expanded.has(key);
+    if (g.ads && g.ads.length) groupAdsRegistry.set(g.name, g.ads);
     return (
       '<div class="dimension-entry">' +
-        '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + '" data-key="' + escapeHtml(key) + '">' +
+        '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + '" data-key="' + escapeHtml(key) + '" data-creative="1" data-group-key="' + escapeHtml(g.name) + '">' +
           rankMarkup(idx, isTop) +
           '<div>' +
             '<div class="dimension-name dimension-name-clickable">' + escapeHtml(g.name) +
               (isTop ? '<span class="top-badge">' + TOP_LABELS[state.board] + '</span>' : '') +
-              chevronMarkup(isOpen) +
             '</div>' +
             '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + '</div>' +
             '<div class="dimension-meta">' + peopleTags('fileName', g) + '</div>' +
@@ -420,7 +421,6 @@
           '</div>' +
           (showMetric ? '<div class="dimension-bar-track"><div class="bar-fill ' + (isPos ? 'profit' : 'loss') + '" style="width:' + pct + '%"></div></div>' : '') +
         '</div>' +
-        (isOpen ? expandHtml(g, key, totalProfit) : '') +
       '</div>'
     );
   }
@@ -651,10 +651,16 @@
     render();
   });
 
-  // ---- click a leaderboard row to expand/collapse its ad list inline (both card and
-  // table view use the same data-key + state.expanded toggle) ----
+  // ---- click a leaderboard row: a single creative (card view) opens its ad list in the
+  // right-hand panel instead of dropping down inline; a category row (Actor/Writer/etc, or
+  // any row in table view) still expands/collapses inline ----
   $('#board-list').addEventListener('click', (e) => {
     if (e.target.closest('.ad-thumb')) return;
+    const creativeRow = e.target.closest('.dimension-row[data-creative="1"]');
+    if (creativeRow) {
+      openCreativePanel(creativeRow.dataset.groupKey);
+      return;
+    }
     const row = e.target.closest('.dimension-row, .table-toggle-row');
     if (!row) return;
     const key = row.dataset.key;
@@ -687,6 +693,19 @@
       '<div class="variant-heading">Other ads using this video</div>' +
       '<div class="variant-strip">' + items + '</div>'
     );
+  }
+
+  // Clicking a creative's name (rather than a specific thumbnail) opens its whole ad list in
+  // the panel — defaulting the preview to that creative's top-profit ad — instead of dropping
+  // an ad table down inline below the row.
+  function openCreativePanel(groupKey) {
+    const ads = groupAdsRegistry.get(groupKey);
+    if (!ads || !ads.length) return;
+    const top = ads.find((ad) => youtubeId(ad.youtubeUrl)) || ads[0];
+    const roas = top.spend > 0 ? top.revenue / top.spend : 0;
+    const ytId = youtubeId(top.youtubeUrl);
+    if (!ytId) return;
+    openVideoPanel(ytId, top.adName, { spend: top.spend, revenue: top.revenue, profit: top.profit, roas }, groupKey);
   }
 
   function openVideoPanel(ytId, title, stats, groupKey) {

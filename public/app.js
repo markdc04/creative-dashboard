@@ -367,7 +367,6 @@
       '<div class="dimension-entry">' +
         '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + '" data-key="' + escapeHtml(key) + '">' +
           rankMarkup(idx, isTop) +
-          (field === 'fileName' ? rowThumbHtml(g) : '<div class="row-thumb-slot"></div>') +
           '<div>' +
             '<div class="dimension-name dimension-name-clickable">' + escapeHtml(g.name) +
               (isTop ? '<span class="top-badge">' + TOP_LABELS[state.board] + '</span>' : '') +
@@ -397,7 +396,6 @@
       '<div class="dimension-entry">' +
         '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + '" data-key="' + escapeHtml(key) + '">' +
           rankMarkup(idx, isTop) +
-          rowThumbHtml(g) +
           '<div>' +
             '<div class="dimension-name dimension-name-clickable">' + escapeHtml(g.name) +
               (isTop ? '<span class="top-badge">' + TOP_LABELS[state.board] + '</span>' : '') +

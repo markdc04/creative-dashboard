@@ -148,6 +148,12 @@
     }[c]));
   }
 
+  function youtubeId(url) {
+    if (!url) return '';
+    const m = /(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{6,})/.exec(url);
+    return m ? m[1] : '';
+  }
+
   function assetIcons(r) {
     let html = '';
     if (r.youtubeUrl) html += '<a class="asset-link yt" href="' + escapeHtml(r.youtubeUrl) + '" target="_blank" rel="noopener" title="YouTube">YT</a>';
@@ -294,7 +300,7 @@
     return (
       '<div class="table-scroll">' +
         '<table>' +
-          '<thead><tr><th>Ad Name</th><th class="num-col">Spend</th><th class="num-col">Revenue</th><th class="num-col">Profit</th><th class="num-col">ROAS</th><th>Assets</th></tr></thead>' +
+          '<thead><tr><th></th><th>Ad Name</th><th class="num-col">Spend</th><th class="num-col">Revenue</th><th class="num-col">Profit</th><th class="num-col">ROAS</th><th>Assets</th></tr></thead>' +
           '<tbody>' + ads.map(detailRowHtml).join('') + '</tbody>' +
         '</table>' +
       '</div>'
@@ -492,8 +498,17 @@
 
   function detailRowHtml(ad) {
     const roas = ad.spend > 0 ? ad.revenue / ad.spend : 0;
+    const ytId = youtubeId(ad.youtubeUrl);
     return (
       '<tr>' +
+        '<td class="thumb-cell">' +
+          (ytId
+            ? '<button class="ad-thumb" data-yt-id="' + escapeHtml(ytId) + '" title="Play video">' +
+                '<img src="https://img.youtube.com/vi/' + escapeHtml(ytId) + '/mqdefault.jpg" alt="" loading="lazy">' +
+                '<span class="ad-thumb-play">&#9658;</span>' +
+              '</button>'
+            : '<span class="ad-thumb ad-thumb--empty">&mdash;</span>') +
+        '</td>' +
         '<td class="name-cell" title="' + escapeHtml(ad.adName) + '">' +
           escapeHtml(ad.adName || '(untitled)') +
           (ad.campaignName ? '<div class="name-sub">' + escapeHtml(ad.campaignName) + '</div>' : '') +
@@ -617,6 +632,30 @@
     if (state.expanded.has(key)) state.expanded.delete(key);
     else state.expanded.add(key);
     render();
+  });
+
+  // ---- inline video preview: click a thumbnail to watch the ad without leaving the page ----
+  function openVideoModal(ytId) {
+    $('#video-modal-embed').innerHTML =
+      '<iframe src="https://www.youtube.com/embed/' + ytId + '?autoplay=1&rel=0" ' +
+      'title="Ad preview" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>';
+    $('#video-modal').hidden = false;
+  }
+  function closeVideoModal() {
+    $('#video-modal').hidden = true;
+    $('#video-modal-embed').innerHTML = ''; // clear so playback actually stops
+  }
+  $('#board-list').addEventListener('click', (e) => {
+    const thumb = e.target.closest('.ad-thumb');
+    if (!thumb || !thumb.dataset.ytId) return;
+    openVideoModal(thumb.dataset.ytId);
+  });
+  $('#video-modal-close').addEventListener('click', closeVideoModal);
+  $('#video-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'video-modal') closeVideoModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('#video-modal').hidden) closeVideoModal();
   });
 
   // ---- manual refresh ----

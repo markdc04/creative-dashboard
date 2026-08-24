@@ -642,10 +642,12 @@
       'title="Ad preview" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>';
     $('#video-panel-title').textContent = title || 'Preview';
     $('#video-panel').classList.add('is-open');
+    document.body.classList.add('video-panel-open'); // pushes the page over, doesn't cover it
   }
   function closeVideoPanel() {
     $('#video-panel').classList.remove('is-open');
     $('#video-panel-embed').innerHTML = ''; // clear so playback actually stops
+    document.body.classList.remove('video-panel-open');
   }
   $('#board-list').addEventListener('click', (e) => {
     const thumb = e.target.closest('.ad-thumb');

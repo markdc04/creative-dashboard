@@ -369,17 +369,25 @@ td.profit-neg,.profit-neg{color:var(--loss);}
   color:var(--text-faint);border:1px dashed var(--border);border-radius:6px;cursor:default;
 }
 
-/* Persistent 3-column browse layout — list | video | detail — instead of a slide-in panel.
-   Flex-wrap lets it degrade to 2 columns then 1 as the viewport narrows, without separate
-   breakpoint-specific markup for each column count. */
-.content-layout{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;}
-.list-col{flex:2 1 420px;min-width:0;}
-.video-col{flex:2 1 380px;min-width:0;padding:0;overflow:hidden;display:flex;flex-direction:column;}
-.detail-col{flex:1 1 260px;min-width:0;padding:16px 18px;}
+/* A persistent side panel, not a blocking overlay — the leaderboard stays visible and
+   scrollable to the left of it while a video plays. */
+.video-panel{
+  position:fixed;top:0;right:0;height:100vh;width:min(440px,92vw);z-index:90;
+  background:var(--surface);border-left:1px solid var(--border);
+  box-shadow:-24px 0 50px -10px rgba(0,0,0,.5);
+  display:flex;flex-direction:column;
+  transform:translateX(100%);transition:transform .25s ease;
+}
+.video-panel.is-open{transform:translateX(0);}
 
-.video-col-head{
+/* Push the whole page over rather than letting the fixed panel sit on top of it, so nothing
+   in the leaderboard (columns, tags, etc.) ends up hidden underneath. */
+body{transition:margin-right .25s ease;}
+body.video-panel-open{margin-right:min(440px,92vw);overflow-x:hidden;}
+body.video-panel-open .back-to-top{right:calc(24px + min(440px,92vw));}
+.video-panel-head{
   display:flex;align-items:center;justify-content:space-between;gap:10px;
-  padding:14px 16px 12px;border-bottom:1px solid var(--border);flex:none;
+  padding:14px 14px 12px;border-bottom:1px solid var(--border);flex:none;
 }
 .video-panel-title{font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .video-panel-close{
@@ -388,12 +396,10 @@ td.profit-neg,.profit-neg{color:var(--loss);}
   font-size:16px;line-height:1;cursor:pointer;
 }
 .video-panel-close:hover{color:var(--accent);border-color:var(--accent);}
-.video-panel-embed{flex:none;aspect-ratio:16/9;background:#000;display:flex;align-items:center;justify-content:center;}
+.video-panel-embed{flex:none;aspect-ratio:16/9;background:#000;}
 .video-panel-embed iframe{width:100%;height:100%;border:0;display:block;}
-.video-placeholder{color:var(--text-faint);font-size:12.5px;padding:24px;text-align:center;}
-.detail-placeholder{color:var(--text-faint);font-size:12.5px;}
-.detail-name{font-size:14px;font-weight:700;margin-bottom:14px;line-height:1.35;}
-.video-panel-figs{flex-direction:column;gap:12px;}
+.video-panel-body{flex:1;overflow-y:auto;padding:16px 14px;}
+.video-panel-figs{justify-content:space-between;gap:8px;}
 .video-panel-figs .figs-col{text-align:left;min-width:0;}
 
 @media (max-width:640px){
@@ -448,6 +454,5 @@ td.profit-neg,.profit-neg{color:var(--loss);}
 
   .back-to-top{right:14px;bottom:14px;width:40px;height:40px;}
 
-  .content-layout{flex-direction:column;}
-  .list-col,.video-col,.detail-col{flex:1 1 auto;width:100%;}
+  .video-panel{width:100vw;}
 }

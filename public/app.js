@@ -654,14 +654,17 @@
     render();
   });
 
-  // ---- inline video preview: click a thumbnail to watch the ad in a side panel, without
-  // leaving or blocking the rest of the leaderboard ----
+  // ---- inline video preview: click a thumbnail and it plays in the persistent middle
+  // column, with its Spend/Revenue/Profit/ROAS shown in the right-hand detail column —
+  // a permanent 3-column browse layout (list | video | detail) instead of a slide-in panel ----
   function openVideoPanel(ytId, title, stats) {
     $('#video-panel-embed').innerHTML =
       '<iframe src="https://www.youtube.com/embed/' + ytId + '?autoplay=1&rel=0" ' +
       'title="Ad preview" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>';
     $('#video-panel-title').textContent = title || 'Preview';
-    $('#video-panel-body').innerHTML = !stats ? '' : (
+    $('#video-panel-close').hidden = false;
+    $('#detail-col').innerHTML = !stats ? '' : (
+      '<div class="detail-name">' + escapeHtml(title || '') + '</div>' +
       '<div class="figs-table video-panel-figs">' +
         '<div class="figs-col"><div class="figs-label">Spend</div><div class="figs-value">' + money(stats.spend) + '</div></div>' +
         '<div class="figs-col"><div class="figs-label">Revenue</div><div class="figs-value">' + money(stats.revenue) + '</div></div>' +
@@ -669,14 +672,12 @@
         '<div class="figs-col"><div class="figs-label">ROAS</div><div class="figs-value">' + stats.roas.toFixed(2) + '&times;</div></div>' +
       '</div>'
     );
-    $('#video-panel').classList.add('is-open');
-    document.body.classList.add('video-panel-open'); // pushes the page over, doesn't cover it
   }
   function closeVideoPanel() {
-    $('#video-panel').classList.remove('is-open');
-    $('#video-panel-embed').innerHTML = ''; // clear so playback actually stops
-    $('#video-panel-body').innerHTML = '';
-    document.body.classList.remove('video-panel-open');
+    $('#video-panel-embed').innerHTML = '<div class="video-placeholder">Pick a video from the list to get started.</div>';
+    $('#video-panel-title').textContent = 'Preview';
+    $('#video-panel-close').hidden = true;
+    $('#detail-col').innerHTML = '<div class="detail-placeholder">Select a video to see its performance details.</div>';
   }
   $('#board-list').addEventListener('click', (e) => {
     const thumb = e.target.closest('.ad-thumb');
@@ -688,9 +689,6 @@
     });
   });
   $('#video-panel-close').addEventListener('click', closeVideoPanel);
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && $('#video-panel').classList.contains('is-open')) closeVideoPanel();
-  });
 
   // ---- manual refresh ----
   $('#refresh-btn').addEventListener('click', async () => {

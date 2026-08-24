@@ -89,12 +89,28 @@
     </button>
   </div>
 
-  <div class="panel">
-    <div class="panel-head">
-      <span class="panel-title" id="board-title">All Creatives</span>
-      <span class="panel-count" id="board-count"></span>
+  <div class="content-layout">
+    <div class="panel list-col">
+      <div class="panel-head">
+        <span class="panel-title" id="board-title">All Creatives</span>
+        <span class="panel-count" id="board-count"></span>
+      </div>
+      <div class="row-list" id="board-list"></div>
     </div>
-    <div class="row-list" id="board-list"></div>
+
+    <div class="panel video-col">
+      <div class="video-col-head">
+        <span id="video-panel-title" class="video-panel-title">Preview</span>
+        <button id="video-panel-close" class="video-panel-close" aria-label="Close preview" hidden>&times;</button>
+      </div>
+      <div id="video-panel-embed" class="video-panel-embed">
+        <div class="video-placeholder">Pick a video from the list to get started.</div>
+      </div>
+    </div>
+
+    <div class="panel detail-col" id="detail-col">
+      <div class="detail-placeholder">Select a video to see its performance details.</div>
+    </div>
   </div>
 
   <div class="footer">
@@ -107,15 +123,6 @@
 <button id="back-to-top" class="back-to-top" hidden aria-label="Back to top">
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
 </button>
-
-<div id="video-panel" class="video-panel">
-  <div class="video-panel-head">
-    <span id="video-panel-title" class="video-panel-title">Preview</span>
-    <button id="video-panel-close" class="video-panel-close" aria-label="Close preview">&times;</button>
-  </div>
-  <div id="video-panel-embed" class="video-panel-embed"></div>
-  <div id="video-panel-body" class="video-panel-body"></div>
-</div>
 
 <script src="app.js"></script>
 </body>

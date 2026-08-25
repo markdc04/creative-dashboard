@@ -674,24 +674,12 @@
   // Other ads sharing the same creative — shown as a row of thumbnails under the stats,
   // so switching between variants doesn't require closing the panel and dropping down into
   // the ad table separately.
-  function otherAdsHtml(groupKey, currentYtId) {
+  function otherAdsHtml(groupKey) {
     const ads = groupAdsRegistry.get(groupKey);
     if (!ads || ads.length < 2) return '';
-    const items = ads.map((ad) => {
-      const ytId = youtubeId(ad.youtubeUrl);
-      if (!ytId) return '';
-      const roas = ad.spend > 0 ? ad.revenue / ad.spend : 0;
-      return '<button class="variant-thumb ad-thumb' + (ytId === currentYtId ? ' is-active' : '') + '"' +
-        ' data-yt-id="' + escapeHtml(ytId) + '" data-ad-name="' + escapeHtml(ad.adName || '') + '"' +
-        ' data-spend="' + ad.spend + '" data-revenue="' + ad.revenue + '" data-profit="' + ad.profit + '" data-roas="' + roas + '"' +
-        ' data-group-key="' + escapeHtml(groupKey) + '"' +
-        ' title="' + escapeHtml(ad.adName || '') + '">' +
-        '<img src="https://img.youtube.com/vi/' + escapeHtml(ytId) + '/mqdefault.jpg" alt="" loading="lazy">' +
-      '</button>';
-    }).join('');
-    return !items ? '' : (
-      '<div class="variant-heading">Other ads using this video</div>' +
-      '<div class="variant-strip">' + items + '</div>'
+    return (
+      '<div class="variant-heading">Other ads using this creative</div>' +
+      adsTableHtml(ads)
     );
   }
 
@@ -720,7 +708,7 @@
         '<div class="figs-col"><div class="figs-label">Profit</div><div class="figs-value ' + (stats.profit >= 0 ? 'profit-pos' : 'profit-neg') + '">' + moneySigned(stats.profit) + '</div></div>' +
         '<div class="figs-col"><div class="figs-label">ROAS</div><div class="figs-value">' + stats.roas.toFixed(2) + '&times;</div></div>' +
       '</div>' +
-      otherAdsHtml(groupKey, ytId)
+      otherAdsHtml(groupKey)
     );
     $('#video-panel').classList.add('is-open');
     document.body.classList.add('video-panel-open'); // pushes the page over, doesn't cover it

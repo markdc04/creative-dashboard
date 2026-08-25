@@ -14,13 +14,41 @@
   <div class="brandbar">
     <img src="logo-loudr.png" alt="Loudr Media" class="brandlogo">
     <div class="brandbar-right">
-      <button id="refresh-btn" class="refresh-btn" title="Refresh now" aria-label="Refresh now">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
-      </button>
-      <span id="live-pill" class="live-pill live-pill--stale">
-        <span class="live-dot"></span>
-        <span id="live-text">Connecting&hellip;</span>
-      </span>
+      <div class="brandbar-controls">
+        <button id="refresh-btn" class="refresh-btn" title="Refresh now" aria-label="Refresh now">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+        </button>
+        <span id="live-pill" class="live-pill live-pill--stale">
+          <span class="live-dot"></span>
+          <span id="live-text">Connecting&hellip;</span>
+        </span>
+      </div>
+      <div class="date-bar">
+        <div class="select-wrap">
+          <select id="quick-range">
+            <option value="all">All time</option>
+            <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
+            <option value="wtd">Week to date</option>
+            <option value="lastweek">Last week</option>
+            <option value="2026-08">August 2026</option>
+            <option value="2026-07">July 2026</option>
+            <option value="2026-06">June 2026</option>
+            <option value="2026-05">May 2026</option>
+            <option value="2026-04">April 2026</option>
+            <option value="2026-03">March 2026</option>
+            <option value="2026-02">February 2026</option>
+            <option value="custom">Custom range&hellip;</option>
+          </select>
+          <svg class="select-caret" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg>
+        </div>
+        <div class="date-inputs" id="custom-dates" hidden>
+          <input type="date" id="date-start">
+          <span class="date-arrow">&rarr;</span>
+          <input type="date" id="date-end">
+        </div>
+        <button class="clear-btn" id="clear-range">Clear</button>
+      </div>
     </div>
   </div>
 
@@ -30,33 +58,6 @@
       <h1>Creative Performance</h1>
       <p class="topbar-sub"><span id="creative-count">&mdash;</span> creatives <span id="range-label"></span> &middot; live from Google Sheets</p>
     </div>
-  </div>
-
-  <div class="date-bar">
-    <div class="select-wrap">
-      <select id="quick-range">
-        <option value="all">All time</option>
-        <option value="today">Today</option>
-        <option value="yesterday">Yesterday</option>
-        <option value="wtd">Week to date</option>
-        <option value="lastweek">Last week</option>
-        <option value="2026-08">August 2026</option>
-        <option value="2026-07">July 2026</option>
-        <option value="2026-06">June 2026</option>
-        <option value="2026-05">May 2026</option>
-        <option value="2026-04">April 2026</option>
-        <option value="2026-03">March 2026</option>
-        <option value="2026-02">February 2026</option>
-        <option value="custom">Custom range&hellip;</option>
-      </select>
-      <svg class="select-caret" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg>
-    </div>
-    <div class="date-inputs" id="custom-dates" hidden>
-      <input type="date" id="date-start">
-      <span class="date-arrow">&rarr;</span>
-      <input type="date" id="date-end">
-    </div>
-    <button class="clear-btn" id="clear-range">Clear</button>
   </div>
 
   <p class="section-title">Leaderboard</p>

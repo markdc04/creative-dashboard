@@ -46,7 +46,7 @@ body::before{content:"";display:block;height:3px;background:linear-gradient(90de
 .wrap{max-width:1180px;margin:0 auto;padding:22px 24px 64px;}
 
 /* ---------- brand strip ---------- */
-.brandbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:18px;}
+.brandbar{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:18px;flex-wrap:wrap;}
 .brandlogo{height:34px;width:auto;display:block;}
 .live-pill{
   display:inline-flex;align-items:center;gap:7px;
@@ -54,7 +54,8 @@ body::before{content:"";display:block;height:3px;background:linear-gradient(90de
   background:var(--surface-raised);border:1px solid var(--border);
   font-size:12px;color:var(--text-dim);
 }
-.brandbar-right{display:flex;align-items:center;gap:8px;}
+.brandbar-right{display:flex;flex-direction:column;align-items:flex-end;gap:10px;}
+.brandbar-controls{display:flex;align-items:center;gap:8px;}
 .refresh-btn{
   display:inline-flex;align-items:center;justify-content:center;
   width:30px;height:30px;border-radius:50%;
@@ -79,7 +80,8 @@ h1{font-size:28px;font-weight:800;letter-spacing:-.01em;margin:0;text-wrap:balan
 #range-label{color:var(--accent);}
 
 /* ---------- date bar ---------- */
-.date-bar{display:flex;align-items:center;gap:10px;margin-bottom:24px;flex-wrap:wrap;}
+.date-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;}
+.date-bar .select-wrap select{min-width:0;}
 .select-wrap{position:relative;display:inline-flex;align-items:center;}
 .select-wrap select{
   appearance:none;background:var(--surface);border:1px solid var(--border);color:var(--text);
@@ -411,6 +413,8 @@ body.video-panel-open .back-to-top{right:calc(24px + min(440px,92vw));}
   .wrap{padding:14px 14px 84px;}
 
   .brandbar{margin-bottom:14px;}
+  .brandbar-right{width:100%;align-items:stretch;}
+  .brandbar-controls{justify-content:flex-end;}
   .brandlogo{height:26px;}
   .live-pill{padding:5px 9px;font-size:10.5px;}
   .live-pill .live-dot{width:6px;height:6px;}
@@ -419,7 +423,7 @@ body.video-panel-open .back-to-top{right:calc(24px + min(440px,92vw));}
   .brand-eyebrow{font-size:10px;}
   .topbar-sub{font-size:12px;}
 
-  .date-bar{flex-direction:column;align-items:stretch;gap:8px;margin-bottom:18px;}
+  .date-bar{flex-direction:column;align-items:stretch;gap:8px;justify-content:flex-start;}
   .select-wrap,.select-wrap select{width:100%;}
   .date-inputs{width:100%;}
   .date-inputs input[type="date"]{flex:1;min-width:0;}

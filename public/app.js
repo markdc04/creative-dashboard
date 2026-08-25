@@ -10,6 +10,7 @@
     expanded: new Set(), // keys ("board::name") of entries with their ad-list dropdown open
     viewMode: 'cards', // 'cards' | 'table'
     openGroupKey: null, // fileName of whichever creative's video panel is currently open
+    openCategoryKey: null, // "board::name" of whichever person/hook/team category is open
   };
 
   const BOARD_LABELS = { fileName: 'All Creatives', active: 'Active Creatives', hookType: 'Hook Type', actor: 'Actor', writer: 'Writer', editor: 'Editor', team: 'Collaborators', new: 'New Creatives' };
@@ -305,6 +306,10 @@
   // person within a creative, and letting that overwrite this registry previously caused the
   // panel to show a random person's slice of ads instead of the creative's true full list.
   const groupAdsRegistry = new Map();
+  // Same idea, but for a person/hook/team category (e.g. "actor::Ron") — the list of distinct
+  // creatives that category is credited on, so clicking that category row can open the panel
+  // directly (its top creative playing) instead of dropping an inline list down the page.
+  const categoryCreativesRegistry = new Map();
 
   function adsTableHtml(ads) {
     return (
@@ -370,17 +375,16 @@
     const isTop = idx === 0 && isPos;
     const pct = maxAbs > 0 ? Math.max(4, Math.round((Math.abs(val) / maxAbs) * 100)) : 4;
     const key = state.board + '::' + g.name;
-    const isOpen = state.expanded.has(key);
     const isCreative = field === 'fileName';
+    const isActive = (isCreative && state.openGroupKey === g.name) || (!isCreative && state.openCategoryKey === key);
     return (
       '<div class="dimension-entry">' +
-        '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + (isCreative && state.openGroupKey === g.name ? ' row-active' : '') + '" data-key="' + escapeHtml(key) + '"' +
-          (isCreative ? ' data-creative="1" data-group-key="' + escapeHtml(g.name) + '"' : '') + '>' +
+        '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + (isActive ? ' row-active' : '') + '"' +
+          (isCreative ? ' data-creative="1" data-group-key="' + escapeHtml(g.name) + '"' : ' data-category="1" data-category-key="' + escapeHtml(key) + '"') + '>' +
           rankMarkup(idx, isTop) +
           '<div>' +
             '<div class="dimension-name dimension-name-clickable">' + escapeHtml(g.name) +
               (isTop ? '<span class="top-badge">' + TOP_LABELS[state.board] + '</span>' : '') +
-              (isCreative ? '' : chevronMarkup(isOpen)) +
             '</div>' +
             '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + '</div>' +
             '<div class="dimension-meta">' + (field === 'fileName' ? peopleTags(field, g) : '') + '</div>' +
@@ -388,7 +392,6 @@
           '</div>' +
           '<div class="dimension-figs">' + figsTableHtml(g) + '</div>' +
         '</div>' +
-        (isOpen && !isCreative ? expandHtml(g, key, totalProfit) : '') +
       '</div>'
     );
   }
@@ -510,6 +513,11 @@
     const sourceRows = isActiveBoard ? rows.filter((r) => r.spend > 0) : rows;
     const field = isActiveBoard ? 'fileName' : state.board;
     const groups = sortGroups(aggregateByDimension(sourceRows, field).filter((g) => matchesSearch(g.name)));
+    if (!isActiveBoard && field !== 'fileName') {
+      for (const g of groups) {
+        categoryCreativesRegistry.set(state.board + '::' + g.name, aggregateByDimension(g.ads, 'fileName').sort((a, b) => b.profit - a.profit));
+      }
+    }
     const maxAbs = Math.max(1, ...groups.map((g) => Math.abs(g[state.sortBy])));
     $('#board-count').innerHTML = groups.length + ' ' + (groups.length === 1 ? 'entry' : 'entries') + ' &middot; sorted by ' + state.sortBy;
     $('#board-list').innerHTML = !groups.length
@@ -655,17 +663,24 @@
     render();
   });
 
-  // ---- click a leaderboard row: a single creative (card view) opens its ad list in the
-  // right-hand panel instead of dropping down inline; a category row (Actor/Writer/etc, or
-  // any row in table view) still expands/collapses inline ----
+  // ---- click a leaderboard row: in card view, every row opens the right-hand panel — a
+  // creative row plays its top ad directly, a category row (Actor/Writer/etc) plays its top
+  // creative's top ad and lists that person's other creatives below. Only table view still
+  // expands/collapses inline (a flat spreadsheet-style view, not this card interaction). ----
   $('#board-list').addEventListener('click', (e) => {
     if (e.target.closest('.ad-thumb')) return;
     const creativeRow = e.target.closest('.dimension-row[data-creative="1"]');
     if (creativeRow) {
+      state.openCategoryKey = null;
       openCreativePanel(creativeRow.dataset.groupKey);
       return;
     }
-    const row = e.target.closest('.dimension-row, .table-toggle-row');
+    const categoryRow = e.target.closest('.dimension-row[data-category="1"]');
+    if (categoryRow) {
+      openCategoryPanel(categoryRow.dataset.categoryKey);
+      return;
+    }
+    const row = e.target.closest('.table-toggle-row');
     if (!row) return;
     const key = row.dataset.key;
     if (state.expanded.has(key)) state.expanded.delete(key);
@@ -715,7 +730,7 @@
 
   function otherAdsHtml(groupKey, currentAdId) {
     const ads = groupAdsRegistry.get(groupKey);
-    if (!ads || ads.length < 2) return '';
+    if (!ads || !ads.length) return '';
     return (
       '<div class="variant-heading">Ads using this creative</div>' +
       ads.map((ad) => variantRowHtml(ad, groupKey, ad.adId === currentAdId)).join('')
@@ -735,6 +750,17 @@
     openVideoPanel(ytId, top.adName, { spend: top.spend, revenue: top.revenue, profit: top.profit, roas }, groupKey, top.adId);
   }
 
+  // A person/hook/team category row (e.g. "actor::Ron") has no single video of its own — it
+  // opens its top-profit creative's top ad, keyed by that creative's fileName so the panel's
+  // "Ads using this creative" list works exactly as it does from a direct creative click.
+  function openCategoryPanel(categoryKey) {
+    const creatives = categoryCreativesRegistry.get(categoryKey);
+    if (!creatives || !creatives.length) return;
+    state.openCategoryKey = categoryKey;
+    const topCreative = creatives.find((cg) => cg.ads.some((ad) => youtubeId(ad.youtubeUrl))) || creatives[0];
+    openCreativePanel(topCreative.name);
+  }
+
   let openYtId = null; // guards against a slow /api/views response overwriting a later selection
 
   // Highlights whichever left-list row matches the creative currently open in the panel,
@@ -743,8 +769,12 @@
   // keeps the same row highlighted.
   function syncActiveRowHighlight() {
     document.querySelectorAll('.dimension-row.row-active').forEach((el) => el.classList.remove('row-active'));
-    if (!state.openGroupKey) return;
-    document.querySelectorAll('.dimension-row[data-group-key="' + CSS.escape(state.openGroupKey) + '"]').forEach((el) => el.classList.add('row-active'));
+    if (state.openGroupKey) {
+      document.querySelectorAll('.dimension-row[data-group-key="' + CSS.escape(state.openGroupKey) + '"]').forEach((el) => el.classList.add('row-active'));
+    }
+    if (state.openCategoryKey) {
+      document.querySelectorAll('.dimension-row[data-category-key="' + CSS.escape(state.openCategoryKey) + '"]').forEach((el) => el.classList.add('row-active'));
+    }
   }
 
   function openVideoPanel(ytId, title, stats, groupKey, adId) {
@@ -774,6 +804,7 @@
   function closeVideoPanel() {
     openYtId = null;
     state.openGroupKey = null;
+    state.openCategoryKey = null;
     syncActiveRowHighlight();
     $('#video-panel').classList.remove('is-open');
     $('#video-panel-embed').innerHTML = ''; // clear so playback actually stops

@@ -28,6 +28,13 @@ const CREATIVE_META_GID = '1768337683';
 // no daily breakdown available — so the client only surfaces them when no date filter is active.
 const CREATIVE_TRACKER_GID = '623888576';
 
+// A separate "Creative Credit Survey" spreadsheet (Nichole's crediting tool) — a second,
+// independent source for Editor/Copy Writer/Actor/Hook Type, keyed by the creative's file name
+// rather than Ad ID. Used only to fill in whatever the primary metadata sheet is still missing
+// for a given fileName, never to overwrite a value the primary sheet already has.
+const EXTRA_CREDITS_DOC_ID = '1m_2QOFms0_17c0KNNA_YTM0WtS9wFyy8bt4hNuhdBno';
+const EXTRA_CREDITS_GID = '0';
+
 const POLL_MS = 30000;
 const PORT = process.env.PORT || 4174;
 
@@ -38,8 +45,8 @@ let lastGoodAssets = {}; // adId -> asset/metadata object, kept across polls whe
                           // outage doesn't wipe out already-known Hook Type/Actor/Writer/Editor data
 let lastGoodLeadStats = {}; // adId -> { leads, qmva }, same staleness-guard as lastGoodAssets
 
-function csvUrl(gid) {
-  return `https://docs.google.com/spreadsheets/d/${DOC_ID}/export?format=csv&gid=${gid}`;
+function csvUrl(gid, docId = DOC_ID) {
+  return `https://docs.google.com/spreadsheets/d/${docId}/export?format=csv&gid=${gid}`;
 }
 
 function fetchText(url, redirects = 5, extraHeaders = {}) {
@@ -135,15 +142,34 @@ async function fetchSource(key) {
 
 async function pollAll() {
   try {
-    const [googleRaw, caRaw, nwRaw, metaCsv, trackerCsv] = await Promise.all([
+    const [googleRaw, caRaw, nwRaw, metaCsv, trackerCsv, extraCreditsCsv] = await Promise.all([
       fetchSource('googleSpend'),
       fetchSource('caRevenue'),
       fetchSource('nwRevenue'),
       fetchText(csvUrl(CREATIVE_META_GID)),
       fetchText(csvUrl(CREATIVE_TRACKER_GID)),
+      fetchText(csvUrl(EXTRA_CREDITS_GID, EXTRA_CREDITS_DOC_ID)),
     ]);
     const creativeMetaRaw = parseCSV(metaCsv);
     const creativeTrackerRaw = parseCSV(trackerCsv);
+    const extraCreditsRaw = parseCSV(extraCreditsCsv);
+
+    // Merge the extra credit-survey rows by fileName ("Frame file name" there) — first
+    // non-blank value per field wins across duplicate rows for the same file, same pattern as
+    // the primary metadata merge below.
+    const extraCreditsByFileName = {};
+    for (const r of extraCreditsRaw) {
+      const fileName = (r['Frame file name'] || '').trim();
+      if (!fileName) continue;
+      if (!extraCreditsByFileName[fileName]) {
+        extraCreditsByFileName[fileName] = { actor: '', writer: '', editor: '', hookType: '' };
+      }
+      const c = extraCreditsByFileName[fileName];
+      if (!c.actor && r['ACTOR']) c.actor = r['ACTOR'];
+      if (!c.writer && r['COPY WRITERS']) c.writer = r['COPY WRITERS'];
+      if (!c.editor && r['EDITOR']) c.editor = r['EDITOR'];
+      if (!c.hookType && r['HOOK_TYPE'] && !isDateLike(r['HOOK_TYPE'])) c.hookType = r['HOOK_TYPE'];
+    }
 
     const adMeta = {}; // adId -> { adName, campaignName, platform }
     const assets = {}; // adId -> { youtubeUrl, landingPageUrl, frameIoUrl, fileName, videoTitle }
@@ -209,6 +235,21 @@ async function pollAll() {
       effectiveAssets = lastGoodAssets;
     } else {
       lastGoodAssets = assets;
+    }
+
+    // Fill in whatever the primary sheet is still missing (Actor/Writer/Editor/Hook Type) from
+    // the extra credit-survey source, joined by fileName — never overwrites a value the
+    // primary sheet already supplied.
+    if (extraCreditsRaw.length) {
+      for (const adId in effectiveAssets) {
+        const a = effectiveAssets[adId];
+        const extra = a.fileName && extraCreditsByFileName[a.fileName.trim()];
+        if (!extra) continue;
+        if (!a.actor && extra.actor) a.actor = extra.actor;
+        if (!a.writer && extra.writer) a.writer = extra.writer;
+        if (!a.editor && extra.editor) a.editor = extra.editor;
+        if (!a.hookType && extra.hookType) a.hookType = extra.hookType;
+      }
     }
 
     // Revenue sheets: read ONLY Date, AD ID, Payout. Every other field on `r` (name, email,

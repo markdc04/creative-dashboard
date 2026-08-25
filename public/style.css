@@ -374,7 +374,7 @@ td.profit-neg,.profit-neg{color:var(--loss);}
 /* A persistent side panel, not a blocking overlay — the leaderboard stays visible and
    scrollable to the left of it while a video plays. */
 .video-panel{
-  position:fixed;top:0;right:0;height:100vh;width:min(440px,92vw);z-index:90;
+  position:fixed;top:0;right:0;height:100vh;width:min(880px,62vw);z-index:90;
   background:var(--surface);border-left:1px solid var(--border);
   box-shadow:-24px 0 50px -10px rgba(0,0,0,.5);
   display:flex;flex-direction:column;
@@ -385,8 +385,8 @@ td.profit-neg,.profit-neg{color:var(--loss);}
 /* Push the whole page over rather than letting the fixed panel sit on top of it, so nothing
    in the leaderboard (columns, tags, etc.) ends up hidden underneath. */
 body{transition:margin-right .25s ease;}
-body.video-panel-open{margin-right:min(440px,92vw);overflow-x:hidden;}
-body.video-panel-open .back-to-top{right:calc(24px + min(440px,92vw));}
+body.video-panel-open{width:auto;margin-right:min(880px,62vw);overflow-x:hidden;}
+body.video-panel-open .back-to-top{right:calc(24px + min(880px,62vw));}
 .video-panel-head{
   display:flex;align-items:center;justify-content:space-between;gap:10px;
   padding:14px 14px 12px;border-bottom:1px solid var(--border);flex:none;

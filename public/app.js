@@ -297,8 +297,25 @@
 
   // A small pulsing dot (matching the "Live" indicator's own style) next to a name, shown only
   // when spend > 0 in the current range — no text label, the dot alone says "still running".
-  function activeDot(spend) {
-    return spend > 0 ? '<span class="active-dot" title="Active in this range"></span>' : '';
+  // Ad IDs that actually spent something today (Pacific) — independent of whatever date range
+  // is selected, since "still running" should mean running right now, not "had spend at some
+  // point in the selected range" (which was true for almost everything under "All time").
+  let activeAdIdsToday = new Set();
+  function refreshActiveAdIdsToday() {
+    // The sheet itself can lag a day behind the calendar (today's spend not reported yet), so
+    // use the most recent day actually present in the data rather than the literal calendar
+    // date — otherwise every dot would vanish for the first part of each day for no real reason.
+    let latest = '';
+    for (const r of state.dailyRows) { if (r.date > latest) latest = r.date; }
+    activeAdIdsToday = new Set(
+      state.dailyRows.filter((r) => r.date === latest && r.spend > 0 && r.platform !== 'META').map((r) => r.adId)
+    );
+  }
+  function adActiveDot(adId) {
+    return activeAdIdsToday.has(adId) ? '<span class="active-dot" title="Spent today"></span>' : '';
+  }
+  function creativeActiveDot(ads) {
+    return ads && ads.some((ad) => activeAdIdsToday.has(ad.adId)) ? '<span class="active-dot" title="Spent today"></span>' : '';
   }
 
   // Lets the video panel show "other ads using this video" without re-plumbing the ad list
@@ -352,7 +369,7 @@
         '<div class="dimension-row dimension-row--sub' + (state.openGroupKey === cg.name ? ' row-active' : '') + '" data-key="' + escapeHtml(subKey) + '" data-creative="1" data-group-key="' + escapeHtml(cg.name) + '">' +
           rowThumbHtml(cg) +
           '<div>' +
-            '<div class="dimension-name">' + activeDot(cg.spend) + escapeHtml(cg.name) + '</div>' +
+            '<div class="dimension-name">' + creativeActiveDot(cg.ads) + escapeHtml(cg.name) + '</div>' +
             '<div class="dimension-count">' + cg.count + ' ' + (cg.count === 1 ? 'ad' : 'ads') + '</div>' +
             '<div class="dimension-meta">' + peopleTags(state.board, cg) + '</div>' +
             '<div class="dimension-stats">' + secondaryTags(state.board, cg) + statsHtml(cg, totalProfit) + '</div>' +
@@ -385,7 +402,7 @@
           (isCreative ? ' data-creative="1" data-group-key="' + escapeHtml(g.name) + '"' : ' data-category="1" data-category-key="' + escapeHtml(key) + '"') + '>' +
           rankMarkup(idx, isTop) +
           '<div>' +
-            '<div class="dimension-name dimension-name-clickable">' + activeDot(g.spend) + escapeHtml(g.name) +
+            '<div class="dimension-name dimension-name-clickable">' + creativeActiveDot(g.ads) + escapeHtml(g.name) +
               (isTop ? '<span class="top-badge">' + TOP_LABELS[state.board] + '</span>' : '') +
             '</div>' +
             '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + '</div>' +
@@ -411,7 +428,7 @@
         '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + (state.openGroupKey === g.name ? ' row-active' : '') + '" data-key="' + escapeHtml(key) + '" data-creative="1" data-group-key="' + escapeHtml(g.name) + '">' +
           rankMarkup(idx, isTop) +
           '<div>' +
-            '<div class="dimension-name dimension-name-clickable">' + activeDot(g.spend) + escapeHtml(g.name) +
+            '<div class="dimension-name dimension-name-clickable">' + creativeActiveDot(g.ads) + escapeHtml(g.name) +
               (isTop ? '<span class="top-badge">' + TOP_LABELS[state.board] + '</span>' : '') +
             '</div>' +
             '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + '</div>' +
@@ -461,7 +478,7 @@
       const isCreative = field === 'fileName';
       const isActive = isCreative ? state.openGroupKey === g.name : state.openCategoryKey === key;
       let cells = '<td class="num-col">' + (i + 1) + '</td>';
-      cells += '<td class="name-cell">' + activeDot(g.spend) + escapeHtml(g.name) + '</td>';
+      cells += '<td class="name-cell">' + creativeActiveDot(g.ads) + escapeHtml(g.name) + '</td>';
       if (showPeople) {
         cells += '<td>' + (g.actor ? escapeHtml(g.actor) : '&mdash;') + '</td>';
         cells += '<td>' + (g.writer ? escapeHtml(g.writer) : '&mdash;') + '</td>';
@@ -546,7 +563,7 @@
             : '<span class="ad-thumb ad-thumb--empty">&mdash;</span>') +
         '</td>' +
         '<td class="name-cell" title="' + escapeHtml(ad.adName) + '">' +
-          activeDot(ad.spend) + escapeHtml(ad.adName || '(untitled)') +
+          adActiveDot(ad.adId) + escapeHtml(ad.adName || '(untitled)') +
           (ad.campaignName ? '<div class="name-sub">' + escapeHtml(ad.campaignName) + '</div>' : '') +
         '</td>' +
         '<td class="num-col">' + money(ad.spend) + '</td>' +
@@ -562,6 +579,7 @@
     const rows = creativesForRange();
     $('#creative-count').textContent = rows.length.toLocaleString();
     $('#range-label').textContent = rangeLabel();
+    refreshActiveAdIdsToday();
     const totalProfit = rows.reduce((a, r) => a + r.profit, 0);
     // Canonical, single source of truth for "what ads belong to this creative" — always the
     // full unfiltered list for the current date range, regardless of which board is on screen,
@@ -708,7 +726,7 @@
               '</button>'
             : '<span class="ad-thumb ad-thumb--empty">&mdash;</span>') +
           '<div class="variant-row-name">' +
-            '<div class="name-cell" title="' + escapeHtml(ad.adName || '') + '">' + activeDot(ad.spend) + escapeHtml(ad.adName || '(untitled)') + '</div>' +
+            '<div class="name-cell" title="' + escapeHtml(ad.adName || '') + '">' + adActiveDot(ad.adId) + escapeHtml(ad.adName || '(untitled)') + '</div>' +
             (ad.campaignName ? '<div class="name-sub">' + escapeHtml(ad.campaignName) + '</div>' : '') +
           '</div>' +
         '</div>' +

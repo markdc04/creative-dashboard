@@ -234,9 +234,7 @@
       tags += '<span class="tag dim-tag dim-tag--hookType">' + TAG_LABELS.hookType + ': ' + escapeHtml(g.hookType) + '</span>';
     }
     if (skipDate) return tags;
-    tags += g.uploadedAt
-      ? '<span class="tag dim-tag date-tag">Uploaded ' + formatDate(g.uploadedAt) + '</span>'
-      : '<span class="tag dim-tag date-tag date-tag--unknown">No upload date</span>';
+    if (g.uploadedAt) tags += '<span class="tag dim-tag date-tag">Uploaded ' + formatDate(g.uploadedAt) + '</span>';
     return tags;
   }
 
@@ -246,9 +244,7 @@
   // tags only make sense once you drill into a specific creative (via subRowHtml), so the
   // top-level row just shows a most-recent-upload date alongside the stats.
   function personMetaTags(g) {
-    return g.uploadedAt
-      ? '<span class="tag dim-tag date-tag">Most recent: ' + formatDate(g.uploadedAt) + '</span>'
-      : '<span class="tag dim-tag date-tag date-tag--unknown">No upload date</span>';
+    return g.uploadedAt ? '<span class="tag dim-tag date-tag">Most recent: ' + formatDate(g.uploadedAt) + '</span>' : '';
   }
 
   function pct(n) { return n.toLocaleString('en-US', { maximumFractionDigits: 1 }) + '%'; }

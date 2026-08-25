@@ -9,6 +9,7 @@
     sortBy: 'profit', // 'profit' | 'revenue' | 'spend' — ignored by the 'new' board (always by date)
     expanded: new Set(), // keys ("board::name") of entries with their ad-list dropdown open
     viewMode: 'cards', // 'cards' | 'table'
+    openGroupKey: null, // fileName of whichever creative's video panel is currently open
   };
 
   const BOARD_LABELS = { fileName: 'All Creatives', active: 'Active Creatives', hookType: 'Hook Type', actor: 'Actor', writer: 'Writer', editor: 'Editor', team: 'Collaborators', new: 'New Creatives' };
@@ -341,7 +342,7 @@
     const subKey = parentKey + '::fileName::' + cg.name;
     return (
       '<div class="dimension-entry">' +
-        '<div class="dimension-row dimension-row--sub" data-key="' + escapeHtml(subKey) + '" data-creative="1" data-group-key="' + escapeHtml(cg.name) + '">' +
+        '<div class="dimension-row dimension-row--sub' + (state.openGroupKey === cg.name ? ' row-active' : '') + '" data-key="' + escapeHtml(subKey) + '" data-creative="1" data-group-key="' + escapeHtml(cg.name) + '">' +
           rowThumbHtml(cg) +
           '<div>' +
             '<div class="dimension-name">' + escapeHtml(cg.name) + '</div>' +
@@ -373,7 +374,7 @@
     const isCreative = field === 'fileName';
     return (
       '<div class="dimension-entry">' +
-        '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + '" data-key="' + escapeHtml(key) + '"' +
+        '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + (isCreative && state.openGroupKey === g.name ? ' row-active' : '') + '" data-key="' + escapeHtml(key) + '"' +
           (isCreative ? ' data-creative="1" data-group-key="' + escapeHtml(g.name) + '"' : '') + '>' +
           rankMarkup(idx, isTop) +
           '<div>' +
@@ -403,7 +404,7 @@
     const isOpen = state.expanded.has(key);
     return (
       '<div class="dimension-entry">' +
-        '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + '" data-key="' + escapeHtml(key) + '" data-creative="1" data-group-key="' + escapeHtml(g.name) + '">' +
+        '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + (state.openGroupKey === g.name ? ' row-active' : '') + '" data-key="' + escapeHtml(key) + '" data-creative="1" data-group-key="' + escapeHtml(g.name) + '">' +
           rankMarkup(idx, isTop) +
           '<div>' +
             '<div class="dimension-name dimension-name-clickable">' + escapeHtml(g.name) +
@@ -738,8 +739,20 @@
 
   let openYtId = null; // guards against a slow /api/views response overwriting a later selection
 
+  // Highlights whichever left-list row matches the creative currently open in the panel,
+  // without a full re-render (which would reset scroll position mid-browse). state.openGroupKey
+  // is also read by the row-render functions so a later full render (e.g. the 30s data poll)
+  // keeps the same row highlighted.
+  function syncActiveRowHighlight() {
+    document.querySelectorAll('.dimension-row.row-active').forEach((el) => el.classList.remove('row-active'));
+    if (!state.openGroupKey) return;
+    document.querySelectorAll('.dimension-row[data-group-key="' + CSS.escape(state.openGroupKey) + '"]').forEach((el) => el.classList.add('row-active'));
+  }
+
   function openVideoPanel(ytId, title, stats, groupKey, adId) {
     openYtId = ytId;
+    state.openGroupKey = groupKey || null;
+    syncActiveRowHighlight();
     $('#video-panel-embed').innerHTML =
       '<iframe src="https://www.youtube.com/embed/' + ytId + '?rel=0" ' +
       'title="Ad preview" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>';
@@ -764,6 +777,8 @@
   }
   function closeVideoPanel() {
     openYtId = null;
+    state.openGroupKey = null;
+    syncActiveRowHighlight();
     $('#video-panel').classList.remove('is-open');
     $('#video-panel-embed').innerHTML = ''; // clear so playback actually stops
     $('#video-panel-body').innerHTML = '';

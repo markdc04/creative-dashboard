@@ -163,6 +163,8 @@ h1{font-size:28px;font-weight:800;letter-spacing:-.01em;margin:0;text-wrap:balan
 .dimension-bar-track{width:110px;height:5px;border-radius:3px;background:var(--border-soft);margin-top:6px;overflow:hidden;margin-left:auto;}
 .dimension-bar-track .bar-fill{transition:width .35s ease;}
 
+.dimension-row.row-active{border:1px solid var(--google);background:rgba(91,141,239,.08);border-radius:10px;}
+
 .dimension-row--top{
   background:linear-gradient(90deg,rgba(240,180,41,.12),rgba(240,180,41,.02) 65%);
   border:1px solid rgba(240,180,41,.35);border-top:1px solid rgba(240,180,41,.35);

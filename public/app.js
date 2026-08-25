@@ -387,7 +387,6 @@
             '<div class="dimension-stats">' + (field === 'fileName' ? secondaryTags(field, g) : personMetaTags(g)) + statsHtml(g, totalProfit) + '</div>' +
           '</div>' +
           '<div class="dimension-figs">' + figsTableHtml(g) + '</div>' +
-          '<div class="dimension-bar-track"><div class="bar-fill ' + (isPos ? 'profit' : 'loss') + '" style="width:' + pct + '%"></div></div>' +
         '</div>' +
         (isOpen && !isCreative ? expandHtml(g, key, totalProfit) : '') +
       '</div>'
@@ -419,7 +418,6 @@
               ? figsTableHtml(g)
               : '<span class="tag dim-tag date-tag">Uploaded ' + formatDate(g.uploadedAt) + '</span>') +
           '</div>' +
-          (showMetric ? '<div class="dimension-bar-track"><div class="bar-fill ' + (isPos ? 'profit' : 'loss') + '" style="width:' + pct + '%"></div></div>' : '') +
         '</div>' +
       '</div>'
     );

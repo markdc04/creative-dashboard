@@ -71,6 +71,8 @@ body::before{content:"";display:block;height:3px;background:linear-gradient(90de
 .live-pill--stale .live-dot{background:var(--accent);}
 @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 3px var(--profit-dim);}50%{opacity:.55;box-shadow:0 0 0 6px transparent;}}
 
+.active-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--profit);box-shadow:0 0 0 3px var(--profit-dim);animation:pulse 2s infinite;margin-right:7px;vertical-align:middle;flex:none;}
+
 /* ---------- header ---------- */
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-bottom:18px;border-bottom:1px solid var(--border);margin-bottom:16px;}
 .brand-eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin:0 0 6px;}

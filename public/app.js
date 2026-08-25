@@ -295,6 +295,12 @@
     return '<svg class="dimension-chevron' + (isOpen ? ' is-open' : '') + '" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
   }
 
+  // A small pulsing dot (matching the "Live" indicator's own style) next to a name, shown only
+  // when spend > 0 in the current range — no text label, the dot alone says "still running".
+  function activeDot(spend) {
+    return spend > 0 ? '<span class="active-dot" title="Active in this range"></span>' : '';
+  }
+
   // Lets the video panel show "other ads using this video" without re-plumbing the ad list
   // through every call site — keyed by fileName. Populated exactly once per render (see
   // render()) from the full, unfiltered per-creative ad list, never from a board-narrowed
@@ -346,7 +352,7 @@
         '<div class="dimension-row dimension-row--sub' + (state.openGroupKey === cg.name ? ' row-active' : '') + '" data-key="' + escapeHtml(subKey) + '" data-creative="1" data-group-key="' + escapeHtml(cg.name) + '">' +
           rowThumbHtml(cg) +
           '<div>' +
-            '<div class="dimension-name">' + escapeHtml(cg.name) + '</div>' +
+            '<div class="dimension-name">' + activeDot(cg.spend) + escapeHtml(cg.name) + '</div>' +
             '<div class="dimension-count">' + cg.count + ' ' + (cg.count === 1 ? 'ad' : 'ads') + '</div>' +
             '<div class="dimension-meta">' + peopleTags(state.board, cg) + '</div>' +
             '<div class="dimension-stats">' + secondaryTags(state.board, cg) + statsHtml(cg, totalProfit) + '</div>' +
@@ -379,7 +385,7 @@
           (isCreative ? ' data-creative="1" data-group-key="' + escapeHtml(g.name) + '"' : ' data-category="1" data-category-key="' + escapeHtml(key) + '"') + '>' +
           rankMarkup(idx, isTop) +
           '<div>' +
-            '<div class="dimension-name dimension-name-clickable">' + escapeHtml(g.name) +
+            '<div class="dimension-name dimension-name-clickable">' + activeDot(g.spend) + escapeHtml(g.name) +
               (isTop ? '<span class="top-badge">' + TOP_LABELS[state.board] + '</span>' : '') +
             '</div>' +
             '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + '</div>' +
@@ -405,7 +411,7 @@
         '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + (state.openGroupKey === g.name ? ' row-active' : '') + '" data-key="' + escapeHtml(key) + '" data-creative="1" data-group-key="' + escapeHtml(g.name) + '">' +
           rankMarkup(idx, isTop) +
           '<div>' +
-            '<div class="dimension-name dimension-name-clickable">' + escapeHtml(g.name) +
+            '<div class="dimension-name dimension-name-clickable">' + activeDot(g.spend) + escapeHtml(g.name) +
               (isTop ? '<span class="top-badge">' + TOP_LABELS[state.board] + '</span>' : '') +
             '</div>' +
             '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + '</div>' +
@@ -455,7 +461,7 @@
       const isCreative = field === 'fileName';
       const isActive = isCreative ? state.openGroupKey === g.name : state.openCategoryKey === key;
       let cells = '<td class="num-col">' + (i + 1) + '</td>';
-      cells += '<td class="name-cell">' + escapeHtml(g.name) + '</td>';
+      cells += '<td class="name-cell">' + activeDot(g.spend) + escapeHtml(g.name) + '</td>';
       if (showPeople) {
         cells += '<td>' + (g.actor ? escapeHtml(g.actor) : '&mdash;') + '</td>';
         cells += '<td>' + (g.writer ? escapeHtml(g.writer) : '&mdash;') + '</td>';
@@ -540,7 +546,7 @@
             : '<span class="ad-thumb ad-thumb--empty">&mdash;</span>') +
         '</td>' +
         '<td class="name-cell" title="' + escapeHtml(ad.adName) + '">' +
-          escapeHtml(ad.adName || '(untitled)') +
+          activeDot(ad.spend) + escapeHtml(ad.adName || '(untitled)') +
           (ad.campaignName ? '<div class="name-sub">' + escapeHtml(ad.campaignName) + '</div>' : '') +
         '</td>' +
         '<td class="num-col">' + money(ad.spend) + '</td>' +
@@ -702,7 +708,7 @@
               '</button>'
             : '<span class="ad-thumb ad-thumb--empty">&mdash;</span>') +
           '<div class="variant-row-name">' +
-            '<div class="name-cell" title="' + escapeHtml(ad.adName || '') + '">' + escapeHtml(ad.adName || '(untitled)') + '</div>' +
+            '<div class="name-cell" title="' + escapeHtml(ad.adName || '') + '">' + activeDot(ad.spend) + escapeHtml(ad.adName || '(untitled)') + '</div>' +
             (ad.campaignName ? '<div class="name-sub">' + escapeHtml(ad.campaignName) + '</div>' : '') +
           '</div>' +
         '</div>' +

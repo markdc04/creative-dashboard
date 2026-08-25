@@ -72,7 +72,7 @@ body::before{content:"";display:block;height:3px;background:linear-gradient(90de
 @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 3px var(--profit-dim);}50%{opacity:.55;box-shadow:0 0 0 6px transparent;}}
 
 /* ---------- header ---------- */
-.topbar{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-bottom:18px;border-bottom:1px solid var(--border);margin-bottom:16px;}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-bottom:18px;border-bottom:1px solid var(--border);margin-bottom:16px;}
 .brand-eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin:0 0 6px;}
 h1{font-size:28px;font-weight:800;letter-spacing:-.01em;margin:0;text-wrap:balance;}
 .topbar-sub{color:var(--text-dim);font-size:13.5px;margin-top:6px;}

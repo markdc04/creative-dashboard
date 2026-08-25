@@ -298,12 +298,14 @@
   }
 
   // Lets the video panel show "other ads using this video" without re-plumbing the ad list
-  // through every call site — keyed by fileName, which every ad and creative-level group
-  // shares, so a click from either the row thumbnail or the ad table finds the same siblings.
+  // through every call site — keyed by fileName. Populated exactly once per render (see
+  // render()) from the full, unfiltered per-creative ad list, never from a board-narrowed
+  // subset — a person/hook/team board's drilldown only ever sees the ads credited to that one
+  // person within a creative, and letting that overwrite this registry previously caused the
+  // panel to show a random person's slice of ads instead of the creative's true full list.
   const groupAdsRegistry = new Map();
 
   function adsTableHtml(ads) {
-    if (ads.length && ads[0].fileName) groupAdsRegistry.set(ads[0].fileName, ads);
     return (
       '<div class="table-scroll">' +
         '<table>' +
@@ -322,7 +324,6 @@
   function rowThumbHtml(g) {
     const ytId = youtubeId(g.youtubeUrl);
     const roas = roasOf(g);
-    if (g.ads && g.ads.length) groupAdsRegistry.set(g.name, g.ads);
     return '<div class="row-thumb-slot">' + (
       ytId
         ? '<button class="ad-thumb" data-yt-id="' + escapeHtml(ytId) + '" data-ad-name="' + escapeHtml(g.name || '') + '"' +
@@ -370,7 +371,6 @@
     const key = state.board + '::' + g.name;
     const isOpen = state.expanded.has(key);
     const isCreative = field === 'fileName';
-    if (isCreative && g.ads && g.ads.length) groupAdsRegistry.set(g.name, g.ads);
     return (
       '<div class="dimension-entry">' +
         '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + '" data-key="' + escapeHtml(key) + '"' +
@@ -401,7 +401,6 @@
     const pct = showMetric && maxAbs > 0 ? Math.max(4, Math.round((Math.abs(val) / maxAbs) * 100)) : 0;
     const key = state.board + '::' + g.name;
     const isOpen = state.expanded.has(key);
-    if (g.ads && g.ads.length) groupAdsRegistry.set(g.name, g.ads);
     return (
       '<div class="dimension-entry">' +
         '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + '" data-key="' + escapeHtml(key) + '" data-creative="1" data-group-key="' + escapeHtml(g.name) + '">' +
@@ -529,6 +528,7 @@
         '<td class="thumb-cell">' +
           (ytId
             ? '<button class="ad-thumb" data-yt-id="' + escapeHtml(ytId) + '" data-ad-name="' + escapeHtml(ad.adName || '') + '"' +
+                ' data-ad-id="' + escapeHtml(ad.adId || '') + '"' +
                 ' data-spend="' + ad.spend + '" data-revenue="' + ad.revenue + '" data-profit="' + ad.profit + '" data-roas="' + roas + '"' +
                 ' data-group-key="' + escapeHtml(groupKey || '') + '"' +
                 ' title="Play video">' +
@@ -555,6 +555,11 @@
     $('#creative-count').textContent = rows.length.toLocaleString();
     $('#range-label').textContent = rangeLabel();
     const totalProfit = rows.reduce((a, r) => a + r.profit, 0);
+    // Canonical, single source of truth for "what ads belong to this creative" — always the
+    // full unfiltered list for the current date range, regardless of which board is on screen,
+    // so the video panel never shows a person- or active-only-filtered slice by accident.
+    groupAdsRegistry.clear();
+    for (const g of aggregateByDimension(rows, 'fileName')) groupAdsRegistry.set(g.name, g.ads);
     renderBoard(rows, totalProfit);
   }
 
@@ -686,6 +691,7 @@
         '<div class="variant-row-head">' +
           (ytId
             ? '<button class="ad-thumb" data-yt-id="' + escapeHtml(ytId) + '" data-ad-name="' + escapeHtml(ad.adName || '') + '"' +
+                ' data-ad-id="' + escapeHtml(ad.adId || '') + '"' +
                 ' data-spend="' + ad.spend + '" data-revenue="' + ad.revenue + '" data-profit="' + ad.profit + '" data-roas="' + roas + '"' +
                 ' data-group-key="' + escapeHtml(groupKey) + '" title="Play video">' +
                 '<img src="https://img.youtube.com/vi/' + escapeHtml(ytId) + '/mqdefault.jpg" alt="" loading="lazy">' +
@@ -708,12 +714,13 @@
     );
   }
 
-  function otherAdsHtml(groupKey, currentYtId) {
+  function otherAdsHtml(groupKey, currentAdId) {
     const ads = groupAdsRegistry.get(groupKey);
     if (!ads) return '';
-    // Exclude whichever ad is already playing above — this list is for the *other* ads on
-    // this creative, not a second copy of the one already on screen.
-    const rest = ads.filter((ad) => youtubeId(ad.youtubeUrl) !== currentYtId);
+    // Exclude whichever ad is already playing above, by its unique ad ID — not by video URL,
+    // since this same creative file is commonly reused across many differently-named ads that
+    // all share one youtubeUrl, and excluding by URL was wiping out nearly the whole list.
+    const rest = ads.filter((ad) => ad.adId !== currentAdId);
     if (!rest.length) return '';
     return (
       '<div class="variant-heading">Other ads using this creative</div>' +
@@ -731,12 +738,12 @@
     const roas = top.spend > 0 ? top.revenue / top.spend : 0;
     const ytId = youtubeId(top.youtubeUrl);
     if (!ytId) return;
-    openVideoPanel(ytId, top.adName, { spend: top.spend, revenue: top.revenue, profit: top.profit, roas }, groupKey);
+    openVideoPanel(ytId, top.adName, { spend: top.spend, revenue: top.revenue, profit: top.profit, roas }, groupKey, top.adId);
   }
 
   let openYtId = null; // guards against a slow /api/views response overwriting a later selection
 
-  function openVideoPanel(ytId, title, stats, groupKey) {
+  function openVideoPanel(ytId, title, stats, groupKey, adId) {
     openYtId = ytId;
     $('#video-panel-embed').innerHTML =
       '<iframe src="https://www.youtube.com/embed/' + ytId + '?rel=0" ' +
@@ -747,7 +754,7 @@
     // list doesn't have yet: total YouTube views.
     $('#video-panel-body').innerHTML =
       '<div class="view-count-line"><span class="figs-label">Views</span> <span id="yt-view-count">&hellip;</span></div>' +
-      otherAdsHtml(groupKey, ytId);
+      otherAdsHtml(groupKey, adId);
     $('#video-panel').classList.add('is-open');
     document.body.classList.add('video-panel-open'); // pushes the page over, doesn't cover it
     fetch('/api/views?id=' + encodeURIComponent(ytId)).then((r) => r.json()).then((d) => {
@@ -775,7 +782,7 @@
     openVideoPanel(thumb.dataset.ytId, thumb.dataset.adName, {
       spend: Number(thumb.dataset.spend), revenue: Number(thumb.dataset.revenue),
       profit: Number(thumb.dataset.profit), roas: Number(thumb.dataset.roas),
-    }, thumb.dataset.groupKey);
+    }, thumb.dataset.groupKey, thumb.dataset.adId);
   }
   $('#board-list').addEventListener('click', handleThumbClick);
   $('#video-panel-body').addEventListener('click', handleThumbClick);

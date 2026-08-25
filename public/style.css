@@ -43,7 +43,7 @@ body{
 body::before{content:"";display:block;height:3px;background:linear-gradient(90deg,var(--accent),transparent 70%);}
 .num{font-family:ui-monospace,"SF Mono","Roboto Mono","Cascadia Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;}
 
-.wrap{max-width:1180px;margin:0 auto;padding:22px 24px 64px;}
+.wrap{max-width:1400px;margin:0 auto;padding:22px 24px 64px;}
 
 /* ---------- brand strip ---------- */
 .brandbar{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:18px;flex-wrap:wrap;}
@@ -374,7 +374,7 @@ td.profit-neg,.profit-neg{color:var(--loss);}
 /* A persistent side panel, not a blocking overlay — the leaderboard stays visible and
    scrollable to the left of it while a video plays. */
 .video-panel{
-  position:fixed;top:0;right:0;height:100vh;width:min(880px,62vw);z-index:90;
+  position:fixed;top:0;right:0;height:100vh;width:min(520px,45vw);z-index:90;
   background:var(--surface);border-left:1px solid var(--border);
   box-shadow:-24px 0 50px -10px rgba(0,0,0,.5);
   display:flex;flex-direction:column;
@@ -385,8 +385,8 @@ td.profit-neg,.profit-neg{color:var(--loss);}
 /* Push the whole page over rather than letting the fixed panel sit on top of it, so nothing
    in the leaderboard (columns, tags, etc.) ends up hidden underneath. */
 body{transition:margin-right .25s ease;}
-body.video-panel-open{width:auto;margin-right:min(880px,62vw);overflow-x:hidden;}
-body.video-panel-open .back-to-top{right:calc(24px + min(880px,62vw));}
+body.video-panel-open{width:auto;margin-right:min(520px,45vw);overflow-x:hidden;}
+body.video-panel-open .back-to-top{right:calc(24px + min(520px,45vw));}
 .video-panel-head{
   display:flex;align-items:center;justify-content:space-between;gap:10px;
   padding:14px 14px 12px;border-bottom:1px solid var(--border);flex:none;

@@ -42,14 +42,17 @@ function csvUrl(gid) {
   return `https://docs.google.com/spreadsheets/d/${DOC_ID}/export?format=csv&gid=${gid}`;
 }
 
-function fetchText(url, redirects = 5) {
+function fetchText(url, redirects = 5, extraHeaders = {}) {
   return new Promise((resolve, reject) => {
     const req = https.get(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36' },
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+        ...extraHeaders,
+      },
     }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirects > 0) {
         res.resume();
-        return resolve(fetchText(res.headers.location, redirects - 1));
+        return resolve(fetchText(res.headers.location, redirects - 1, extraHeaders));
       }
       let data = '';
       res.on('data', (chunk) => (data += chunk));
@@ -302,12 +305,21 @@ const VIEW_CACHE_MS = 60 * 60 * 1000;
 async function fetchViewCount(ytId) {
   const cached = viewCountCache.get(ytId);
   if (cached && Date.now() - cached.at < VIEW_CACHE_MS) return cached.views;
-  const html = await fetchText(`https://www.youtube.com/watch?v=${ytId}`);
+  // Datacenter IPs (like Render's) commonly get served an EU cookie-consent interstitial
+  // instead of the real watch page, which has no videoDetails at all — the CONSENT cookie
+  // bypasses that.
+  const html = await fetchText(`https://www.youtube.com/watch?v=${ytId}`, 5, {
+    'Cookie': 'CONSENT=YES+1',
+    'Accept-Language': 'en-US,en;q=0.9',
+  });
   // The page also embeds viewCount for unrelated sidebar/recommended videos, so scope the
   // search to the "videoDetails" block (unique, describes only the video being watched).
   const idx = html.indexOf('"videoDetails"');
   const m = idx === -1 ? null : /"viewCount":"(\d+)"/.exec(html.slice(idx, idx + 3000));
   const views = m ? Number(m[1]) : null;
+  if (views == null) {
+    console.warn(`[${new Date().toISOString()}] view count lookup failed for ${ytId} — page length ${html.length}, has videoDetails: ${idx !== -1}`);
+  }
   viewCountCache.set(ytId, { views, at: Date.now() });
   return views;
 }

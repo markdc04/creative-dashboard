@@ -674,12 +674,46 @@
   // Other ads sharing the same creative — shown as a row of thumbnails under the stats,
   // so switching between variants doesn't require closing the panel and dropping down into
   // the ad table separately.
+  // A stacked card per ad (thumb + name on top, full Spend/Revenue/Profit/ROAS figures below)
+  // instead of a wide multi-column table — so every figure stays fully readable no matter how
+  // narrow the panel is, without needing the panel to grow (which would squeeze the list) or
+  // the row to scroll horizontally.
+  function variantRowHtml(ad, groupKey) {
+    const roas = ad.spend > 0 ? ad.revenue / ad.spend : 0;
+    const ytId = youtubeId(ad.youtubeUrl);
+    return (
+      '<div class="variant-row">' +
+        '<div class="variant-row-head">' +
+          (ytId
+            ? '<button class="ad-thumb" data-yt-id="' + escapeHtml(ytId) + '" data-ad-name="' + escapeHtml(ad.adName || '') + '"' +
+                ' data-spend="' + ad.spend + '" data-revenue="' + ad.revenue + '" data-profit="' + ad.profit + '" data-roas="' + roas + '"' +
+                ' data-group-key="' + escapeHtml(groupKey) + '" title="Play video">' +
+                '<img src="https://img.youtube.com/vi/' + escapeHtml(ytId) + '/mqdefault.jpg" alt="" loading="lazy">' +
+                '<span class="ad-thumb-play">&#9658;</span>' +
+              '</button>'
+            : '<span class="ad-thumb ad-thumb--empty">&mdash;</span>') +
+          '<div class="variant-row-name">' +
+            '<div class="name-cell" title="' + escapeHtml(ad.adName || '') + '">' + escapeHtml(ad.adName || '(untitled)') + '</div>' +
+            (ad.campaignName ? '<div class="name-sub">' + escapeHtml(ad.campaignName) + '</div>' : '') +
+          '</div>' +
+        '</div>' +
+        '<div class="figs-table video-panel-figs">' +
+          '<div class="figs-col"><div class="figs-label">Spend</div><div class="figs-value">' + money(ad.spend) + '</div></div>' +
+          '<div class="figs-col"><div class="figs-label">Revenue</div><div class="figs-value">' + money(ad.revenue) + '</div></div>' +
+          '<div class="figs-col"><div class="figs-label">Profit</div><div class="figs-value ' + (ad.profit >= 0 ? 'profit-pos' : 'profit-neg') + '">' + moneySigned(ad.profit) + '</div></div>' +
+          '<div class="figs-col"><div class="figs-label">ROAS</div><div class="figs-value">' + roas.toFixed(2) + '&times;</div></div>' +
+        '</div>' +
+        '<div class="assets-cell">' + (assetIcons(ad) || '<span class="no-assets">&mdash;</span>') + '</div>' +
+      '</div>'
+    );
+  }
+
   function otherAdsHtml(groupKey) {
     const ads = groupAdsRegistry.get(groupKey);
     if (!ads || ads.length < 2) return '';
     return (
       '<div class="variant-heading">Other ads using this creative</div>' +
-      adsTableHtml(ads)
+      ads.map((ad) => variantRowHtml(ad, groupKey)).join('')
     );
   }
 

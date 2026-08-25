@@ -332,6 +332,7 @@ tbody td.num-col{text-align:right;font-family:ui-monospace,"SF Mono","Roboto Mon
 tbody tr:hover{background:var(--surface-raised);}
 .table-toggle-row{cursor:pointer;}
 .table-toggle-row .dimension-chevron{margin-left:7px;}
+.table-toggle-row.row-active{background:rgba(91,141,239,.1);box-shadow:inset 3px 0 0 var(--google);}
 .table-expand-row td{background:var(--surface);padding:12px 10px 14px;border-bottom:1px solid var(--border-soft);white-space:normal;}
 .table-expand-row .dimension-expand{margin:0;padding:0;border-top:none;}
 .table-expand-row .dimension-expand--nested{margin:0;padding:0 0 0 14px;border-top:none;}

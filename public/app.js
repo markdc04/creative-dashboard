@@ -456,9 +456,10 @@
     const bodyRows = groups.map((g, i) => {
       const contribution = totalProfit > 0 ? (g.profit / totalProfit) * 100 : null;
       const key = state.board + '::' + g.name;
-      const isOpen = state.expanded.has(key);
+      const isCreative = field === 'fileName';
+      const isActive = isCreative ? state.openGroupKey === g.name : state.openCategoryKey === key;
       let cells = '<td class="num-col">' + (i + 1) + '</td>';
-      cells += '<td class="name-cell">' + escapeHtml(g.name) + chevronMarkup(isOpen) + '</td>';
+      cells += '<td class="name-cell">' + escapeHtml(g.name) + '</td>';
       if (showPeople) {
         cells += '<td>' + (g.actor ? escapeHtml(g.actor) : '&mdash;') + '</td>';
         cells += '<td>' + (g.writer ? escapeHtml(g.writer) : '&mdash;') + '</td>';
@@ -473,11 +474,9 @@
       cells += '<td class="num-col">' + (contribution != null ? pct(contribution) : '&mdash;') + '</td>';
       if (showLeads) cells += '<td class="num-col">' + g.leadsAllTime.toLocaleString('en-US') + '</td>';
       cells += '<td>' + (g.uploadedAt ? formatDate(g.uploadedAt) : '&mdash;') + '</td>';
-      let html = '<tr class="table-toggle-row" data-key="' + escapeHtml(key) + '">' + cells + '</tr>';
-      if (isOpen) {
-        html += '<tr class="table-expand-row"><td colspan="' + cols.length + '">' + expandHtml(g, key, totalProfit) + '</td></tr>';
-      }
-      return html;
+      return '<tr class="table-toggle-row' + (isActive ? ' row-active' : '') + '"' +
+        (isCreative ? ' data-creative="1" data-group-key="' + escapeHtml(g.name) + '"' : ' data-category="1" data-category-key="' + escapeHtml(key) + '"') +
+        '>' + cells + '</tr>';
     }).join('');
 
     return (
@@ -663,29 +662,23 @@
     render();
   });
 
-  // ---- click a leaderboard row: in card view, every row opens the right-hand panel — a
-  // creative row plays its top ad directly, a category row (Actor/Writer/etc) plays its top
-  // creative's top ad and lists that person's other creatives below. Only table view still
-  // expands/collapses inline (a flat spreadsheet-style view, not this card interaction). ----
+  // ---- click a leaderboard row (card view or table view): a creative row plays its top ad
+  // directly in the right-hand panel; a category row (Actor/Writer/etc) plays its top
+  // creative's top ad and lists that person's other creatives below. Nothing expands inline
+  // anywhere anymore. ----
   $('#board-list').addEventListener('click', (e) => {
     if (e.target.closest('.ad-thumb')) return;
-    const creativeRow = e.target.closest('.dimension-row[data-creative="1"]');
+    const creativeRow = e.target.closest('[data-creative="1"]');
     if (creativeRow) {
       state.openCategoryKey = null;
       openCreativePanel(creativeRow.dataset.groupKey);
       return;
     }
-    const categoryRow = e.target.closest('.dimension-row[data-category="1"]');
+    const categoryRow = e.target.closest('[data-category="1"]');
     if (categoryRow) {
       openCategoryPanel(categoryRow.dataset.categoryKey);
       return;
     }
-    const row = e.target.closest('.table-toggle-row');
-    if (!row) return;
-    const key = row.dataset.key;
-    if (state.expanded.has(key)) state.expanded.delete(key);
-    else state.expanded.add(key);
-    render();
   });
 
   // ---- inline video preview: click a thumbnail to watch the ad in a side panel, without
@@ -767,13 +760,16 @@
   // without a full re-render (which would reset scroll position mid-browse). state.openGroupKey
   // is also read by the row-render functions so a later full render (e.g. the 30s data poll)
   // keeps the same row highlighted.
+  function rowSelector(attrSelector) {
+    return '.dimension-row' + attrSelector + ', .table-toggle-row' + attrSelector;
+  }
   function syncActiveRowHighlight() {
-    document.querySelectorAll('.dimension-row.row-active').forEach((el) => el.classList.remove('row-active'));
+    document.querySelectorAll(rowSelector('.row-active')).forEach((el) => el.classList.remove('row-active'));
     if (state.openGroupKey) {
-      document.querySelectorAll('.dimension-row[data-group-key="' + CSS.escape(state.openGroupKey) + '"]').forEach((el) => el.classList.add('row-active'));
+      document.querySelectorAll(rowSelector('[data-group-key="' + CSS.escape(state.openGroupKey) + '"]')).forEach((el) => el.classList.add('row-active'));
     }
     if (state.openCategoryKey) {
-      document.querySelectorAll('.dimension-row[data-category-key="' + CSS.escape(state.openCategoryKey) + '"]').forEach((el) => el.classList.add('row-active'));
+      document.querySelectorAll(rowSelector('[data-category-key="' + CSS.escape(state.openCategoryKey) + '"]')).forEach((el) => el.classList.add('row-active'));
     }
   }
 

@@ -696,7 +696,10 @@
     openVideoPanel(ytId, top.adName, { spend: top.spend, revenue: top.revenue, profit: top.profit, roas }, groupKey);
   }
 
+  let openYtId = null; // guards against a slow /api/views response overwriting a later selection
+
   function openVideoPanel(ytId, title, stats, groupKey) {
+    openYtId = ytId;
     $('#video-panel-embed').innerHTML =
       '<iframe src="https://www.youtube.com/embed/' + ytId + '?rel=0" ' +
       'title="Ad preview" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>';
@@ -707,13 +710,24 @@
         '<div class="figs-col"><div class="figs-label">Revenue</div><div class="figs-value">' + money(stats.revenue) + '</div></div>' +
         '<div class="figs-col"><div class="figs-label">Profit</div><div class="figs-value ' + (stats.profit >= 0 ? 'profit-pos' : 'profit-neg') + '">' + moneySigned(stats.profit) + '</div></div>' +
         '<div class="figs-col"><div class="figs-label">ROAS</div><div class="figs-value">' + stats.roas.toFixed(2) + '&times;</div></div>' +
+        '<div class="figs-col"><div class="figs-label">Views</div><div class="figs-value" id="yt-view-count">&hellip;</div></div>' +
       '</div>' +
       otherAdsHtml(groupKey)
     );
     $('#video-panel').classList.add('is-open');
     document.body.classList.add('video-panel-open'); // pushes the page over, doesn't cover it
+    fetch('/api/views?id=' + encodeURIComponent(ytId)).then((r) => r.json()).then((d) => {
+      if (openYtId !== ytId) return; // panel moved on to a different video before this resolved
+      const el = $('#yt-view-count');
+      if (el) el.textContent = d.views != null ? d.views.toLocaleString('en-US') : '—';
+    }).catch(() => {
+      if (openYtId !== ytId) return;
+      const el = $('#yt-view-count');
+      if (el) el.textContent = '—';
+    });
   }
   function closeVideoPanel() {
+    openYtId = null;
     $('#video-panel').classList.remove('is-open');
     $('#video-panel-embed').innerHTML = ''; // clear so playback actually stops
     $('#video-panel-body').innerHTML = '';

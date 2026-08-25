@@ -290,8 +290,47 @@ const MIME = {
   '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon',
 };
 
+// YouTube's oEmbed endpoint doesn't include view count, and pulling it in requires either a
+// paid Data API key or scraping the public watch page's embedded JSON — we do the latter here,
+// with an in-memory cache (1 hour) since it's a network fetch per video, not something to redo
+// on every panel open.
+const viewCountCache = new Map(); // ytId -> { views, at }
+const VIEW_CACHE_MS = 60 * 60 * 1000;
+
+async function fetchViewCount(ytId) {
+  const cached = viewCountCache.get(ytId);
+  if (cached && Date.now() - cached.at < VIEW_CACHE_MS) return cached.views;
+  const html = await fetchText(`https://www.youtube.com/watch?v=${ytId}`);
+  // The page also embeds viewCount for unrelated sidebar/recommended videos, so scope the
+  // search to the "videoDetails" block (unique, describes only the video being watched).
+  const idx = html.indexOf('"videoDetails"');
+  const m = idx === -1 ? null : /"viewCount":"(\d+)"/.exec(html.slice(idx, idx + 3000));
+  const views = m ? Number(m[1]) : null;
+  viewCountCache.set(ytId, { views, at: Date.now() });
+  return views;
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
+
+  if (url.pathname === '/api/views') {
+    const ytId = url.searchParams.get('id') || '';
+    if (!/^[A-Za-z0-9_-]{6,}$/.test(ytId)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'invalid id' }));
+      return;
+    }
+    fetchViewCount(ytId)
+      .then((views) => {
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(JSON.stringify({ views }));
+      })
+      .catch(() => {
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(JSON.stringify({ views: null }));
+      });
+    return;
+  }
 
   if (url.pathname === '/api/data') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });

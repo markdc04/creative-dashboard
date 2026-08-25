@@ -409,9 +409,10 @@ body.video-panel-open .back-to-top{right:calc(24px + min(520px,45vw));}
 .video-panel-figs .figs-col{text-align:left;min-width:0;}
 
 .variant-heading{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-faint);font-weight:700;margin:18px 0 8px;}
-.variant-row{padding:12px 0;border-top:1px solid var(--border-soft);cursor:pointer;}
+.variant-row{padding:12px 10px;border:1px solid transparent;border-top:1px solid var(--border-soft);border-radius:8px;cursor:pointer;}
 .variant-row:hover{background:var(--surface-raised);}
-.variant-row:first-of-type{border-top:none;}
+.variant-row:first-of-type{border-top:1px solid transparent;}
+.variant-row.is-active{border:1px solid var(--google);background:rgba(91,141,239,.08);}
 .variant-row-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
 .variant-row-name{min-width:0;}
 .variant-row-name .name-cell{font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}

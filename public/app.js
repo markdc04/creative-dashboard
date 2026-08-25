@@ -683,11 +683,11 @@
   // instead of a wide multi-column table — so every figure stays fully readable no matter how
   // narrow the panel is, without needing the panel to grow (which would squeeze the list) or
   // the row to scroll horizontally.
-  function variantRowHtml(ad, groupKey) {
+  function variantRowHtml(ad, groupKey, isActive) {
     const roas = ad.spend > 0 ? ad.revenue / ad.spend : 0;
     const ytId = youtubeId(ad.youtubeUrl);
     return (
-      '<div class="variant-row">' +
+      '<div class="variant-row' + (isActive ? ' is-active' : '') + '">' +
         '<div class="variant-row-head">' +
           (ytId
             ? '<button class="ad-thumb" data-yt-id="' + escapeHtml(ytId) + '" data-ad-name="' + escapeHtml(ad.adName || '') + '"' +
@@ -716,15 +716,10 @@
 
   function otherAdsHtml(groupKey, currentAdId) {
     const ads = groupAdsRegistry.get(groupKey);
-    if (!ads) return '';
-    // Exclude whichever ad is already playing above, by its unique ad ID — not by video URL,
-    // since this same creative file is commonly reused across many differently-named ads that
-    // all share one youtubeUrl, and excluding by URL was wiping out nearly the whole list.
-    const rest = ads.filter((ad) => ad.adId !== currentAdId);
-    if (!rest.length) return '';
+    if (!ads || ads.length < 2) return '';
     return (
-      '<div class="variant-heading">Other ads using this creative</div>' +
-      rest.map((ad) => variantRowHtml(ad, groupKey)).join('')
+      '<div class="variant-heading">Ads using this creative</div>' +
+      ads.map((ad) => variantRowHtml(ad, groupKey, ad.adId === currentAdId)).join('')
     );
   }
 

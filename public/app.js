@@ -526,9 +526,11 @@
     }
 
     // "Active Creatives" is All Creatives grouped the same way, just pre-filtered to ads that
-    // actually have spend in the current range — i.e. videos that are currently running.
+    // actually spent on the most recent reported day — i.e. videos genuinely still running
+    // right now, not just "had spend at some point in the selected range" (which was nearly
+    // every ad under "All time").
     const isActiveBoard = state.board === 'active';
-    const sourceRows = isActiveBoard ? rows.filter((r) => r.spend > 0) : rows;
+    const sourceRows = isActiveBoard ? rows.filter((r) => activeAdIdsToday.has(r.adId)) : rows;
     const field = isActiveBoard ? 'fileName' : state.board;
     const groups = sortGroups(aggregateByDimension(sourceRows, field).filter((g) => matchesSearch(g.name)));
     if (!isActiveBoard && field !== 'fileName') {

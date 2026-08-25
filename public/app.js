@@ -768,7 +768,8 @@
     document.body.classList.remove('video-panel-open');
   }
   function handleThumbClick(e) {
-    const thumb = e.target.closest('.ad-thumb');
+    if (e.target.closest('a')) return; // let YT/LP/Frame.io asset links navigate normally
+    const thumb = e.target.closest('.ad-thumb') || e.target.closest('.variant-row')?.querySelector('.ad-thumb');
     if (!thumb || !thumb.dataset.ytId) return;
     e.stopPropagation();
     openVideoPanel(thumb.dataset.ytId, thumb.dataset.adName, {

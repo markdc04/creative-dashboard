@@ -302,13 +302,18 @@
   // point in the selected range" (which was true for almost everything under "All time").
   let activeAdIdsToday = new Set();
   function refreshActiveAdIdsToday() {
-    // The sheet itself can lag a day behind the calendar (today's spend not reported yet), so
-    // use the most recent day actually present in the data rather than the literal calendar
-    // date — otherwise every dot would vanish for the first part of each day for no real reason.
-    let latest = '';
-    for (const r of state.dailyRows) { if (r.date > latest) latest = r.date; }
+    // "Active" means spent on the last day of whatever's currently selected — the end of a
+    // specific range (so picking "Yesterday" checks yesterday, not today), or under "All time"
+    // the most recent day actually present in the data (robust to the sheet lagging a day
+    // behind the calendar, which would otherwise empty every dot for no real reason).
+    let referenceDay = state.range.end;
+    if (!referenceDay) {
+      let latest = '';
+      for (const r of state.dailyRows) { if (r.date > latest) latest = r.date; }
+      referenceDay = latest;
+    }
     activeAdIdsToday = new Set(
-      state.dailyRows.filter((r) => r.date === latest && r.spend > 0 && r.platform !== 'META').map((r) => r.adId)
+      state.dailyRows.filter((r) => r.date === referenceDay && r.spend > 0 && r.platform !== 'META').map((r) => r.adId)
     );
   }
   function adActiveDot(adId) {

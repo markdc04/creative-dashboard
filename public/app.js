@@ -355,7 +355,7 @@
   }
 
   function expandHtml(g, key, totalProfit) {
-    if (state.board === 'fileName' || state.board === 'new') {
+    if (state.board === 'fileName' || state.board === 'new' || state.board === 'active') {
       return '<div class="dimension-expand">' + adsTableHtml(g.ads) + '</div>';
     }
     const creatives = aggregateByDimension(g.ads, 'fileName');
@@ -708,12 +708,16 @@
     );
   }
 
-  function otherAdsHtml(groupKey) {
+  function otherAdsHtml(groupKey, currentYtId) {
     const ads = groupAdsRegistry.get(groupKey);
-    if (!ads || ads.length < 2) return '';
+    if (!ads) return '';
+    // Exclude whichever ad is already playing above — this list is for the *other* ads on
+    // this creative, not a second copy of the one already on screen.
+    const rest = ads.filter((ad) => youtubeId(ad.youtubeUrl) !== currentYtId);
+    if (!rest.length) return '';
     return (
       '<div class="variant-heading">Other ads using this creative</div>' +
-      ads.map((ad) => variantRowHtml(ad, groupKey)).join('')
+      rest.map((ad) => variantRowHtml(ad, groupKey)).join('')
     );
   }
 
@@ -738,16 +742,12 @@
       '<iframe src="https://www.youtube.com/embed/' + ytId + '?rel=0" ' +
       'title="Ad preview" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>';
     $('#video-panel-title').textContent = title || 'Preview';
-    $('#video-panel-body').innerHTML = !stats ? '' : (
-      '<div class="figs-table video-panel-figs">' +
-        '<div class="figs-col"><div class="figs-label">Spend</div><div class="figs-value">' + money(stats.spend) + '</div></div>' +
-        '<div class="figs-col"><div class="figs-label">Revenue</div><div class="figs-value">' + money(stats.revenue) + '</div></div>' +
-        '<div class="figs-col"><div class="figs-label">Profit</div><div class="figs-value ' + (stats.profit >= 0 ? 'profit-pos' : 'profit-neg') + '">' + moneySigned(stats.profit) + '</div></div>' +
-        '<div class="figs-col"><div class="figs-label">ROAS</div><div class="figs-value">' + stats.roas.toFixed(2) + '&times;</div></div>' +
-        '<div class="figs-col"><div class="figs-label">Views</div><div class="figs-value" id="yt-view-count">&hellip;</div></div>' +
-      '</div>' +
-      otherAdsHtml(groupKey)
-    );
+    // Spend/Revenue/Profit/ROAS for this exact ad already appear on its card in the list below
+    // (highlighted as the active one), so the only thing shown up here is the one figure that
+    // list doesn't have yet: total YouTube views.
+    $('#video-panel-body').innerHTML =
+      '<div class="view-count-line"><span class="figs-label">Views</span> <span id="yt-view-count">&hellip;</span></div>' +
+      otherAdsHtml(groupKey, ytId);
     $('#video-panel').classList.add('is-open');
     document.body.classList.add('video-panel-open'); // pushes the page over, doesn't cover it
     fetch('/api/views?id=' + encodeURIComponent(ytId)).then((r) => r.json()).then((d) => {

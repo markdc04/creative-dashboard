@@ -23,32 +23,6 @@
           <span id="live-text">Connecting&hellip;</span>
         </span>
       </div>
-      <div class="date-bar">
-        <div class="select-wrap">
-          <select id="quick-range">
-            <option value="all">All time</option>
-            <option value="today">Today</option>
-            <option value="yesterday">Yesterday</option>
-            <option value="wtd">Week to date</option>
-            <option value="lastweek">Last week</option>
-            <option value="2026-08">August 2026</option>
-            <option value="2026-07">July 2026</option>
-            <option value="2026-06">June 2026</option>
-            <option value="2026-05">May 2026</option>
-            <option value="2026-04">April 2026</option>
-            <option value="2026-03">March 2026</option>
-            <option value="2026-02">February 2026</option>
-            <option value="custom">Custom range&hellip;</option>
-          </select>
-          <svg class="select-caret" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg>
-        </div>
-        <div class="date-inputs" id="custom-dates" hidden>
-          <input type="date" id="date-start">
-          <span class="date-arrow">&rarr;</span>
-          <input type="date" id="date-end">
-        </div>
-        <button class="clear-btn" id="clear-range">Clear</button>
-      </div>
     </div>
   </div>
 
@@ -57,6 +31,32 @@
       <p class="brand-eyebrow">Ad Creative Tracker</p>
       <h1>Creative Performance</h1>
       <p class="topbar-sub"><span id="creative-count">&mdash;</span> creatives <span id="range-label"></span> &middot; live from Google Sheets</p>
+    </div>
+    <div class="date-bar">
+      <div class="select-wrap">
+        <select id="quick-range">
+          <option value="all">All time</option>
+          <option value="today">Today</option>
+          <option value="yesterday">Yesterday</option>
+          <option value="wtd">Week to date</option>
+          <option value="lastweek">Last week</option>
+          <option value="2026-08">August 2026</option>
+          <option value="2026-07">July 2026</option>
+          <option value="2026-06">June 2026</option>
+          <option value="2026-05">May 2026</option>
+          <option value="2026-04">April 2026</option>
+          <option value="2026-03">March 2026</option>
+          <option value="2026-02">February 2026</option>
+          <option value="custom">Custom range&hellip;</option>
+        </select>
+        <svg class="select-caret" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg>
+      </div>
+      <div class="date-inputs" id="custom-dates" hidden>
+        <input type="date" id="date-start">
+        <span class="date-arrow">&rarr;</span>
+        <input type="date" id="date-end">
+      </div>
+      <button class="clear-btn" id="clear-range">Clear</button>
     </div>
   </div>
 

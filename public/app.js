@@ -755,22 +755,20 @@
       '<iframe src="https://www.youtube.com/embed/' + ytId + '?rel=0" ' +
       'title="Ad preview" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>';
     $('#video-panel-title').textContent = title || 'Preview';
+    $('#video-panel-views').textContent = '';
     // Spend/Revenue/Profit/ROAS for this exact ad already appear on its card in the list below
-    // (highlighted as the active one), so the only thing shown up here is the one figure that
-    // list doesn't have yet: total YouTube views.
-    $('#video-panel-body').innerHTML =
-      '<div class="view-count-line"><span class="figs-label">Views</span> <span id="yt-view-count">&hellip;</span></div>' +
-      otherAdsHtml(groupKey, adId);
+    // (highlighted as the active one), so nothing needs repeating up here.
+    $('#video-panel-body').innerHTML = otherAdsHtml(groupKey, adId);
     $('#video-panel').classList.add('is-open');
     document.body.classList.add('video-panel-open'); // pushes the page over, doesn't cover it
+    // Shown right by the title, the way YouTube itself pairs a video's title with its view
+    // count, rather than as a separate figure further down the panel.
     fetch('/api/views?id=' + encodeURIComponent(ytId)).then((r) => r.json()).then((d) => {
       if (openYtId !== ytId) return; // panel moved on to a different video before this resolved
-      const el = $('#yt-view-count');
-      if (el) el.textContent = d.views != null ? d.views.toLocaleString('en-US') : '—';
+      $('#video-panel-views').textContent = d.views != null ? d.views.toLocaleString('en-US') + ' views' : '';
     }).catch(() => {
       if (openYtId !== ytId) return;
-      const el = $('#yt-view-count');
-      if (el) el.textContent = '—';
+      $('#video-panel-views').textContent = '';
     });
   }
   function closeVideoPanel() {

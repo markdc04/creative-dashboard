@@ -125,6 +125,15 @@ function fnv1a(str) {
   return (h >>> 0).toString(16);
 }
 
+// The same person gets typed with inconsistent casing across rows/sheets ("zeke", "Zeke",
+// "ZEKE" all show up) which otherwise splits them into separate Actor/Writer/Editor entries.
+// Normalize to one canonical Title Case form so they always merge into a single person.
+function normalizeName(v) {
+  const s = String(v || '').trim();
+  if (!s) return '';
+  return s.split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+}
+
 function isDateLike(v) {
   const s = String(v).trim();
   return /^\d{4}-\d{2}-\d{2}$/.test(s) || /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s);
@@ -178,9 +187,9 @@ async function pollAll() {
         extraCreditsByFileName[fileName] = { actor: '', writer: '', editor: '', hookType: '' };
       }
       const c = extraCreditsByFileName[fileName];
-      if (!c.actor && r['ACTOR']) c.actor = r['ACTOR'];
-      if (!c.writer && r['COPY WRITERS']) c.writer = r['COPY WRITERS'];
-      if (!c.editor && r['EDITOR']) c.editor = r['EDITOR'];
+      if (!c.actor && r['ACTOR']) c.actor = normalizeName(r['ACTOR']);
+      if (!c.writer && r['COPY WRITERS']) c.writer = normalizeName(r['COPY WRITERS']);
+      if (!c.editor && r['EDITOR']) c.editor = normalizeName(r['EDITOR']);
       if (!c.hookType && r['HOOK_TYPE'] && !isDateLike(r['HOOK_TYPE'])) c.hookType = r['HOOK_TYPE'];
     }
 
@@ -232,9 +241,9 @@ async function pollAll() {
       // Some rows have a date typed into "Hook Type" by mistake (belongs in Date Uploaded) —
       // treat date-shaped values as blank so a stray date never shows as a hook type.
       if (!a.hookType && r['Hook Type'] && !isDateLike(r['Hook Type'])) a.hookType = r['Hook Type'];
-      if (!a.actor && r['Actor']) a.actor = r['Actor'];
-      if (!a.writer && r['Writer']) a.writer = r['Writer'];
-      if (!a.editor && r['Editor']) a.editor = r['Editor'];
+      if (!a.actor && r['Actor']) a.actor = normalizeName(r['Actor']);
+      if (!a.writer && r['Writer']) a.writer = normalizeName(r['Writer']);
+      if (!a.editor && r['Editor']) a.editor = normalizeName(r['Editor']);
       if (!a.dateUploaded && r['Date Uploaded']) a.dateUploaded = r['Date Uploaded'];
     }
 

@@ -5,16 +5,16 @@ function startDashboardApp() {
     lastChecked: null, // when we last actually talked to the server, regardless of whether the data changed
     range: { key: 'all', start: null, end: null }, // ISO date strings, inclusive
     search: '',
-    board: 'fileName', // 'fileName' | 'hookType' | 'actor' | 'writer' | 'editor' | 'team' | 'new'
-    sortBy: 'profit', // 'profit' | 'revenue' | 'spend' — ignored by the 'new' board (always by date)
+    board: 'fileName', // 'fileName' | 'active' | 'hookType' | 'actor' | 'writer' | 'editor' | 'team'
+    sortBy: 'profit', // 'profit' | 'revenue' | 'spend' | 'date'
     expanded: new Set(), // keys ("board::name") of entries with their ad-list dropdown open
     viewMode: 'cards', // 'cards' | 'table'
     openGroupKey: null, // fileName of whichever creative's video panel is currently open
     openCategoryKey: null, // "board::name" of whichever person/hook/team category is open
   };
 
-  const BOARD_LABELS = { fileName: 'All Creatives', active: 'Active Creatives', hookType: 'Hook Type', actor: 'Actor', writer: 'Writer', editor: 'Editor', team: 'Collaborators', new: 'New Creatives' };
-  const TOP_LABELS = { fileName: 'Top Creative', active: 'Top Active Creative', hookType: 'Top Hook Type', actor: 'Top Actor', writer: 'Top Writer', editor: 'Top Editor', team: 'Top Collaboration', new: 'Top Creative' };
+  const BOARD_LABELS = { fileName: 'All Creatives', active: 'Active Creatives', hookType: 'Hook Type', actor: 'Actor', writer: 'Writer', editor: 'Editor', team: 'Collaborators' };
+  const TOP_LABELS = { fileName: 'Top Creative', active: 'Top Active Creative', hookType: 'Top Hook Type', actor: 'Top Actor', writer: 'Top Writer', editor: 'Top Editor', team: 'Top Collaboration' };
   const TAG_LABELS = { hookType: 'Hook', actor: 'Actor', writer: 'Writer', editor: 'Editor' };
   const ALL_TAG_FIELDS = ['hookType', 'actor', 'writer', 'editor'];
   const PEOPLE_FIELDS = ['actor', 'writer', 'editor'];
@@ -208,6 +208,9 @@ function startDashboardApp() {
   }
 
   function sortGroups(groups) {
+    if (state.sortBy === 'date') {
+      return [...groups].sort((a, b) => (b.uploadedAt ? b.uploadedAt.getTime() : 0) - (a.uploadedAt ? a.uploadedAt.getTime() : 0));
+    }
     const key = state.sortBy;
     return [...groups].sort((a, b) => b[key] - a[key]);
   }
@@ -386,7 +389,7 @@ function startDashboardApp() {
   }
 
   function expandHtml(g, key, totalProfit) {
-    if (state.board === 'fileName' || state.board === 'new' || state.board === 'active') {
+    if (state.board === 'fileName' || state.board === 'active') {
       return '<div class="dimension-expand">' + adsTableHtml(g.ads) + '</div>';
     }
     const creatives = aggregateByDimension(g.ads, 'fileName');
@@ -394,10 +397,9 @@ function startDashboardApp() {
   }
 
   function dimensionRowHtml(field, g, idx, maxAbs, totalProfit) {
-    const val = g[state.sortBy];
-    const isPos = val >= 0;
-    const isTop = idx === 0 && isPos;
-    const pct = maxAbs > 0 ? Math.max(4, Math.round((Math.abs(val) / maxAbs) * 100)) : 4;
+    // "Top" only means something for a ranked metric — sorting by Newest has no such notion,
+    // so the badge is skipped there instead of depending on a stray positive/negative check.
+    const isTop = idx === 0 && state.sortBy !== 'date' && g[state.sortBy] >= 0;
     const key = state.board + '::' + g.name;
     const isCreative = field === 'fileName';
     const isActive = (isCreative && state.openGroupKey === g.name) || (!isCreative && state.openCategoryKey === key);
@@ -415,36 +417,6 @@ function startDashboardApp() {
             '<div class="dimension-stats">' + (field === 'fileName' ? secondaryTags(field, g) : personMetaTags(g)) + statsHtml(g, totalProfit) + '</div>' +
           '</div>' +
           '<div class="dimension-figs">' + figsTableHtml(g) + '</div>' +
-        '</div>' +
-      '</div>'
-    );
-  }
-
-  function newRowHtml(g, idx, maxAbs, totalProfit) {
-    const showMetric = state.sortBy !== 'date';
-    const val = showMetric ? g[state.sortBy] : 0;
-    const isPos = val >= 0;
-    const isTop = idx === 0 && showMetric && isPos;
-    const pct = showMetric && maxAbs > 0 ? Math.max(4, Math.round((Math.abs(val) / maxAbs) * 100)) : 0;
-    const key = state.board + '::' + g.name;
-    const isOpen = state.expanded.has(key);
-    return (
-      '<div class="dimension-entry">' +
-        '<div class="dimension-row' + (isTop ? ' dimension-row--top' : '') + (state.openGroupKey === g.name ? ' row-active' : '') + '" data-key="' + escapeHtml(key) + '" data-creative="1" data-group-key="' + escapeHtml(g.name) + '">' +
-          rankMarkup(idx, isTop) +
-          '<div>' +
-            '<div class="dimension-name dimension-name-clickable">' + creativeActiveDot(g.ads) + escapeHtml(g.name) +
-              (isTop ? '<span class="top-badge">' + TOP_LABELS[state.board] + '</span>' : '') +
-            '</div>' +
-            '<div class="dimension-count">' + g.count + ' ' + (g.count === 1 ? 'ad' : 'ads') + '</div>' +
-            '<div class="dimension-meta">' + peopleTags('fileName', g) + '</div>' +
-            '<div class="dimension-stats">' + secondaryTags('fileName', g, !showMetric) + statsHtml(g, totalProfit) + '</div>' +
-          '</div>' +
-          '<div class="dimension-figs">' +
-            (showMetric
-              ? figsTableHtml(g)
-              : '<span class="tag dim-tag date-tag">Uploaded ' + formatDate(g.uploadedAt) + '</span>') +
-          '</div>' +
         '</div>' +
       '</div>'
     );
@@ -519,21 +491,6 @@ function startDashboardApp() {
   function renderBoard(rows, totalProfit) {
     $('#board-title').textContent = BOARD_LABELS[state.board];
 
-    if (state.board === 'new') {
-      const groups = aggregateByDimension(rows, 'fileName')
-        .filter((g) => matchesSearch(g.name) && g.uploadedAt)
-        .sort((a, b) => (state.sortBy === 'date' ? b.uploadedAt - a.uploadedAt : b[state.sortBy] - a[state.sortBy]));
-      const maxAbs = Math.max(1, ...groups.map((g) => Math.abs(g[state.sortBy] || 0)));
-      const sortLabel = state.sortBy === 'date' ? 'newest first' : 'sorted by ' + state.sortBy;
-      $('#board-count').innerHTML = groups.length + ' ' + (groups.length === 1 ? 'file' : 'files') + ' &middot; ' + sortLabel;
-      $('#board-list').innerHTML = !groups.length
-        ? emptyMsg('No upload dates tagged yet for this range.')
-        : state.viewMode === 'table'
-          ? tableHtml('fileName', groups, totalProfit, 'Uploaded')
-          : groups.map((g, i) => newRowHtml(g, i, maxAbs, totalProfit)).join('');
-      return;
-    }
-
     // "Active Creatives" is All Creatives grouped the same way, just pre-filtered to ads that
     // actually spent on the most recent reported day — i.e. videos genuinely still running
     // right now, not just "had spend at some point in the selected range" (which was nearly
@@ -547,8 +504,9 @@ function startDashboardApp() {
         categoryCreativesRegistry.set(state.board + '::' + g.name, aggregateByDimension(g.ads, 'fileName').sort((a, b) => b.profit - a.profit));
       }
     }
-    const maxAbs = Math.max(1, ...groups.map((g) => Math.abs(g[state.sortBy])));
-    $('#board-count').innerHTML = groups.length + ' ' + (groups.length === 1 ? 'entry' : 'entries') + ' &middot; sorted by ' + state.sortBy;
+    const maxAbs = state.sortBy === 'date' ? 1 : Math.max(1, ...groups.map((g) => Math.abs(g[state.sortBy])));
+    const sortLabel = state.sortBy === 'date' ? 'newest first' : 'sorted by ' + state.sortBy;
+    $('#board-count').innerHTML = groups.length + ' ' + (groups.length === 1 ? 'entry' : 'entries') + ' &middot; ' + sortLabel;
     $('#board-list').innerHTML = !groups.length
       ? emptyMsg('No ' + (isActiveBoard ? 'currently active ads' : BOARD_LABELS[field].toLowerCase() + ' data') + ' for this range.')
       : state.viewMode === 'table'
@@ -591,7 +549,13 @@ function startDashboardApp() {
     $('#creative-count').textContent = rows.length.toLocaleString();
     $('#range-label').textContent = rangeLabel();
     refreshActiveAdIdsToday();
-    const totalProfit = rows.reduce((a, r) => a + r.profit, 0);
+    // "Profit contribution" is this entry's share of total profit — but if it's computed
+    // against the *net* total (positives minus losses), a single strong performer can show
+    // over 100% whenever other entries are net-negative and drag the net total down. Using the
+    // sum of only the positive-profit entries as the denominator keeps every contribution
+    // naturally capped at 100%, ads included (they're already summed into each row before
+    // this point).
+    const totalProfit = rows.reduce((a, r) => a + Math.max(r.profit, 0), 0);
     // Canonical, single source of truth for "what ads belong to this creative" — always the
     // full unfiltered list for the current date range, regardless of which board is on screen,
     // so the video panel never shows a person- or active-only-filtered slice by accident.
@@ -653,17 +617,6 @@ function startDashboardApp() {
     document.querySelectorAll('#leaderboard-tabs .chip').forEach((c) => c.classList.remove('is-active'));
     btn.classList.add('is-active');
     state.board = btn.dataset.board;
-    $('#sort-newest').hidden = state.board !== 'new';
-    if (state.board === 'new' && state.sortBy !== 'date') {
-      state.sortBy = 'date';
-      document.querySelectorAll('#sort-tabs .chip').forEach((c) => c.classList.remove('is-active'));
-      $('#sort-newest').classList.add('is-active');
-    } else if (state.board !== 'new' && state.sortBy === 'date') {
-      state.sortBy = 'profit';
-      document.querySelectorAll('#sort-tabs .chip').forEach((c) => c.classList.remove('is-active'));
-      $('#sort-tabs [data-sort="profit"]').classList.add('is-active');
-    }
-    state.expanded.clear();
     render();
   });
 

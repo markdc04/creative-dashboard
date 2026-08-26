@@ -45,6 +45,52 @@ body::before{content:"";display:block;height:3px;background:linear-gradient(90de
 
 .wrap{max-width:1400px;margin:0 auto;padding:22px 24px 64px;}
 
+/* ---------- login gate ---------- */
+.login-overlay{
+  position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(1100px 520px at 12% -8%,rgba(240,180,41,.10),transparent 60%),var(--bg);
+  padding:20px;
+}
+.login-overlay.is-hidden{display:none;}
+.login-card{
+  width:100%;max-width:340px;background:var(--surface);border:1px solid var(--border);
+  border-radius:18px;padding:28px 26px;box-shadow:0 20px 50px -20px rgba(0,0,0,.6);text-align:center;
+}
+.login-logo{height:34px;width:auto;margin:0 auto 18px;display:block;}
+.login-card h2{font-size:18px;font-weight:800;margin:0 0 22px;}
+.login-label{display:block;text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-faint);font-weight:700;margin:0 0 6px;}
+.login-name-grid{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:18px;}
+.login-name-btn{
+  flex:1 1 auto;padding:8px 12px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;
+  background:var(--surface-raised);border:1px solid var(--border);color:var(--text-dim);
+}
+.login-name-btn:hover{border-color:var(--text-faint);color:var(--text);}
+.login-name-btn.is-selected{background:linear-gradient(180deg,#f6c34d,var(--accent));border-color:var(--accent);color:var(--accent-ink);}
+.login-pin-row{display:flex;gap:10px;justify-content:center;margin-bottom:10px;}
+.login-pin-digit{
+  width:46px;height:52px;text-align:center;font-size:22px;font-weight:700;
+  background:var(--surface-raised);border:1px solid var(--border);border-radius:10px;color:var(--text);
+  font-family:ui-monospace,"SF Mono","Roboto Mono",monospace;
+}
+.login-pin-digit:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(240,180,41,.18);}
+.login-error{color:var(--loss);font-size:12.5px;margin:6px 0 0;}
+.login-submit{
+  width:100%;margin-top:18px;padding:11px 14px;border-radius:10px;border:none;cursor:pointer;
+  background:linear-gradient(180deg,#f6c34d,var(--accent));color:var(--accent-ink);font-weight:800;font-size:13.5px;
+}
+.login-submit:hover{filter:brightness(1.05);}
+
+.logged-in-pill{
+  display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--text-dim);
+  padding:6px 12px;border-radius:100px;background:var(--surface-raised);border:1px solid var(--border);
+}
+.logged-in-pill strong{color:var(--text);}
+.logout-btn{
+  background:none;border:1px solid var(--border);color:var(--text-faint);
+  font-size:11px;font-weight:600;padding:4px 9px;border-radius:100px;cursor:pointer;
+}
+.logout-btn:hover{border-color:var(--text-faint);color:var(--text);}
+
 /* ---------- brand strip ---------- */
 .brandbar{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:18px;flex-wrap:wrap;}
 .brandlogo{height:34px;width:auto;display:block;}

@@ -1,4 +1,4 @@
-(function () {
+function startDashboardApp() {
   const state = {
     dailyRows: [],
     updatedAt: null,
@@ -881,4 +881,4 @@
   } catch (err) {
     // SSE unsupported — polling above still keeps data fresh.
   }
-})();
+}

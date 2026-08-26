@@ -43,10 +43,16 @@
     overlay.classList.add('is-hidden');
     appContent.hidden = false;
     $('#logged-in-name').textContent = name;
+    startDashboardApp();
+  }
+
+  // Only an actual PIN entry counts as a visit — restoring an already-logged-in session on
+  // page load/reload is not a new visit, so this is called from attemptLogin only, never from
+  // the "already logged in" restore path below.
+  function recordVisit(name) {
     fetch('/api/visit', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
     }).catch(() => {});
-    startDashboardApp();
   }
 
   function attemptLogin() {
@@ -55,6 +61,7 @@
     if (!name || pin.length < 4) return;
     if (PINS[name] === pin) {
       localStorage.setItem(STORAGE_KEY, name);
+      recordVisit(name);
       showApp(name);
     } else {
       errorEl.hidden = false;

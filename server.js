@@ -42,13 +42,14 @@ let cache = { rows: [], updatedAt: null, hash: null };
 
 // Who's logged in and when — a simple visit log, persisted to a local JSON file so it survives
 // a server restart (not a deploy, since the disk resets then, but good enough for "who's been
-// on recently"). Capped to the most recent 500 entries.
+// on recently"), kept as real history rather than trimmed to a short recent window. Capped
+// to the most recent 5000 entries just as a sanity ceiling.
 const VISIT_LOG_PATH = path.join(__dirname, 'visit-log.json');
 let visitLog = [];
 try { visitLog = JSON.parse(fs.readFileSync(VISIT_LOG_PATH, 'utf8')); } catch (err) { visitLog = []; }
 function recordVisit(name) {
   visitLog.push({ name, at: Date.now() });
-  if (visitLog.length > 500) visitLog = visitLog.slice(-500);
+  if (visitLog.length > 5000) visitLog = visitLog.slice(-5000);
   fs.writeFile(VISIT_LOG_PATH, JSON.stringify(visitLog), () => {});
 }
 let clients = []; // SSE response objects
@@ -395,7 +396,7 @@ const server = http.createServer((req, res) => {
 
   if (url.pathname === '/api/visits') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-    res.end(JSON.stringify({ visits: [...visitLog].reverse().slice(0, 100) }));
+    res.end(JSON.stringify({ visits: [...visitLog].reverse() }));
     return;
   }
 

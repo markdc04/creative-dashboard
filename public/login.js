@@ -82,14 +82,13 @@
     location.reload();
   });
 
-  function timeAgoShort(ms) {
-    const s = Math.max(0, Math.floor((Date.now() - ms) / 1000));
-    if (s < 60) return s + 's ago';
-    const m = Math.floor(s / 60);
-    if (m < 60) return m + 'm ago';
-    const h = Math.floor(m / 60);
-    if (h < 24) return h + 'h ago';
-    return Math.floor(h / 24) + 'd ago';
+  // Full date + time in Pacific (the timezone the underlying campaign data itself uses),
+  // not a relative "X ago" that stops being meaningful once you close and reopen the panel.
+  function visitTimestamp(ms) {
+    return new Date(ms).toLocaleString('en-US', {
+      timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit',
+    }) + ' PDT';
   }
 
   $('#visitors-btn').addEventListener('click', () => {
@@ -103,7 +102,7 @@
         ? '<div class="visitors-empty">No visits recorded yet.</div>'
         : visits.map((v) => (
             '<div class="visitors-row"><strong>' + v.name.replace(/[<>&]/g, '') + '</strong>' +
-            '<span>' + timeAgoShort(v.at) + '</span></div>'
+            '<span>' + visitTimestamp(v.at) + '</span></div>'
           )).join('');
     }).catch(() => {
       $('#visitors-list').innerHTML = '<div class="visitors-empty">Couldn\'t load visits.</div>';

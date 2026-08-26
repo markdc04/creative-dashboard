@@ -466,7 +466,11 @@ function startDashboardApp() {
   // suppress the Actor/Writer/Editor/Hook columns for the same reason the cards do: those
   // values are picked from just one of many ads and would misrepresent the whole entry.
   function tableHtml(field, groups, totalProfit, dateColLabel) {
-    const showPeople = field === 'fileName';
+    // Actor/Writer/Editor/Hook get dropped while the video panel is open — that panel already
+    // narrows the available width, and those 4 text columns were pushing Spend/Revenue/Profit/
+    // ROAS off-screen instead of just needing a scroll.
+    const panelOpen = !!(state.openGroupKey || state.openCategoryKey);
+    const showPeople = field === 'fileName' && !panelOpen;
     const showLeads = state.range.key === 'all';
     const numCols = ['Ads', 'Spend', 'Revenue', 'Profit', 'ROAS', 'Contribution', 'Leads'];
     const cols = ['#', 'Name'];
@@ -804,6 +808,7 @@ function startDashboardApp() {
     openYtId = ytId;
     state.openGroupKey = groupKey || null;
     syncActiveRowHighlight();
+    if (state.viewMode === 'table') render(); // table drops Actor/Writer/Editor/Hook while open
     $('#video-panel-embed').innerHTML =
       '<iframe src="https://www.youtube.com/embed/' + ytId + '?rel=0" ' +
       'title="Ad preview" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>';
@@ -829,6 +834,7 @@ function startDashboardApp() {
     state.openGroupKey = null;
     state.openCategoryKey = null;
     syncActiveRowHighlight();
+    if (state.viewMode === 'table') render();
     $('#video-panel').classList.remove('is-open');
     $('#video-panel-embed').innerHTML = ''; // clear so playback actually stops
     $('#video-panel-body').innerHTML = '';

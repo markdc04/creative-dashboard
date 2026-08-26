@@ -39,6 +39,18 @@ const POLL_MS = 30000;
 const PORT = process.env.PORT || 4174;
 
 let cache = { rows: [], updatedAt: null, hash: null };
+
+// Who's logged in and when — a simple visit log, persisted to a local JSON file so it survives
+// a server restart (not a deploy, since the disk resets then, but good enough for "who's been
+// on recently"). Capped to the most recent 500 entries.
+const VISIT_LOG_PATH = path.join(__dirname, 'visit-log.json');
+let visitLog = [];
+try { visitLog = JSON.parse(fs.readFileSync(VISIT_LOG_PATH, 'utf8')); } catch (err) { visitLog = []; }
+function recordVisit(name) {
+  visitLog.push({ name, at: Date.now() });
+  if (visitLog.length > 500) visitLog = visitLog.slice(-500);
+  fs.writeFile(VISIT_LOG_PATH, JSON.stringify(visitLog), () => {});
+}
 let clients = []; // SSE response objects
 let lastGoodAssets = {}; // adId -> asset/metadata object, kept across polls where the metadata
                           // sheet comes back broken (e.g. a formula error) so a temporary sheet
@@ -367,6 +379,25 @@ async function fetchViewCount(ytId) {
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
+
+  if (url.pathname === '/api/visit' && req.method === 'POST') {
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; if (body.length > 1000) req.destroy(); });
+    req.on('end', () => {
+      let name = '';
+      try { name = String(JSON.parse(body).name || '').slice(0, 40); } catch (err) { /* ignore */ }
+      if (name) recordVisit(name);
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ ok: true }));
+    });
+    return;
+  }
+
+  if (url.pathname === '/api/visits') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({ visits: [...visitLog].reverse().slice(0, 100) }));
+    return;
+  }
 
   if (url.pathname === '/api/views') {
     const ytId = url.searchParams.get('id') || '';

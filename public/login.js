@@ -22,10 +22,11 @@
   const appContent = $('#app-content');
   let selectedName = '';
 
+  const BIG_NAMES = ['Jay Pro', 'Brandon'];
   for (const name of Object.keys(PINS)) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'login-name-btn';
+    btn.className = 'login-name-btn' + (BIG_NAMES.includes(name) ? ' login-name-btn--big' : '');
     btn.textContent = name;
     btn.dataset.name = name;
     btn.addEventListener('click', () => {
@@ -42,6 +43,9 @@
     overlay.classList.add('is-hidden');
     appContent.hidden = false;
     $('#logged-in-name').textContent = name;
+    fetch('/api/visit', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
+    }).catch(() => {});
     startDashboardApp();
   }
 
@@ -77,6 +81,35 @@
     localStorage.removeItem(STORAGE_KEY);
     location.reload();
   });
+
+  function timeAgoShort(ms) {
+    const s = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+    if (s < 60) return s + 's ago';
+    const m = Math.floor(s / 60);
+    if (m < 60) return m + 'm ago';
+    const h = Math.floor(m / 60);
+    if (h < 24) return h + 'h ago';
+    return Math.floor(h / 24) + 'd ago';
+  }
+
+  $('#visitors-btn').addEventListener('click', () => {
+    const panel = $('#visitors-panel');
+    panel.hidden = !panel.hidden;
+    if (panel.hidden) return;
+    $('#visitors-list').innerHTML = '<div class="visitors-empty">Loading&hellip;</div>';
+    fetch('/api/visits').then((r) => r.json()).then((d) => {
+      const visits = d.visits || [];
+      $('#visitors-list').innerHTML = !visits.length
+        ? '<div class="visitors-empty">No visits recorded yet.</div>'
+        : visits.map((v) => (
+            '<div class="visitors-row"><strong>' + v.name.replace(/[<>&]/g, '') + '</strong>' +
+            '<span>' + timeAgoShort(v.at) + '</span></div>'
+          )).join('');
+    }).catch(() => {
+      $('#visitors-list').innerHTML = '<div class="visitors-empty">Couldn\'t load visits.</div>';
+    });
+  });
+  $('#visitors-close').addEventListener('click', () => { $('#visitors-panel').hidden = true; });
 
   // Already logged in on a previous visit — skip straight to the app.
   const savedName = localStorage.getItem(STORAGE_KEY);

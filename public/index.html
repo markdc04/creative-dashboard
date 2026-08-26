@@ -43,10 +43,19 @@
         </span>
         <span class="logged-in-pill">
           Logged in as <strong id="logged-in-name"></strong>
+          <button id="visitors-btn" class="logout-btn">Visitors</button>
           <button id="logout-btn" class="logout-btn">Log out</button>
         </span>
       </div>
     </div>
+  </div>
+
+  <div id="visitors-panel" class="visitors-panel" hidden>
+    <div class="visitors-panel-head">
+      <span>Recent visitors</span>
+      <button id="visitors-close" class="video-panel-close" aria-label="Close">&times;</button>
+    </div>
+    <div id="visitors-list" class="visitors-list"></div>
   </div>
 
   <div class="topbar">

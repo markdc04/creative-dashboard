@@ -66,6 +66,7 @@ body::before{content:"";display:block;height:3px;background:linear-gradient(90de
 }
 .login-name-btn:hover{border-color:var(--text-faint);color:var(--text);}
 .login-name-btn.is-selected{background:linear-gradient(180deg,#f6c34d,var(--accent));border-color:var(--accent);color:var(--accent-ink);}
+.login-name-btn--big{flex-basis:100%;padding:14px 12px;font-size:15px;font-weight:700;}
 .login-pin-row{display:flex;gap:10px;justify-content:center;margin-bottom:10px;}
 .login-pin-digit{
   width:46px;height:52px;text-align:center;font-size:22px;font-weight:700;
@@ -90,6 +91,22 @@ body::before{content:"";display:block;height:3px;background:linear-gradient(90de
   font-size:11px;font-weight:600;padding:4px 9px;border-radius:100px;cursor:pointer;
 }
 .logout-btn:hover{border-color:var(--text-faint);color:var(--text);}
+
+.visitors-panel{
+  position:fixed;top:70px;right:24px;z-index:150;width:260px;max-height:60vh;overflow-y:auto;
+  background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  box-shadow:0 20px 50px -20px rgba(0,0,0,.6);
+}
+.visitors-panel-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 14px;border-bottom:1px solid var(--border);font-size:12.5px;font-weight:700;
+  position:sticky;top:0;background:var(--surface);
+}
+.visitors-list{padding:6px 8px;}
+.visitors-row{display:flex;align-items:center;justify-content:space-between;padding:8px 8px;font-size:12.5px;border-bottom:1px solid var(--border-soft);}
+.visitors-row:last-child{border-bottom:none;}
+.visitors-row span{color:var(--text-faint);font-size:11px;}
+.visitors-empty{padding:18px 10px;text-align:center;color:var(--text-faint);font-size:12px;}
 
 /* ---------- brand strip ---------- */
 .brandbar{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:18px;flex-wrap:wrap;}

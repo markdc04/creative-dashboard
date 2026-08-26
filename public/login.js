@@ -23,11 +23,11 @@
   let selectedName = '';
 
   const BIG_NAMES = ['Jay Pro', 'Brandon'];
-  for (const name of Object.keys(PINS)) {
+  Object.keys(PINS).forEach((name, i) => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'login-name-btn' + (BIG_NAMES.includes(name) ? ' login-name-btn--big' : '');
-    btn.textContent = name;
+    btn.textContent = (i + 1) + '. ' + name;
     btn.dataset.name = name;
     btn.addEventListener('click', () => {
       selectedName = name;
@@ -36,7 +36,7 @@
       digits[0].focus();
     });
     nameGrid.appendChild(btn);
-  }
+  });
 
   function showApp(name) {
     overlay.hidden = true;

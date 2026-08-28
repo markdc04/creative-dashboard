@@ -18,6 +18,8 @@ function startDashboardApp() {
   const TAG_LABELS = { hookType: 'Hook', actor: 'Actor', writer: 'Writer', editor: 'Editor' };
   const ALL_TAG_FIELDS = ['hookType', 'actor', 'writer', 'editor'];
   const PEOPLE_FIELDS = ['actor', 'writer', 'editor'];
+  // Whole campaigns excluded from every figure on the dashboard, matched by name.
+  const EXCLUDED_CAMPAIGN_PATTERN = /agency|sasoon|including km/i;
 
   const $ = (sel) => document.querySelector(sel);
   const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -124,7 +126,7 @@ function startDashboardApp() {
     const byAd = new Map();
     for (const r of filtered) {
       if (r.platform === 'META') continue;
-      if (/agency/i.test(r.campaignName || '')) continue; // AGENCY/WAGENCY campaigns excluded entirely
+      if (EXCLUDED_CAMPAIGN_PATTERN.test(r.campaignName || '')) continue;
       let c = byAd.get(r.adId);
       if (!c) {
         c = {

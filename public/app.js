@@ -124,6 +124,7 @@ function startDashboardApp() {
     const byAd = new Map();
     for (const r of filtered) {
       if (r.platform === 'META') continue;
+      if (/agency/i.test(r.campaignName || '')) continue; // AGENCY/WAGENCY campaigns excluded entirely
       let c = byAd.get(r.adId);
       if (!c) {
         c = {

@@ -765,6 +765,7 @@ function startDashboardApp() {
     state.openGroupKey = groupKey || null;
     syncActiveRowHighlight();
     if (state.viewMode === 'table') render(); // table drops Actor/Writer/Editor/Hook while open
+    $('#video-panel').scrollTop = 0; // jump back to the video, even when switching from a variant card scrolled further down
     $('#video-panel-embed').innerHTML =
       '<iframe src="https://www.youtube.com/embed/' + ytId + '?rel=0" ' +
       'title="Ad preview" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>';

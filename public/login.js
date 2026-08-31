@@ -1,6 +1,6 @@
 (function () {
   const PINS = {
-    'Jay Pro': '2001',
+    'Jay Pro': '1991',
     'Brandon': '1987',
     'Nichole': '2003',
     'Alexander': '1994',

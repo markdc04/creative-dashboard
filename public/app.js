@@ -340,6 +340,10 @@ function startDashboardApp() {
   // creatives that category is credited on, so clicking that category row can open the panel
   // directly (its top creative playing) instead of dropping an inline list down the page.
   const categoryCreativesRegistry = new Map();
+  // "board::name" -> the flat list of every ad credited to that person/hook/team (across all
+  // of their creatives) — used so opening a category from the leaderboard shows the same full
+  // set of ads its own Spend/Revenue/Profit total is built from, not just one creative's ads.
+  const categoryAdsRegistry = new Map();
 
   function adsTableHtml(ads) {
     return (
@@ -504,7 +508,9 @@ function startDashboardApp() {
     const groups = sortGroups(aggregateByDimension(sourceRows, field).filter((g) => matchesSearch(g.name)));
     if (!isActiveBoard && field !== 'fileName') {
       for (const g of groups) {
-        categoryCreativesRegistry.set(state.board + '::' + g.name, aggregateByDimension(g.ads, 'fileName').sort((a, b) => b.profit - a.profit));
+        const key = state.board + '::' + g.name;
+        categoryCreativesRegistry.set(key, aggregateByDimension(g.ads, 'fileName').sort((a, b) => b.profit - a.profit));
+        categoryAdsRegistry.set(key, g.ads);
       }
     }
     const maxAbs = state.sortBy === 'date' ? 1 : Math.max(1, ...groups.map((g) => Math.abs(g[state.sortBy])));
@@ -680,6 +686,10 @@ function startDashboardApp() {
   function variantRowHtml(ad, groupKey, isActive) {
     const roas = ad.spend > 0 ? ad.revenue / ad.spend : 0;
     const ytId = youtubeId(ad.youtubeUrl);
+    // Each ad's own fileName (not necessarily the same as groupKey, e.g. a category-wide list
+    // spans many different creatives) is what re-opening this exact ad's own "other ads" list
+    // needs to key off — otherwise it would show a wrong creative's siblings.
+    const rowGroupKey = ad.fileName || groupKey;
     return (
       '<div class="variant-row' + (isActive ? ' is-active' : '') + '">' +
         '<div class="variant-row-head">' +
@@ -687,7 +697,7 @@ function startDashboardApp() {
             ? '<button class="ad-thumb" data-yt-id="' + escapeHtml(ytId) + '" data-ad-name="' + escapeHtml(ad.adName || '') + '"' +
                 ' data-ad-id="' + escapeHtml(ad.adId || '') + '"' +
                 ' data-spend="' + ad.spend + '" data-revenue="' + ad.revenue + '" data-profit="' + ad.profit + '" data-roas="' + roas + '"' +
-                ' data-group-key="' + escapeHtml(groupKey) + '" title="Play video">' +
+                ' data-group-key="' + escapeHtml(rowGroupKey) + '" title="Play video">' +
                 '<img src="https://img.youtube.com/vi/' + escapeHtml(ytId) + '/mqdefault.jpg" alt="" loading="lazy">' +
                 '<span class="ad-thumb-play">&#9658;</span>' +
               '</button>'
@@ -708,11 +718,11 @@ function startDashboardApp() {
     );
   }
 
-  function otherAdsHtml(groupKey, currentAdId) {
-    const ads = groupAdsRegistry.get(groupKey);
+  function otherAdsHtml(groupKey, currentAdId, adsOverride, heading) {
+    const ads = adsOverride || groupAdsRegistry.get(groupKey);
     if (!ads || !ads.length) return '';
     return (
-      '<div class="variant-heading">Ads using this creative</div>' +
+      '<div class="variant-heading">' + escapeHtml(heading || 'Ads using this creative') + '</div>' +
       ads.map((ad) => variantRowHtml(ad, groupKey, ad.adId === currentAdId)).join('')
     );
   }
@@ -731,14 +741,27 @@ function startDashboardApp() {
   }
 
   // A person/hook/team category row (e.g. "actor::Ron") has no single video of its own — it
-  // opens its top-profit creative's top ad, keyed by that creative's fileName so the panel's
-  // "Ads using this creative" list works exactly as it does from a direct creative click.
+  // plays its top-profit creative's top ad, but the ad list below shows every ad credited to
+  // that person (across all their creatives) so the figures there actually add up to the
+  // category row's own Spend/Revenue/Profit total, instead of just one creative's slice of it.
   function openCategoryPanel(categoryKey) {
     const creatives = categoryCreativesRegistry.get(categoryKey);
-    if (!creatives || !creatives.length) return;
+    const allAds = categoryAdsRegistry.get(categoryKey);
+    if (!creatives || !creatives.length || !allAds || !allAds.length) return;
     state.openCategoryKey = categoryKey;
     const topCreative = creatives.find((cg) => cg.ads.some((ad) => youtubeId(ad.youtubeUrl))) || creatives[0];
-    openCreativePanel(topCreative.name);
+    const top = topCreative.ads.find((ad) => youtubeId(ad.youtubeUrl)) || topCreative.ads[0];
+    const roas = top.spend > 0 ? top.revenue / top.spend : 0;
+    const ytId = youtubeId(top.youtubeUrl);
+    if (!ytId) return;
+    const personName = categoryKey.split('::').slice(1).join('::');
+    openVideoPanel(
+      ytId, top.adName,
+      { spend: top.spend, revenue: top.revenue, profit: top.profit, roas },
+      topCreative.name, top.adId,
+      [...allAds].sort((a, b) => b.profit - a.profit),
+      'Ads credited to ' + personName
+    );
   }
 
   let openYtId = null; // guards against a slow /api/views response overwriting a later selection
@@ -760,7 +783,7 @@ function startDashboardApp() {
     }
   }
 
-  function openVideoPanel(ytId, title, stats, groupKey, adId) {
+  function openVideoPanel(ytId, title, stats, groupKey, adId, adsOverride, heading) {
     openYtId = ytId;
     state.openGroupKey = groupKey || null;
     syncActiveRowHighlight();
@@ -773,7 +796,7 @@ function startDashboardApp() {
     $('#video-panel-views').textContent = '';
     // Spend/Revenue/Profit/ROAS for this exact ad already appear on its card in the list below
     // (highlighted as the active one), so nothing needs repeating up here.
-    $('#video-panel-body').innerHTML = otherAdsHtml(groupKey, adId);
+    $('#video-panel-body').innerHTML = otherAdsHtml(groupKey, adId, adsOverride, heading);
     $('#video-panel').classList.add('is-open');
     document.body.classList.add('video-panel-open'); // pushes the page over, doesn't cover it
     // Shown right by the title, the way YouTube itself pairs a video's title with its view

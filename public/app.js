@@ -137,6 +137,7 @@ function startDashboardApp() {
           // multiply them by however many days are in the selected range).
           leadsAllTime: r.leadsAllTime || 0, qmvaAllTime: r.qmvaAllTime || 0,
           youtubeUrl: r.youtubeUrl, landingPageUrl: r.landingPageUrl, frameIoUrl: r.frameIoUrl, fileName: r.fileName,
+          displayName: r.displayName,
           hookType: r.hookType, actor: r.actor, writer: r.writer, editor: r.editor, dateUploaded: r.dateUploaded,
         };
         byAd.set(r.adId, c);

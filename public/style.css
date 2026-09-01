@@ -485,6 +485,7 @@ body.video-panel-open .back-to-top{right:calc(24px + min(520px,45vw));}
 .variant-row-name{min-width:0;}
 .variant-row-name .name-cell{font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .variant-row-name .name-sub{font-size:11px;color:var(--text-faint);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.variant-row-name .name-sub--creative{white-space:normal;overflow:visible;text-overflow:clip;color:var(--text-dim,var(--text-faint));font-weight:600;}
 .variant-row .video-panel-figs{margin-bottom:8px;}
 
 @media (max-width:640px){

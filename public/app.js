@@ -709,7 +709,7 @@ function startDashboardApp() {
             : '<span class="ad-thumb ad-thumb--empty">&mdash;</span>') +
           '<div class="variant-row-name">' +
             '<div class="name-cell" title="' + escapeHtml(ad.adName || '') + '">' + adActiveDot(ad.adId) + escapeHtml(ad.adName || '(untitled)') + '</div>' +
-            ((ad.displayName || ad.fileName) ? '<div class="name-sub">' + escapeHtml(ad.displayName || ad.fileName) + '</div>' : '') +
+            ((ad.displayName || ad.fileName) ? '<div class="name-sub name-sub--creative" title="' + escapeHtml(ad.displayName || ad.fileName) + '">' + escapeHtml(ad.displayName || ad.fileName) + '</div>' : '') +
             (ad.campaignName ? '<div class="name-sub">' + escapeHtml(ad.campaignName) + '</div>' : '') +
           '</div>' +
         '</div>' +

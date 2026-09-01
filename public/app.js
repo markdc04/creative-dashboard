@@ -199,8 +199,12 @@ function startDashboardApp() {
     return [...byValue.values()].map((g) => {
       const pick = (f) => g.ads.map((ad) => (ad[f] || '').trim()).find(Boolean) || '';
       const dated = g.ads.map((ad) => parseSheetDate(ad.dateUploaded)).filter(Boolean);
+      // The sheet's "naming convention" column supplies an agreed clean title for a fileName
+      // group — use it when present, since raw fileNames are often messy export filenames.
+      const displayName = field === 'fileName' ? pick('displayName') : '';
       return {
         ...g,
+        name: displayName || g.name,
         profit: g.revenue - g.spend,
         ads: [...g.ads].sort((a, b) => b.profit - a.profit),
         hookType: pick('hookType'), actor: pick('actor'), writer: pick('writer'), editor: pick('editor'),
@@ -689,7 +693,7 @@ function startDashboardApp() {
     // Each ad's own fileName (not necessarily the same as groupKey, e.g. a category-wide list
     // spans many different creatives) is what re-opening this exact ad's own "other ads" list
     // needs to key off — otherwise it would show a wrong creative's siblings.
-    const rowGroupKey = ad.fileName || groupKey;
+    const rowGroupKey = ad.displayName || ad.fileName || groupKey;
     return (
       '<div class="variant-row' + (isActive ? ' is-active' : '') + '">' +
         '<div class="variant-row-head">' +

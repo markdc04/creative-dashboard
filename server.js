@@ -184,13 +184,20 @@ async function pollAll() {
       const fileName = (r['Frame file name'] || '').trim();
       if (!fileName) continue;
       if (!extraCreditsByFileName[fileName]) {
-        extraCreditsByFileName[fileName] = { actor: '', writer: '', editor: '', hookType: '' };
+        extraCreditsByFileName[fileName] = { actor: '', writer: '', editor: '', hookType: '', displayName: '' };
       }
       const c = extraCreditsByFileName[fileName];
       if (!c.actor && r['ACTOR']) c.actor = normalizeName(r['ACTOR']);
       if (!c.writer && r['COPY WRITERS']) c.writer = normalizeName(r['COPY WRITERS']);
       if (!c.editor && r['EDITOR']) c.editor = normalizeName(r['EDITOR']);
       if (!c.hookType && r['HOOK_TYPE'] && !isDateLike(r['HOOK_TYPE'])) c.hookType = r['HOOK_TYPE'];
+      // "naming convention" holds the agreed clean title as the first {...} segment
+      // (e.g. "{Clean Title}_{TBD}_{Actor}_{Writer}_{Editor}") — pull just that segment
+      // out as the display name; the rest just repeats credits shown elsewhere already.
+      if (!c.displayName && r['naming convention']) {
+        const m = /^\s*\{([^}]+)\}/.exec(r['naming convention']);
+        if (m && m[1].trim()) c.displayName = m[1].trim();
+      }
     }
 
     const adMeta = {}; // adId -> { adName, campaignName, platform }
@@ -229,7 +236,7 @@ async function pollAll() {
       if (!assets[adId]) {
         assets[adId] = {
           youtubeUrl: '', landingPageUrl: '', frameIoUrl: '', fileName: '', videoTitle: '',
-          hookType: '', actor: '', writer: '', editor: '', dateUploaded: '',
+          hookType: '', actor: '', writer: '', editor: '', dateUploaded: '', displayName: '',
         };
       }
       const a = assets[adId];
@@ -271,6 +278,7 @@ async function pollAll() {
         if (!a.writer && extra.writer) a.writer = extra.writer;
         if (!a.editor && extra.editor) a.editor = extra.editor;
         if (!a.hookType && extra.hookType) a.hookType = extra.hookType;
+        if (!a.displayName && extra.displayName) a.displayName = extra.displayName;
       }
     }
 
@@ -321,6 +329,7 @@ async function pollAll() {
         landingPageUrl: asset.landingPageUrl || '',
         frameIoUrl: asset.frameIoUrl || '',
         fileName: asset.fileName || '',
+        displayName: asset.displayName || '',
         hookType: asset.hookType || '',
         actor: asset.actor || '',
         writer: asset.writer || '',
@@ -332,7 +341,7 @@ async function pollAll() {
     // Include a fingerprint of the metadata fields too — spend/revenue totals alone don't
     // change when someone only fills in Hook Type/Actor/Writer/Editor/Date Uploaded, so a
     // hash based on money alone would never notice a metadata-only edit and go stale forever.
-    const metaFingerprint = fnv1a(rows.map((r) => r.fileName + '|' + r.hookType + '|' + r.actor + '|' + r.writer + '|' + r.editor + '|' + r.dateUploaded + '|' + r.leadsAllTime + '|' + r.qmvaAllTime).join('~'));
+    const metaFingerprint = fnv1a(rows.map((r) => r.fileName + '|' + r.displayName + '|' + r.hookType + '|' + r.actor + '|' + r.writer + '|' + r.editor + '|' + r.dateUploaded + '|' + r.leadsAllTime + '|' + r.qmvaAllTime).join('~'));
     const hash = rows.length + ':' + rows.reduce((a, r) => a + r.spend + r.revenue, 0).toFixed(2) + ':' + metaFingerprint;
     if (cache.rows.length > 20 && rows.length < cache.rows.length * 0.5) {
       console.warn(`[${new Date().toISOString()}] ignoring suspiciously short fetch (${rows.length} rows vs cached ${cache.rows.length})`);

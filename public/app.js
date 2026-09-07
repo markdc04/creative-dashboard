@@ -148,6 +148,14 @@ function startDashboardApp() {
     return [...byAd.values()].map((c) => ({ ...c, profit: c.revenue - c.spend, team: teamKey(c) }));
   }
 
+  // A handful of "Frame file name" values already have a naming-convention-shaped string
+  // baked into them as the literal filename (no separate "naming convention" cell filled in),
+  // so falling back to the raw fileName can still end in ".mp4" while every properly filled-in
+  // naming convention doesn't — strip a trailing video extension so both cases read the same.
+  function stripVideoExt(s) {
+    return String(s || '').replace(/\.(mp4|mov|m4v|mpe?g|avi|wmv|mp3)\s*$/i, '').trim();
+  }
+
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -205,7 +213,7 @@ function startDashboardApp() {
       const displayName = field === 'fileName' ? pick('displayName') : '';
       return {
         ...g,
-        name: displayName || g.name,
+        name: displayName || stripVideoExt(g.name),
         profit: g.revenue - g.spend,
         ads: [...g.ads].sort((a, b) => b.profit - a.profit),
         hookType: pick('hookType'), actor: pick('actor'), writer: pick('writer'), editor: pick('editor'),
@@ -694,7 +702,7 @@ function startDashboardApp() {
     // Each ad's own fileName (not necessarily the same as groupKey, e.g. a category-wide list
     // spans many different creatives) is what re-opening this exact ad's own "other ads" list
     // needs to key off — otherwise it would show a wrong creative's siblings.
-    const rowGroupKey = ad.displayName || ad.fileName || groupKey;
+    const rowGroupKey = ad.displayName || stripVideoExt(ad.fileName) || groupKey;
     return (
       '<div class="variant-row' + (isActive ? ' is-active' : '') + '">' +
         '<div class="variant-row-head">' +
@@ -709,7 +717,7 @@ function startDashboardApp() {
             : '<span class="ad-thumb ad-thumb--empty">&mdash;</span>') +
           '<div class="variant-row-name">' +
             '<div class="name-cell" title="' + escapeHtml(ad.adName || '') + '">' + adActiveDot(ad.adId) + escapeHtml(ad.adName || '(untitled)') + '</div>' +
-            ((ad.displayName || ad.fileName) ? '<div class="name-sub name-sub--creative" title="' + escapeHtml(ad.displayName || ad.fileName) + '">' + escapeHtml(ad.displayName || ad.fileName) + '</div>' : '') +
+            ((ad.displayName || ad.fileName) ? '<div class="name-sub name-sub--creative" title="' + escapeHtml(ad.displayName || stripVideoExt(ad.fileName)) + '">' + escapeHtml(ad.displayName || stripVideoExt(ad.fileName)) + '</div>' : '') +
             (ad.campaignName ? '<div class="name-sub">' + escapeHtml(ad.campaignName) + '</div>' : '') +
           '</div>' +
         '</div>' +

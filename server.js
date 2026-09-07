@@ -191,12 +191,10 @@ async function pollAll() {
       if (!c.writer && r['COPY WRITERS']) c.writer = normalizeName(r['COPY WRITERS']);
       if (!c.editor && r['EDITOR']) c.editor = normalizeName(r['EDITOR']);
       if (!c.hookType && r['HOOK_TYPE'] && !isDateLike(r['HOOK_TYPE'])) c.hookType = r['HOOK_TYPE'];
-      // "naming convention" holds the agreed clean title as the first {...} segment
-      // (e.g. "{Clean Title}_{TBD}_{Actor}_{Writer}_{Editor}") — pull just that segment
-      // out as the display name; the rest just repeats credits shown elsewhere already.
-      if (!c.displayName && r['naming convention']) {
-        const m = /^\s*\{([^}]+)\}/.exec(r['naming convention']);
-        if (m && m[1].trim()) c.displayName = m[1].trim();
+      // "naming convention" holds the agreed full display name for this creative — use it
+      // verbatim (whole string, all {...} segments) rather than just its first part.
+      if (!c.displayName && r['naming convention'] && r['naming convention'].trim()) {
+        c.displayName = r['naming convention'].trim();
       }
     }
 

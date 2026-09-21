@@ -16,6 +16,10 @@ const USERS = {
   'mark': { name: 'Mark', hash: '89073efa0abb669f9867255aca206b7d$44f95cadbd4269b3b35743ae59590c63bebe8f5298fda3824e9c3050efb94397' },
 };
 
+// Work emails for the three admins log into the same accounts as their names.
+const EMAILS = { 'brandon@loudrmedia.com': 'brandon', 'jaypro@loudrmedia.com': 'jaypro', 'mark@loudrmedia.com': 'mark' };
+for (const [email, key] of Object.entries(EMAILS)) USERS[email] = USERS[key];
+
 const SESSION_MS = 30 * 24 * 60 * 60 * 1000;
 const SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 

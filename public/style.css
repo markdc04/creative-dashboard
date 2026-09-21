@@ -74,7 +74,24 @@ body::before{content:"";display:block;height:3px;background:linear-gradient(90de
   font-family:ui-monospace,"SF Mono","Roboto Mono",monospace;
 }
 .login-pin-digit:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(240,180,41,.18);}
+.login-input{
+  width:100%;box-sizing:border-box;margin-bottom:16px;padding:11px 12px;font-size:14px;text-align:left;
+  background:var(--surface-raised);border:1px solid var(--border);border-radius:10px;color:var(--text);
+}
+.login-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(240,180,41,.18);}
 .login-error{color:var(--loss);font-size:12.5px;margin:6px 0 0;}
+.menu-wrap{position:relative;display:inline-block;}
+.menu-panel{
+  position:absolute;top:calc(100% + 8px);right:0;z-index:160;min-width:210px;padding:6px;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  box-shadow:0 20px 50px -20px rgba(0,0,0,.6);
+}
+.menu-panel a{
+  display:block;padding:10px 12px;border-radius:8px;color:var(--text);text-decoration:none;font-size:13px;font-weight:600;
+}
+.menu-panel a:hover{background:var(--surface-raised);}
+.menu-panel a.is-current{color:var(--accent);}
+.menu-panel a small{display:block;margin-top:2px;font-size:11px;font-weight:500;color:var(--text-faint);}
 .login-submit{
   width:100%;margin-top:18px;padding:11px 14px;border-radius:10px;border:none;cursor:pointer;
   background:linear-gradient(180deg,#f6c34d,var(--accent));color:var(--accent-ink);font-weight:800;font-size:13.5px;

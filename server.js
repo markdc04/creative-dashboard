@@ -2,6 +2,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const auth = require('./auth');
 
 const DOC_ID = '1YkpQh4hR96iMtvd_bvtrT0fN0zCaLQNKl3pa6Tix8BA';
 
@@ -394,19 +395,88 @@ async function fetchViewCount(ytId) {
   return views;
 }
 
+const PUBLIC_ASSETS = new Set(['/style.css', '/logo-loudr.png', '/logo-loudr.svg', '/favicon.svg']);
+const LEADERBOARD_API = new Set(['/api/data', '/api/views', '/api/refresh', '/api/events']);
+const LOGIN_HTML = fs.readFileSync(path.join(__dirname, 'login.html'), 'utf8');
+
+function clientIp(req) { return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || ''; }
+function esc(v) { return String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function safeNext(n) { return typeof n === 'string' && n.startsWith('/') && !n.startsWith('//') && !n.startsWith('/\\') ? n : '/'; }
+function sessionCookie(req, value, maxAgeSec) {
+  const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
+  return `sid=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}${secure}`;
+}
+function sendLogin(res, { username = '', next = '/', error = '' } = {}) {
+  const html = LOGIN_HTML.replace('__USERNAME__', esc(username)).replace('__NEXT__', esc(next))
+    .replace('__ERRHIDDEN__', error ? '' : 'hidden').replace('__ERRMSG__', esc(error));
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+  res.end(html);
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
-  if (url.pathname === '/api/visit' && req.method === 'POST') {
+  // The no-financials leaderboard and its data feed stay open; everything else needs a login.
+  let publicZone = false;
+  if (url.pathname === '/leaderboard' || url.pathname.startsWith('/leaderboard/')) {
+    publicZone = true;
+    if (url.pathname.startsWith('/leaderboard/api/')) {
+      const apiPath = url.pathname.slice('/leaderboard'.length);
+      if (!LEADERBOARD_API.has(apiPath)) { res.writeHead(404); res.end('Not found'); return; }
+      url.pathname = apiPath;
+    }
+  }
+
+  if (url.pathname === '/login' && req.method === 'GET') {
+    sendLogin(res, { next: safeNext(url.searchParams.get('next')), username: url.searchParams.get('u') || '', error: url.searchParams.get('error') === '1' ? 'Incorrect username or password.' : url.searchParams.get('error') === 'locked' ? 'Too many attempts. Try again in 15 minutes.' : '' });
+    return;
+  }
+
+  if (url.pathname === '/login' && req.method === 'POST') {
     let body = '';
-    req.on('data', (chunk) => { body += chunk; if (body.length > 1000) req.destroy(); });
+    req.on('data', (chunk) => { body += chunk; if (body.length > 2000) req.destroy(); });
     req.on('end', () => {
-      let name = '';
-      try { name = String(JSON.parse(body).name || '').slice(0, 40); } catch (err) { /* ignore */ }
-      if (name) recordVisit(name);
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-      res.end(JSON.stringify({ ok: true }));
+      const form = new URLSearchParams(body);
+      const username = form.get('username') || '';
+      const next = safeNext(form.get('next'));
+      const ip = clientIp(req);
+      if (auth.isLocked(ip)) { res.writeHead(302, { Location: '/login?error=locked' }); res.end(); return; }
+      const name = auth.verifyLogin(username, form.get('password'));
+      if (!name) {
+        auth.noteFailure(ip);
+        res.writeHead(302, { Location: '/login?error=1&u=' + encodeURIComponent(username.slice(0, 40)) + '&next=' + encodeURIComponent(next) });
+        res.end();
+        return;
+      }
+      auth.clearFailures(ip);
+      recordVisit(name);
+      res.writeHead(302, { 'Set-Cookie': sessionCookie(req, auth.makeSession(name), Math.floor(auth.SESSION_MS / 1000)), Location: next });
+      res.end();
     });
+    return;
+  }
+
+  if (url.pathname === '/logout') {
+    res.writeHead(302, { 'Set-Cookie': sessionCookie(req, '', 0), Location: '/login' });
+    res.end();
+    return;
+  }
+
+  const sessionName = auth.readSession(req.headers.cookie);
+  if (!publicZone && !sessionName && !PUBLIC_ASSETS.has(url.pathname)) {
+    if (url.pathname.startsWith('/api/')) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'login required' }));
+    } else {
+      res.writeHead(302, { Location: '/login' + (url.pathname !== '/' ? '?next=' + encodeURIComponent(url.pathname) : '') });
+      res.end();
+    }
+    return;
+  }
+
+  if (url.pathname === '/api/me') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify({ name: sessionName }));
     return;
   }
 

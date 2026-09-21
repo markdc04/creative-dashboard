@@ -9,25 +9,7 @@
 </head>
 <body>
 
-<div id="login-overlay" class="login-overlay">
-  <div class="login-card">
-    <img src="logo-loudr.png" alt="Loudr Media" class="login-logo">
-    <h2>Who's this?</h2>
-    <label class="login-label">Name</label>
-    <div class="login-name-grid" id="login-name-grid"></div>
-    <label class="login-label">PIN</label>
-    <div class="login-pin-row">
-      <input class="login-pin-digit" type="password" inputmode="numeric" maxlength="1" autocomplete="off">
-      <input class="login-pin-digit" type="password" inputmode="numeric" maxlength="1" autocomplete="off">
-      <input class="login-pin-digit" type="password" inputmode="numeric" maxlength="1" autocomplete="off">
-      <input class="login-pin-digit" type="password" inputmode="numeric" maxlength="1" autocomplete="off">
-    </div>
-    <p class="login-error" id="login-error" hidden>Incorrect PIN. Try again.</p>
-    <button class="login-submit" id="login-submit">Log in</button>
-  </div>
-</div>
-
-<div id="app-content" hidden>
+<div id="app-content">
 <div class="wrap">
 
   <div class="brandbar">
@@ -43,6 +25,13 @@
         </span>
         <span class="logged-in-pill">
           Logged in as <strong id="logged-in-name"></strong>
+          <span class="menu-wrap">
+            <button id="menu-btn" class="logout-btn" aria-haspopup="true" aria-expanded="false">Menu &#9662;</button>
+            <div id="menu-panel" class="menu-panel" hidden>
+              <a href="/" class="is-current">Creative Dashboard<small>Full financial detail</small></a>
+              <a href="/leaderboard/">Creative Leaderboard<small>Rankings without dollar figures</small></a>
+            </div>
+          </span>
           <button id="visitors-btn" class="logout-btn">Visitors</button>
           <button id="logout-btn" class="logout-btn">Log out</button>
         </span>
@@ -155,6 +144,6 @@
 </div>
 
 <script src="app.js"></script>
-<script src="login.js"></script>
+<script src="shell.js"></script>
 </body>
 </html>

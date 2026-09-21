@@ -6,6 +6,7 @@
 <title>Creative Performance — Loudr Media</title>
 <link rel="icon" href="favicon.svg">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="/shared/sidebar.css">
 </head>
 <body>
 
@@ -25,13 +26,6 @@
         </span>
         <span class="logged-in-pill">
           Logged in as <strong id="logged-in-name"></strong>
-          <span class="menu-wrap">
-            <button id="menu-btn" class="logout-btn" aria-haspopup="true" aria-expanded="false">Menu &#9662;</button>
-            <div id="menu-panel" class="menu-panel" hidden>
-              <a href="/" class="is-current">Creative Dashboard<small>Full financial detail</small></a>
-              <a href="/leaderboard/">Creative Leaderboard<small>Rankings without dollar figures</small></a>
-            </div>
-          </span>
           <button id="visitors-btn" class="logout-btn">Visitors</button>
           <button id="logout-btn" class="logout-btn">Log out</button>
         </span>
@@ -145,5 +139,6 @@
 
 <script src="app.js"></script>
 <script src="shell.js"></script>
+<script src="/shared/sidebar.js" data-active="dashboard"></script>
 </body>
 </html>

@@ -395,18 +395,19 @@ async function fetchViewCount(ytId) {
   return views;
 }
 
-const PUBLIC_ASSETS = new Set(['/style.css', '/logo-loudr.png', '/logo-loudr.svg', '/favicon.svg']);
+// Only these dashboard files are readable without a login (the login page borrows its look from them).
+const PUBLIC_ASSETS = new Set(['/dashboard/style.css', '/dashboard/logo-loudr.png', '/dashboard/favicon.svg']);
 const LEADERBOARD_API = new Set(['/api/data', '/api/views', '/api/refresh', '/api/events']);
 const LOGIN_HTML = fs.readFileSync(path.join(__dirname, 'login.html'), 'utf8');
 
 function clientIp(req) { return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || ''; }
 function esc(v) { return String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-function safeNext(n) { return typeof n === 'string' && n.startsWith('/') && !n.startsWith('//') && !n.startsWith('/\\') ? n : '/'; }
+function safeNext(n) { return typeof n === 'string' && n.startsWith('/') && !n.startsWith('//') && !n.startsWith('/\\') ? n : '/dashboard/'; }
 function sessionCookie(req, value, maxAgeSec) {
   const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
   return `sid=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}${secure}`;
 }
-function sendLogin(res, { username = '', next = '/', error = '' } = {}) {
+function sendLogin(res, { username = '', next = '/dashboard/', error = '' } = {}) {
   const html = LOGIN_HTML.replace('__USERNAME__', esc(username)).replace('__NEXT__', esc(next))
     .replace('__ERRHIDDEN__', error ? '' : 'hidden').replace('__ERRMSG__', esc(error));
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -416,15 +417,14 @@ function sendLogin(res, { username = '', next = '/', error = '' } = {}) {
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
-  // The no-financials leaderboard and its data feed stay open; everything else needs a login.
+  // The site opens on the no-financials leaderboard, which (with its data feed under /lb-api/)
+  // stays open. The dashboard (/dashboard/) and the full data API (/api/) need a login.
   let publicZone = false;
-  if (url.pathname === '/leaderboard' || url.pathname.startsWith('/leaderboard/')) {
+  if (url.pathname.startsWith('/lb-api/')) {
+    const apiPath = '/api/' + url.pathname.slice('/lb-api/'.length);
+    if (!LEADERBOARD_API.has(apiPath)) { res.writeHead(404); res.end('Not found'); return; }
+    url.pathname = apiPath;
     publicZone = true;
-    if (url.pathname.startsWith('/leaderboard/api/')) {
-      const apiPath = url.pathname.slice('/leaderboard'.length);
-      if (!LEADERBOARD_API.has(apiPath)) { res.writeHead(404); res.end('Not found'); return; }
-      url.pathname = apiPath;
-    }
   }
 
   if (url.pathname === '/login' && req.method === 'GET') {
@@ -457,18 +457,19 @@ const server = http.createServer((req, res) => {
   }
 
   if (url.pathname === '/logout') {
-    res.writeHead(302, { 'Set-Cookie': sessionCookie(req, '', 0), Location: '/login' });
+    res.writeHead(302, { 'Set-Cookie': sessionCookie(req, '', 0), Location: '/' });
     res.end();
     return;
   }
 
   const sessionName = auth.readSession(req.headers.cookie);
-  if (!publicZone && !sessionName && !PUBLIC_ASSETS.has(url.pathname)) {
+  const needsLogin = url.pathname.startsWith('/api/') || url.pathname === '/dashboard' || url.pathname.startsWith('/dashboard/');
+  if (!publicZone && !sessionName && needsLogin && !PUBLIC_ASSETS.has(url.pathname)) {
     if (url.pathname.startsWith('/api/')) {
       res.writeHead(401, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'login required' }));
     } else {
-      res.writeHead(302, { Location: '/login' + (url.pathname !== '/' ? '?next=' + encodeURIComponent(url.pathname) : '') });
+      res.writeHead(302, { Location: '/login?next=' + encodeURIComponent(url.pathname === '/dashboard' ? '/dashboard/' : url.pathname) });
       res.end();
     }
     return;
@@ -532,13 +533,14 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // The no-financials leaderboard is served from this same process under /leaderboard/ so one
-  // Render service (one paid instance) hosts both sites; it shares this server's data cache and
-  // /api/* endpoints, and its assets are all relative so they resolve under the prefix.
-  let root = 'public';
+  // One process serves everything: the leaderboard at the site root, the dashboard under
+  // /dashboard/ (login enforced above), and the shared side-panel files under /shared/.
+  let root = 'leaderboard-public';
   let rel = url.pathname;
-  if (rel === '/leaderboard') { res.writeHead(301, { Location: '/leaderboard/' }); res.end(); return; }
-  if (rel.startsWith('/leaderboard/')) { root = 'leaderboard-public'; rel = rel.slice('/leaderboard'.length); }
+  if (rel === '/leaderboard' || rel === '/leaderboard/') { res.writeHead(301, { Location: '/' }); res.end(); return; }
+  if (rel === '/dashboard') { res.writeHead(301, { Location: '/dashboard/' }); res.end(); return; }
+  if (rel.startsWith('/dashboard/')) { root = 'public'; rel = rel.slice('/dashboard'.length); }
+  else if (rel.startsWith('/shared/')) { root = 'shared'; rel = rel.slice('/shared'.length); }
   const rootDir = path.join(__dirname, root);
   let filePath = path.join(rootDir, rel === '/' ? 'index.html' : rel);
   if (!filePath.startsWith(rootDir + path.sep)) { res.writeHead(403); res.end('Forbidden'); return; }

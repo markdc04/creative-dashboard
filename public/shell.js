@@ -12,17 +12,6 @@
 
   $('#logout-btn').addEventListener('click', () => { location.href = '/logout'; });
 
-  const menuBtn = $('#menu-btn');
-  const menuPanel = $('#menu-panel');
-  menuBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    menuPanel.hidden = !menuPanel.hidden;
-    menuBtn.setAttribute('aria-expanded', String(!menuPanel.hidden));
-  });
-  document.addEventListener('click', (e) => {
-    if (!menuPanel.hidden && !menuPanel.contains(e.target)) { menuPanel.hidden = true; menuBtn.setAttribute('aria-expanded', 'false'); }
-  });
-
   // Full date + time in Pacific (the timezone the underlying campaign data itself uses).
   function visitTimestamp(ms) {
     return new Date(ms).toLocaleString('en-US', {

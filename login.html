@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Log in — Loudr Media</title>
-<link rel="icon" href="/favicon.svg">
-<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="/dashboard/favicon.svg">
+<link rel="stylesheet" href="/dashboard/style.css">
 </head>
 <body>
 <div class="login-overlay">
   <form class="login-card" method="POST" action="/login">
-    <img src="/logo-loudr.png" alt="Loudr Media" class="login-logo">
+    <img src="/dashboard/logo-loudr.png" alt="Loudr Media" class="login-logo">
     <h2>Creative Dashboard</h2>
     <label class="login-label" for="username">Username</label>
     <input class="login-input" id="username" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus value="__USERNAME__">
@@ -19,6 +19,7 @@
     <input type="hidden" name="next" value="__NEXT__">
     <p class="login-error" __ERRHIDDEN__>__ERRMSG__</p>
     <button class="login-submit" type="submit">Log in</button>
+    <p style="margin:16px 0 0;font-size:12.5px"><a href="/" style="color:var(--text-dim);text-decoration:none">&larr; Back to leaderboard</a></p>
   </form>
 </div>
 </body>

@@ -73,7 +73,7 @@
 
   async function fetchData(url) {
     try {
-      const res = await fetch(url || 'api/data', { cache: 'no-store', method: url ? 'POST' : 'GET' });
+      const res = await fetch(url || '/lb-api/data', { cache: 'no-store', method: url ? 'POST' : 'GET' });
       const json = await res.json();
       state.dailyRows = json.rows || [];
       state.updatedAt = json.updatedAt;
@@ -568,7 +568,7 @@
     $('#video-panel').classList.add('is-open');
     document.body.classList.add('video-panel-open'); // pushes the page over, doesn't cover it
     // Shown right by the title, the way YouTube itself pairs a video's title with its view count.
-    fetch('api/views?id=' + encodeURIComponent(ytId)).then((r) => r.json()).then((d) => {
+    fetch('/lb-api/views?id=' + encodeURIComponent(ytId)).then((r) => r.json()).then((d) => {
       if (openYtId !== ytId) return;
       $('#video-panel-views').textContent = d.views != null ? d.views.toLocaleString('en-US') + ' views' : '';
     }).catch(() => {
@@ -621,7 +621,7 @@
     const btn = $('#refresh-btn');
     if (btn.classList.contains('is-spinning')) return;
     btn.classList.add('is-spinning');
-    await fetchData('api/refresh');
+    await fetchData('/lb-api/refresh');
     setTimeout(() => btn.classList.remove('is-spinning'), 400);
   });
 
@@ -640,7 +640,7 @@
   setInterval(() => { if (state.lastChecked) setLive(true); }, 1000);
 
   try {
-    const es = new EventSource('api/events');
+    const es = new EventSource('/lb-api/events');
     es.addEventListener('update', () => fetchData());
     es.onerror = () => setLive(false);
   } catch (err) {

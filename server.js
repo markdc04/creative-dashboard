@@ -462,7 +462,16 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  let filePath = path.join(__dirname, 'public', url.pathname === '/' ? 'index.html' : url.pathname);
+  // The no-financials leaderboard is served from this same process under /leaderboard/ so one
+  // Render service (one paid instance) hosts both sites; it shares this server's data cache and
+  // /api/* endpoints, and its assets are all relative so they resolve under the prefix.
+  let root = 'public';
+  let rel = url.pathname;
+  if (rel === '/leaderboard') { res.writeHead(301, { Location: '/leaderboard/' }); res.end(); return; }
+  if (rel.startsWith('/leaderboard/')) { root = 'leaderboard-public'; rel = rel.slice('/leaderboard'.length); }
+  const rootDir = path.join(__dirname, root);
+  let filePath = path.join(rootDir, rel === '/' ? 'index.html' : rel);
+  if (!filePath.startsWith(rootDir + path.sep)) { res.writeHead(403); res.end('Forbidden'); return; }
   fs.readFile(filePath, (err, data) => {
     if (err) { res.writeHead(404); res.end('Not found'); return; }
     const ext = path.extname(filePath);

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Creative Leaderboard — Loudr Media</title>
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="wrap">
+
+  <div class="brandbar">
+    <img src="logo-loudr.png" alt="Loudr Media" class="brandlogo">
+    <div class="brandbar-right">
+      <button id="refresh-btn" class="refresh-btn" title="Refresh now" aria-label="Refresh now">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+      </button>
+      <span id="live-pill" class="live-pill live-pill--stale">
+        <span class="live-dot"></span>
+        <span id="live-text">Connecting&hellip;</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="topbar">
+    <div>
+      <p class="brand-eyebrow">Ad Creative Tracker</p>
+      <h1>Creative Leaderboard</h1>
+      <p class="topbar-sub"><span id="creative-count">&mdash;</span> creatives <span id="range-label"></span> &middot; live from Google Sheets</p>
+    </div>
+  </div>
+
+  <div class="date-bar">
+    <div class="select-wrap">
+      <select id="quick-range">
+        <option value="all">All time</option>
+        <option value="today">Today</option>
+        <option value="yesterday">Yesterday</option>
+        <option value="wtd">Week to date</option>
+        <option value="lastweek">Last week</option>
+        <option value="2026-08">August 2026</option>
+        <option value="2026-07">July 2026</option>
+        <option value="2026-06">June 2026</option>
+        <option value="2026-05">May 2026</option>
+        <option value="2026-04">April 2026</option>
+        <option value="2026-03">March 2026</option>
+        <option value="2026-02">February 2026</option>
+        <option value="custom">Custom range&hellip;</option>
+      </select>
+      <svg class="select-caret" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg>
+    </div>
+    <div class="date-inputs" id="custom-dates" hidden>
+      <input type="date" id="date-start">
+      <span class="date-arrow">&rarr;</span>
+      <input type="date" id="date-end">
+    </div>
+    <button class="clear-btn" id="clear-range">Clear</button>
+  </div>
+
+  <p class="section-title">Leaderboard</p>
+  <div class="chip-group leaderboard-tabs" id="leaderboard-tabs">
+    <button class="chip is-active" data-board="fileName">All Creatives</button>
+    <button class="chip" data-board="actor">Actor</button>
+    <button class="chip" data-board="writer">Writer</button>
+    <button class="chip" data-board="editor">Editor</button>
+    <button class="chip" data-board="hookType">Hook Type</button>
+    <button class="chip" data-board="team">Collaborators</button>
+  </div>
+
+  <div class="board-controls">
+    <div class="search-box">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="search" type="text" placeholder="Search&hellip;" autocomplete="off">
+    </div>
+    <div class="chip-group sort-tabs" id="sort-tabs">
+      <span class="sort-label">Rank by</span>
+      <button class="chip" data-sort="date" id="sort-newest">Newest</button>
+      <button class="chip is-active" data-sort="profit">Profit</button>
+      <button class="chip" data-sort="revenue">Revenue</button>
+      <button class="chip" data-sort="spend">Spend</button>
+    </div>
+    <button class="chip view-toggle" id="view-toggle" title="Switch to table view">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg>
+      <span id="view-toggle-label">Table view</span>
+    </button>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title" id="board-title">All Creatives</span>
+      <span class="panel-count" id="board-count"></span>
+    </div>
+    <div class="row-list" id="board-list"></div>
+  </div>
+
+  <div class="footer">
+    <span>Source: Ad_Creative_Tracker &middot; ranked leaderboard, no financial figures shown &middot; re-polled every 30s, pushed instantly on change</span>
+    <span id="updated-footer">&mdash;</span>
+  </div>
+
+</div>
+
+<button id="back-to-top" class="back-to-top" hidden aria-label="Back to top">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+</button>
+
+<div id="video-panel" class="video-panel">
+  <div class="video-panel-head">
+    <div class="video-panel-titlewrap">
+      <span id="video-panel-title" class="video-panel-title">Preview</span>
+      <span id="video-panel-views" class="video-panel-views"></span>
+    </div>
+    <button id="video-panel-close" class="video-panel-close" aria-label="Close preview">&times;</button>
+  </div>
+  <div id="video-panel-embed" class="video-panel-embed"></div>
+  <div id="video-panel-body" class="video-panel-body"></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

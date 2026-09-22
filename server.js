@@ -3,6 +3,8 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const auth = require('./auth');
+const { csvUrl: sharedCsvUrl, fetchText, parseCSV, num, toISODate } = require('./csv-utils');
+const sasooness = require('./sasooness');
 
 const DOC_ID = '1YkpQh4hR96iMtvd_bvtrT0fN0zCaLQNKl3pa6Tix8BA';
 
@@ -60,61 +62,7 @@ let lastGoodAssets = {}; // adId -> asset/metadata object, kept across polls whe
 let lastGoodLeadStats = {}; // adId -> { leads, qmva }, same staleness-guard as lastGoodAssets
 
 function csvUrl(gid, docId = DOC_ID) {
-  return `https://docs.google.com/spreadsheets/d/${docId}/export?format=csv&gid=${gid}`;
-}
-
-function fetchText(url, redirects = 5, extraHeaders = {}) {
-  return new Promise((resolve, reject) => {
-    const req = https.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
-        ...extraHeaders,
-      },
-    }, (res) => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirects > 0) {
-        res.resume();
-        return resolve(fetchText(res.headers.location, redirects - 1, extraHeaders));
-      }
-      let data = '';
-      res.on('data', (chunk) => (data += chunk));
-      res.on('end', () => resolve(data));
-    });
-    req.on('error', reject);
-    req.setTimeout(20000, () => req.destroy(new Error('request timed out')));
-  });
-}
-
-// Minimal RFC4180-ish CSV parser (handles quoted fields with commas/newlines/escaped quotes).
-function parseCSV(text) {
-  const rows = [];
-  let row = [];
-  let field = '';
-  let inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inQuotes) {
-      if (c === '"') {
-        if (text[i + 1] === '"') { field += '"'; i++; }
-        else inQuotes = false;
-      } else field += c;
-    } else {
-      if (c === '"') inQuotes = true;
-      else if (c === ',') { row.push(field); field = ''; }
-      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
-      else if (c === '\r') { /* skip */ }
-      else field += c;
-    }
-  }
-  if (field.length || row.length) { row.push(field); rows.push(row); }
-  if (!rows.length) return [];
-  const headers = rows[0].map((h) => h.trim());
-  return rows.slice(1)
-    .filter((r) => r.some((v) => v && v.trim() !== ''))
-    .map((r) => {
-      const obj = {};
-      headers.forEach((h, idx) => { obj[h] = (r[idx] || '').trim(); });
-      return obj;
-    });
+  return sharedCsvUrl(gid, docId);
 }
 
 function fnv1a(str) {
@@ -138,23 +86,6 @@ function normalizeName(v) {
 function isDateLike(v) {
   const s = String(v).trim();
   return /^\d{4}-\d{2}-\d{2}$/.test(s) || /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s);
-}
-
-function num(v) {
-  if (v == null) return 0;
-  const n = parseFloat(String(v).replace(/[$,%]/g, ''));
-  return isNaN(n) ? 0 : n;
-}
-
-// Google's Day column is ISO (YYYY-MM-DD); Meta/QMVA use M/D/YYYY. Normalize everything to
-// ISO so the frontend's date-range math never has to guess a format.
-function toISODate(v) {
-  if (!v) return '';
-  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(v);
-  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
-  const mdy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(v);
-  if (mdy) return `${mdy[3]}-${String(mdy[1]).padStart(2, '0')}-${String(mdy[2]).padStart(2, '0')}`;
-  return '';
 }
 
 async function fetchSource(key) {
@@ -351,6 +282,9 @@ async function pollAll() {
       broadcast();
       console.log(`[${new Date().toISOString()}] updated: ${rows.length} day/ad rows`);
     }
+    // Sasooness's Google spend is a filter over this same already-fetched sheet — no separate
+    // request for it.
+    sasooness.updateGoogleSpend(rows);
   } catch (err) {
     console.error('poll error:', err.message);
   }
@@ -463,9 +397,9 @@ const server = http.createServer((req, res) => {
   }
 
   const sessionName = auth.readSession(req.headers.cookie);
-  const needsLogin = url.pathname.startsWith('/api/') || url.pathname === '/dashboard' || url.pathname.startsWith('/dashboard/');
+  const needsLogin = url.pathname.startsWith('/api/') || url.pathname === '/dashboard' || url.pathname.startsWith('/dashboard/') || url.pathname === '/sasooness-api/data' || url.pathname === '/sasooness' || url.pathname.startsWith('/sasooness/');
   if (!publicZone && !sessionName && needsLogin && !PUBLIC_ASSETS.has(url.pathname)) {
-    if (url.pathname.startsWith('/api/')) {
+    if (url.pathname.startsWith('/api/') || url.pathname === '/sasooness-api/data') {
       res.writeHead(401, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'login required' }));
     } else {
@@ -533,13 +467,21 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (url.pathname === '/sasooness-api/data') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(sasooness.getData()));
+    return;
+  }
+
   // One process serves everything: the leaderboard at the site root, the dashboard under
   // /dashboard/ (login enforced above), and the shared side-panel files under /shared/.
   let root = 'leaderboard-public';
   let rel = url.pathname;
   if (rel === '/leaderboard' || rel === '/leaderboard/') { res.writeHead(301, { Location: '/' }); res.end(); return; }
   if (rel === '/dashboard') { res.writeHead(301, { Location: '/dashboard/' }); res.end(); return; }
+  if (rel === '/sasooness') { res.writeHead(301, { Location: '/sasooness/' }); res.end(); return; }
   if (rel.startsWith('/dashboard/')) { root = 'public'; rel = rel.slice('/dashboard'.length); }
+  else if (rel.startsWith('/sasooness/')) { root = 'sasooness-public'; rel = rel.slice('/sasooness'.length); }
   else if (rel.startsWith('/shared/')) { root = 'shared'; rel = rel.slice('/shared'.length); }
   const rootDir = path.join(__dirname, root);
   let filePath = path.join(rootDir, rel === '/' ? 'index.html' : rel);
@@ -554,6 +496,8 @@ const server = http.createServer((req, res) => {
 
 pollAll();
 setInterval(pollAll, POLL_MS);
+sasooness.pollAll();
+setInterval(sasooness.pollAll, POLL_MS);
 
 server.listen(PORT, () => {
   console.log(`Creative Dashboard running at http://localhost:${PORT}`);

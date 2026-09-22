@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sasooness Law Group, APC — Loudr Media</title>
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="/shared/sidebar.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brandbar">
+    <img src="/shared/logo-loudr.png" alt="Loudr Media" class="brandlogo">
+    <div class="brandbar-right">
+      <button id="refresh-btn" class="refresh-btn" title="Refresh now" aria-label="Refresh now">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+      </button>
+      <span id="live-pill" class="live-pill">
+        <span class="live-dot"></span>
+        <span id="live-text">Live &ndash; checked just now</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="topbar">
+    <div>
+      <p class="brand-eyebrow">Client Dashboard</p>
+      <h1>Sasooness Law Group, APC</h1>
+      <p class="topbar-sub"><span id="lead-count">&mdash;</span> leads &middot; live from Google Sheets</p>
+    </div>
+  </div>
+
+  <div class="kpi-row" id="kpi-row"></div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2 class="panel-title">Leads</h2>
+      <div class="search-box">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="search" type="text" placeholder="Search name, email, phone&hellip;">
+      </div>
+    </div>
+    <div class="status-chips" id="status-chips"></div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th><th>Status</th><th>Case Type</th><th>Created</th><th>Signed Up</th>
+            <th>State</th><th>Severity</th><th>Marketing Source</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="leads-body"></tbody>
+      </table>
+    </div>
+    <div id="leads-empty" class="empty-msg" hidden>No leads match this filter.</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2 class="panel-title">Ad Spend</h2>
+      <span class="panel-sub" id="spend-sub"></span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Date</th><th>Google</th><th>Meta</th><th>Total</th></tr></thead>
+        <tbody id="spend-body"></tbody>
+      </table>
+    </div>
+    <div id="spend-empty" class="empty-msg" hidden>No spend recorded yet for this range.</div>
+  </div>
+
+</div>
+<script src="app.js"></script>
+<script src="/shared/sidebar.js" data-active="sasooness"></script>
+</body>
+</html>

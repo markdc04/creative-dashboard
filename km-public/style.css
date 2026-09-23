@@ -129,4 +129,6 @@ tbody tr:hover{background:var(--surface-raised);}
   .date-inputs input[type="date"]{flex:1;min-width:0;}
   .clear-btn{width:100%;}
 }
+
+.footnote{margin:-6px 4px 18px;font-size:11.5px;color:var(--text-faint);line-height:1.5;}
 .chart-slot--pie .legend-item{margin-right:14px;}

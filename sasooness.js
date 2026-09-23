@@ -1,7 +1,8 @@
 // Sasooness Law Group, APC — a client-specific view combining their leads (from two separate
 // CRM export sheets) with their ad spend (Google, filtered out of the main tracker's already-
 // fetched spend sheet; Meta, its own sheet shared with several other clients' campaigns).
-const { csvUrl, fetchText, parseCSV, parseCSVRows, num, toISODate } = require('./csv-utils');
+const { csvUrl, fetchText, parseCSV, toISODate } = require('./csv-utils');
+const { metaDailyFor } = require('./meta-spend');
 
 // Raw lead intake log — the simpler of the two sheets (Date/Name/Email/Phone/Lead Status).
 const LEADS_A_DOC_ID = '1syy62rEp85sIQoM8D69C7btrs1TsXV_NeOb8QkUWJd8';
@@ -11,13 +12,6 @@ const LEADS_A_GID = '0';
 // used as the primary record whenever a lead appears in both sheets.
 const LEADS_B_DOC_ID = '1lQLiBZRZ93cgc1KVCFbgHT_EoCibGvjwOstkQ6runG8';
 const LEADS_B_GID = '1001225302';
-
-// A shared Meta spend export covering several clients' campaigns side by side (KM Law, Slocumb
-// Law, Sasooness Law, Bryan Rodriguez, Walker) — only the first Day/Campaign/Ad/Amount Spent
-// block (columns A-G) actually contains any Sasooness campaigns; the second block (H onward) is
-// a different, unrelated client and is never read.
-const META_DOC_ID = '1rYN9P0oVlEwlxpk53ZqDDGIcZ9154bm-k709KUMIT_A';
-const META_GID = '1511968771';
 
 const CAMPAIGN_PATTERN = /sasoon/i;
 
@@ -91,26 +85,7 @@ function updateGoogleSpend(rows) {
   cache.updatedAt = Date.now();
 }
 
-// This sheet lays out two different clients' Meta exports side by side with identical header
-// text (Day, Campaign Name, Amount Spent, ...) in each block — parsing it as header-keyed
-// objects would let the second block's "Amount Spent" silently clobber the first's under the
-// same key, so this reads raw column positions instead. Only the first block (columns A-G:
-// Day, Campaign ID, Campaign Name, Ad ID, Ad Name, Amount Spent, Account Name) has ever
-// contained a Sasooness campaign — the second block is a different client and is never read.
-async function fetchMetaDaily() {
-  const csv = await fetchText(csvUrl(META_GID, META_DOC_ID));
-  const allRows = parseCSVRows(csv);
-  const byDate = new Map();
-  for (const row of allRows.slice(2)) {
-    const [day, , campaign, , , amountSpent] = row;
-    if (!campaign || !CAMPAIGN_PATTERN.test(campaign)) continue;
-    const date = toISODate(day);
-    const spend = num(amountSpent);
-    if (!date || !spend) continue;
-    byDate.set(date, (byDate.get(date) || 0) + spend);
-  }
-  return [...byDate.entries()].map(([date, spend]) => ({ date, spend: Math.round(spend * 100) / 100 })).sort((a, b) => a.date < b.date ? -1 : 1);
-}
+async function fetchMetaDaily() { return metaDailyFor(CAMPAIGN_PATTERN); }
 
 async function pollAll() {
   try {

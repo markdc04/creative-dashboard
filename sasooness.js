@@ -1,25 +1,40 @@
-// Sasooness Law Group, APC — a client-specific view combining their leads (from two separate
-// CRM export sheets) with their ad spend (Google, filtered out of the main tracker's already-
-// fetched spend sheet; Meta, its own sheet shared with several other clients' campaigns).
+// Sasooness Law Group, APC — a client-specific view combining their leads (a CRM export plus
+// three intake tabs, one per lead source) with their ad spend per campaign (Google, filtered out
+// of the main tracker's already-fetched spend; Meta, from the shared export) and per-campaign
+// lead counts (from the UTM tags on the ALL LEADS tab).
 const { csvUrl, fetchText, parseCSV, toISODate } = require('./csv-utils');
-const { metaDailyFor } = require('./meta-spend');
+const { metaDailyFor, metaCampaignDailyFor } = require('./meta-spend');
 
-// Raw lead intake log — the simpler of the two sheets (Date/Name/Email/Phone/Lead Status).
-const LEADS_A_DOC_ID = '1syy62rEp85sIQoM8D69C7btrs1TsXV_NeOb8QkUWJd8';
-const LEADS_A_GID = '0';
+// Intake workbook — one tab per lead source:
+//   OG              leads from the main landing page (the paid-ad campaigns)
+//   Lead Prosper AZ leads bought via Walker Agency's AZ lead flow, some of which go to Sasooness
+//   Lead Prosper WA Sasooness's pay-per-lead (PPL) model
+const INTAKE_DOC_ID = '1syy62rEp85sIQoM8D69C7btrs1TsXV_NeOb8QkUWJd8';
+const INTAKE_TABS = [
+  { channel: 'OG', gid: '0' },
+  { channel: 'Lead Prosper AZ', gid: '691201289' },
+  { channel: 'Lead Prosper WA', gid: '541453763' },
+];
 
-// CRM-tracked leads with case management detail (Status/SubStatus/Case Type/Signed Up Date) —
-// used as the primary record whenever a lead appears in both sheets.
+// CRM-tracked leads with case management detail (Status/SubStatus/Case Type/Signed Up Date).
 const LEADS_B_DOC_ID = '1lQLiBZRZ93cgc1KVCFbgHT_EoCibGvjwOstkQ6runG8';
 const LEADS_B_GID = '1001225302';
 
-const CAMPAIGN_PATTERN = /sasoon/i;
+// The workbook whose ALL LEADS tab tags every lead with the UTM campaign it came from.
+const WORKBOOK_ID = '1rYN9P0oVlEwlxpk53ZqDDGIcZ9154bm-k709KUMIT_A';
+const ALL_LEADS_GID = '1706081278';
 
-let cache = { leads: [], googleDaily: [], metaDaily: [], updatedAt: null };
+// Loose on purpose: the same client is spelled "Sasooness" and "Sassooness" across campaigns.
+const CAMPAIGN_PATTERN = /sas+oo?n/i;
+
+let cache = {
+  leads: [], googleDaily: [], metaDaily: [], googleCampaignDaily: [], metaCampaignDaily: [],
+  campaignLeadsRaw: [], updatedAt: null,
+};
 
 function normEmail(v) { return String(v || '').trim().toLowerCase(); }
 
-function mergeLeads(rowsA, rowsB) {
+function mergeLeads(intakeSets, rowsB) {
   const byEmail = new Map();
   for (const r of rowsB) {
     const email = normEmail(r['Email']);
@@ -39,70 +54,111 @@ function mergeLeads(rowsA, rowsB) {
       caseGrade: r['Case Grade'] || '',
       marketingSource: r['Marketing Source'] || '',
       opportunityId: '',
+      channel: '',
       source: 'crm',
     });
   }
-  let filledFromIntake = 0;
-  for (const r of rowsA) {
-    const email = normEmail(r['Email']);
-    if (!email) continue;
-    const existing = byEmail.get(email);
-    if (existing) {
-      if (!existing.opportunityId) existing.opportunityId = r['Opportunity ID (Lead Docket)'] || '';
-      continue;
+  for (const { channel, rows } of intakeSets) {
+    for (const r of rows) {
+      const email = normEmail(r['Email']);
+      if (!email) continue;
+      // A row marked "test" is a system test, not a real lead.
+      if ((r['Reason for Rejection'] || '').trim().toLowerCase() === 'test') continue;
+      const existing = byEmail.get(email);
+      if (existing) {
+        if (!existing.channel) existing.channel = channel;
+        if (!existing.opportunityId) existing.opportunityId = r['Opportunity ID (Lead Docket)'] || '';
+        continue;
+      }
+      byEmail.set(email, {
+        email,
+        name: r['Name'] || '',
+        phone: r['Phone'] || '',
+        createdDate: toISODate(r['Date']),
+        signedUpDate: '',
+        caseType: '',
+        status: r['Lead Status'] || '',
+        subStatus: r['Reason for Rejection'] || '',
+        state: '',
+        caseLocation: '',
+        severity: '',
+        caseGrade: '',
+        marketingSource: '',
+        opportunityId: r['Opportunity ID (Lead Docket)'] || '',
+        channel,
+        source: 'intake',
+      });
     }
-    filledFromIntake++;
-    byEmail.set(email, {
-      email,
-      name: r['Name'] || '',
-      phone: r['Phone'] || '',
-      createdDate: toISODate(r['Date']),
-      signedUpDate: '',
-      caseType: '',
-      status: r['Lead Status'] || '',
-      subStatus: r['Reason for Rejection'] || '',
-      state: '',
-      caseLocation: '',
-      severity: '',
-      caseGrade: '',
-      marketingSource: '',
-      opportunityId: r['Opportunity ID (Lead Docket)'] || '',
-      source: 'intake',
-    });
   }
-  return { leads: [...byEmail.values()], filledFromIntake };
+  return [...byEmail.values()];
 }
 
 // Called by the main server's own poll with its already-fetched, already-joined per-day-per-ad
-// rows — filtered down to Sasooness's Google campaigns and re-aggregated by day.
+// rows — filtered down to Sasooness's Google campaigns and re-aggregated by day and by campaign.
 function updateGoogleSpend(rows) {
   const byDate = new Map();
+  const byCampaign = new Map();
   for (const r of rows) {
     if (r.platform !== 'GOOGLE' || !CAMPAIGN_PATTERN.test(r.campaignName || '')) continue;
     byDate.set(r.date, (byDate.get(r.date) || 0) + r.spend);
+    const key = r.campaignName + '|' + r.date;
+    const cur = byCampaign.get(key) || { campaign: r.campaignName, campaignId: r.campaignId || '', date: r.date, spend: 0 };
+    cur.spend += r.spend;
+    byCampaign.set(key, cur);
   }
-  cache.googleDaily = [...byDate.entries()].map(([date, spend]) => ({ date, spend: Math.round(spend * 100) / 100 })).sort((a, b) => a.date < b.date ? -1 : 1);
+  const round = (n) => Math.round(n * 100) / 100;
+  cache.googleDaily = [...byDate.entries()].map(([date, spend]) => ({ date, spend: round(spend) })).sort((a, b) => (a.date < b.date ? -1 : 1));
+  cache.googleCampaignDaily = [...byCampaign.values()].map((r) => ({ ...r, spend: round(r.spend) }));
   cache.updatedAt = Date.now();
 }
 
-async function fetchMetaDaily() { return metaDailyFor(CAMPAIGN_PATTERN); }
+// One lead per email (earliest date) from the ALL LEADS tab, keeping only the date and the UTM
+// campaign tag — no contact details are sent to the browser for these.
+function parseCampaignLeads(csv) {
+  const first = new Map();
+  for (const r of parseCSV(csv)) {
+    if (!CAMPAIGN_PATTERN.test(r['Sub account'] || '')) continue;
+    const date = toISODate(r['Date']);
+    const key = normEmail(r['Email']) || r['GHL Contact ID'] || '';
+    if (!date || !key) continue;
+    const cur = first.get(key);
+    if (!cur || date < cur.date) first.set(key, { date, utm: (r['UTM Campaign'] || '').trim() });
+  }
+  return [...first.values()];
+}
+
+// UTM tags are a campaign ID for Google, and either the campaign name or ID for Meta. Resolve
+// to the campaign's name; anything else non-empty keeps its own label, empty is unattributed.
+function resolveCampaigns(raw) {
+  const names = new Map(); // lower-cased name -> name
+  const ids = new Map(); // id -> name
+  for (const r of [...cache.googleCampaignDaily, ...cache.metaCampaignDaily]) {
+    names.set(r.campaign.toLowerCase(), r.campaign);
+    if (r.campaignId) ids.set(r.campaignId, r.campaign);
+  }
+  return raw.map(({ date, utm }) => ({ date, campaign: !utm ? '' : names.get(utm.toLowerCase()) || ids.get(utm) || utm }));
+}
 
 async function pollAll() {
   try {
-    const [csvA, csvB, metaDaily] = await Promise.all([
-      fetchText(csvUrl(LEADS_A_GID, LEADS_A_DOC_ID)),
+    const [intakeCsvs, csvB, allLeadsCsv, metaDaily, metaCampaignDaily] = await Promise.all([
+      Promise.all(INTAKE_TABS.map((t) => fetchText(csvUrl(t.gid, INTAKE_DOC_ID)))),
       fetchText(csvUrl(LEADS_B_GID, LEADS_B_DOC_ID)),
-      fetchMetaDaily(),
+      fetchText(csvUrl(ALL_LEADS_GID, WORKBOOK_ID)),
+      metaDailyFor(CAMPAIGN_PATTERN),
+      metaCampaignDailyFor(CAMPAIGN_PATTERN),
     ]);
-    const rowsA = parseCSV(csvA);
+    const intakeSets = INTAKE_TABS.map((t, i) => ({ channel: t.channel, rows: parseCSV(intakeCsvs[i]) }));
     const rowsB = parseCSV(csvB);
-    if (rowsA.length < 10 || rowsB.length < 10) {
-      console.warn(`[${new Date().toISOString()}] Sasooness leads sheet looks broken (A=${rowsA.length}, B=${rowsB.length} rows) — keeping last known-good leads`);
+    if (intakeSets[0].rows.length < 10 || rowsB.length < 10) {
+      console.warn(`[${new Date().toISOString()}] Sasooness leads sheet looks broken (OG=${intakeSets[0].rows.length}, CRM=${rowsB.length} rows) — keeping last known-good leads`);
     } else {
-      const { leads } = mergeLeads(rowsA, rowsB);
-      cache.leads = leads;
+      cache.leads = mergeLeads(intakeSets, rowsB);
     }
+    const campaignLeadsRaw = parseCampaignLeads(allLeadsCsv);
+    if (campaignLeadsRaw.length >= 30) cache.campaignLeadsRaw = campaignLeadsRaw;
     cache.metaDaily = metaDaily;
+    cache.metaCampaignDaily = metaCampaignDaily;
     cache.updatedAt = Date.now();
   } catch (err) {
     console.error('Sasooness poll error:', err.message);
@@ -110,7 +166,14 @@ async function pollAll() {
 }
 
 function getData() {
-  return { leads: cache.leads, googleDaily: cache.googleDaily, metaDaily: cache.metaDaily, updatedAt: cache.updatedAt };
+  const campaignSpend = [
+    ...cache.googleCampaignDaily.map((r) => ({ campaign: r.campaign, platform: 'Google', date: r.date, spend: r.spend })),
+    ...cache.metaCampaignDaily.map((r) => ({ campaign: r.campaign, platform: 'Meta', date: r.date, spend: r.spend })),
+  ];
+  return {
+    leads: cache.leads, googleDaily: cache.googleDaily, metaDaily: cache.metaDaily,
+    campaignSpend, campaignLeads: resolveCampaigns(cache.campaignLeadsRaw), updatedAt: cache.updatedAt,
+  };
 }
 
 module.exports = { pollAll, updateGoogleSpend, getData };

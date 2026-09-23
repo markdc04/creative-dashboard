@@ -17,7 +17,7 @@ const DOC_ID = '1YkpQh4hR96iMtvd_bvtrT0fN0zCaLQNKl3pa6Tix8BA';
 // three fields are kept in memory; every other column (including all PII) is dropped the
 // instant a row is parsed and is never written to a variable, logged, or sent to the client.
 const SOURCES = {
-  googleSpend: { gid: '1803672839', kind: 'spend', platform: 'GOOGLE', dayField: 'Day', adIdField: 'Ad ID', amountField: 'Cost (Spend)', nameField: 'Ad Name', campaignField: 'Campaign Name' },
+  googleSpend: { gid: '1803672839', kind: 'spend', platform: 'GOOGLE', dayField: 'Day', adIdField: 'Ad ID', amountField: 'Cost (Spend)', nameField: 'Ad Name', campaignField: 'Campaign Name', campaignIdField: 'Campaign ID' },
   caRevenue:   { gid: '1896619489', kind: 'revenue', dayField: 'Date', adIdField: 'AD ID', amountField: 'Payout' },
   nwRevenue:   { gid: '1741267253', kind: 'revenue', dayField: 'Date', adIdField: 'AD ID', amountField: 'Payout' },
 };
@@ -151,6 +151,7 @@ async function pollAll() {
         adMeta[adId] = {
           adName: r[cfg.nameField] || adId,
           campaignName: r[cfg.campaignField] || '',
+          campaignId: (r[cfg.campaignIdField] || '').trim(),
           platform: cfg.platform,
         };
       }
@@ -251,6 +252,7 @@ async function pollAll() {
         adId: d.adId,
         adName: meta.adName,
         campaignName: meta.campaignName,
+        campaignId: meta.campaignId || '',
         platform: meta.platform,
         spend: Math.round(d.spend * 100) / 100,
         revenue: Math.round(d.revenue * 100) / 100,

@@ -9,7 +9,7 @@
   const STATUS_COLORS = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181'];
 
   const state = {
-    leads: [], googleDaily: [], metaDaily: [],
+    leads: [], googleDaily: [], metaDaily: [], campaignSpend: [], campaignLeads: [],
     search: '', statusFilter: 'all',
     range: { key: 'all', start: null, end: null },
   };
@@ -69,6 +69,8 @@
       state.leads = d.leads || [];
       state.googleDaily = d.googleDaily || [];
       state.metaDaily = d.metaDaily || [];
+      state.campaignSpend = d.campaignSpend || [];
+      state.campaignLeads = d.campaignLeads || [];
       setLive(true);
     } catch (err) {
       setLive(false);
@@ -400,9 +402,77 @@
         '<td>' + escapeHtml(l.state || '—') + '</td>' +
         '<td>' + escapeHtml(l.severity || '—') + '</td>' +
         '<td>' + escapeHtml(l.marketingSource || '—') + '</td>' +
-        '<td><span class="source-tag">' + (l.source === 'crm' ? 'CRM' : 'Intake') + '</span></td>' +
+        '<td><span class="source-tag">' + escapeHtml(l.channel || 'CRM only') + '</span></td>' +
       '</tr>'
     )).join('');
+  }
+
+  // ================= performance by campaign =================
+  function renderCampaigns() {
+    const spendRows = state.campaignSpend.filter((r) => inRange(r.date));
+    const leadRows = state.campaignLeads.filter((r) => inRange(r.date));
+    const byCampaign = new Map();
+    const get = (name, platform) => {
+      if (!byCampaign.has(name)) byCampaign.set(name, { name, platform: platform || '', spend: 0, leads: 0, first: '9999', last: '' });
+      const row = byCampaign.get(name);
+      if (platform && !row.platform) row.platform = platform;
+      return row;
+    };
+    for (const r of spendRows) {
+      const row = get(r.campaign, r.platform);
+      row.spend += r.spend;
+      if (r.date < row.first) row.first = r.date;
+      if (r.date > row.last) row.last = r.date;
+    }
+    let unattributed = 0;
+    for (const r of leadRows) { if (!r.campaign) unattributed++; else get(r.campaign).leads++; }
+
+    const rows = [...byCampaign.values()].filter((r) => r.spend > 0 || r.leads > 0).sort((a, b) => b.spend - a.spend);
+    const totalSpend = rows.reduce((s, r) => s + r.spend, 0);
+    const totalLeads = rows.reduce((s, r) => s + r.leads, 0) + unattributed;
+    $('#campaign-sub').textContent = rows.length ? rows.length + ' campaigns' : '';
+    $('#campaign-empty').hidden = rows.length > 0 || unattributed > 0;
+    if (!rows.length && !unattributed) { $('#campaign-body').innerHTML = ''; return; }
+
+    const tag = (p) => p ? '<span class="platform-tag platform-tag--' + p.toLowerCase() + '">' + escapeHtml(p) + '</span>' : '\u2014';
+    let html = rows.map((r) => (
+      '<tr>' +
+        '<td><div class="name-cell">' + escapeHtml(r.name) + '</div>' + (r.first <= r.last ? '<div class="email-cell">' + escapeHtml(r.first) + ' \u2192 ' + escapeHtml(r.last) + '</div>' : '') + '</td>' +
+        '<td>' + tag(r.platform) + '</td>' +
+        '<td class="td-num num">' + money(r.spend) + '</td>' +
+        '<td class="td-num num">' + r.leads.toLocaleString('en-US') + '</td>' +
+        '<td class="td-num num">' + (r.leads > 0 && r.spend > 0 ? money(r.spend / r.leads) : '\u2014') + '</td>' +
+        '<td class="td-num num">' + (totalSpend > 0 ? pct((r.spend / totalSpend) * 100) : '\u2014') + '</td>' +
+      '</tr>'
+    )).join('');
+    if (unattributed > 0) {
+      html += '<tr class="row-muted"><td><div class="name-cell">No campaign tag</div><div class="email-cell">leads without a UTM campaign</div></td><td>\u2014</td><td class="td-num num">\u2014</td><td class="td-num num">' + unattributed.toLocaleString('en-US') + '</td><td class="td-num num">\u2014</td><td class="td-num num">\u2014</td></tr>';
+    }
+    html += '<tr class="row-total"><td>Total</td><td></td><td class="td-num num">' + money(totalSpend) + '</td><td class="td-num num">' + totalLeads.toLocaleString('en-US') + '</td><td class="td-num num">' + (totalLeads > 0 && totalSpend > 0 ? money(totalSpend / totalLeads) : '\u2014') + '</td><td class="td-num num">' + (totalSpend > 0 ? '100%' : '\u2014') + '</td></tr>';
+    $('#campaign-body').innerHTML = html;
+  }
+
+  // ================= leads by source (OG / Lead Prosper AZ / Lead Prosper WA) =================
+  const SOURCES = ['OG', 'Lead Prosper AZ', 'Lead Prosper WA'];
+  function renderSources(leads) {
+    const groups = new Map(SOURCES.map((s) => [s, []]));
+    groups.set('Other', []);
+    for (const l of leads) groups.get(SOURCES.includes(l.channel) ? l.channel : 'Other').push(l);
+    const line = (name, list, muted) => {
+      const signed = list.filter((l) => isSignedStatus(l.status)).length;
+      const rejected = list.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
+      return '<tr' + (muted ? ' class="row-muted"' : '') + '><td class="name-cell">' + escapeHtml(name) + '</td>' +
+        '<td class="td-num num">' + list.length.toLocaleString('en-US') + '</td>' +
+        '<td class="td-num num">' + signed.toLocaleString('en-US') + '</td>' +
+        '<td class="td-num num">' + (list.length ? pct((signed / list.length) * 100) : '\u2014') + '</td>' +
+        '<td class="td-num num">' + rejected.toLocaleString('en-US') + '</td></tr>';
+    };
+    let html = '';
+    for (const [name, list] of groups) html += line(name, list, list.length === 0);
+    const signedAll = leads.filter((l) => isSignedStatus(l.status)).length;
+    const rejectedAll = leads.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
+    html += '<tr class="row-total"><td>Total</td><td class="td-num num">' + leads.length.toLocaleString('en-US') + '</td><td class="td-num num">' + signedAll.toLocaleString('en-US') + '</td><td class="td-num num">' + (leads.length ? pct((signedAll / leads.length) * 100) : '\u2014') + '</td><td class="td-num num">' + rejectedAll.toLocaleString('en-US') + '</td></tr>';
+    $('#source-body').innerHTML = html;
   }
 
   function render() {
@@ -413,6 +483,8 @@
     renderSpendChart(googleDaily, metaDaily);
     renderBarChart(leads);
     renderPieChart(leads);
+    renderCampaigns();
+    renderSources(leads);
     renderChips(leads);
     renderLeadsTable(leads);
   }

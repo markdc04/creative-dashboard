@@ -132,3 +132,6 @@ tbody tr:hover{background:var(--surface-raised);}
 
 .footnote{margin:-6px 4px 18px;font-size:11.5px;color:var(--text-faint);line-height:1.5;}
 .chart-slot--pie .legend-item{margin-right:14px;}
+
+.kpi-row{grid-template-columns:repeat(5,1fr);}
+@media (max-width:900px){.kpi-row{grid-template-columns:repeat(2,1fr);}}

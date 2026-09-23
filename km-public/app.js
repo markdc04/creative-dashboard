@@ -8,7 +8,7 @@
   const COLOR_CASES = '#199e70';
 
   const state = {
-    cases: [], leadsDaily: [], googleDaily: [], metaDaily: [],
+    cases: [], leadsDaily: [], googleDaily: [], metaDaily: [], settings: { feePerLead: 35, monthlyAdBudget: 20000 },
     search: '',
     range: { key: 'all', start: null, end: null },
   };
@@ -70,6 +70,7 @@
       state.leadsDaily = d.leadsDaily || [];
       state.googleDaily = d.googleDaily || [];
       state.metaDaily = d.metaDaily || [];
+      state.settings = d.settings || state.settings;
       setLive(true);
     } catch (err) {
       setLive(false);
@@ -97,6 +98,21 @@
   function filteredGoogle() { return state.googleDaily.filter((r) => inRange(r.date)); }
   function filteredMeta() { return state.metaDaily.filter((r) => inRange(r.date)); }
 
+  // The sheet's AD Budget is a monthly figure, so a range's budget is that amount spread over each
+  // day's month (a full month gets exactly one month's budget; a week gets about a quarter of it).
+  function adBudgetForRange() {
+    const spendDays = [...state.googleDaily, ...state.metaDaily].map((r) => r.date).sort();
+    if (!spendDays.length) return 0;
+    const start = state.range.start || spendDays[0];
+    const end = state.range.end || toISO(pacificToday());
+    if (end < start) return 0;
+    let total = 0;
+    for (let d = new Date(start + 'T00:00:00'), last = new Date(end + 'T00:00:00'); d <= last; d.setDate(d.getDate() + 1)) {
+      total += state.settings.monthlyAdBudget / new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    }
+    return total;
+  }
+
   function renderKpis(cases, googleDaily, metaDaily, leadsDaily) {
     const signed = cases.length;
     const leads = leadsDaily.reduce((a, r) => a + r.leads, 0);
@@ -107,13 +123,26 @@
     const costPerCase = signed > 0 ? totalSpend / signed : 0;
     const conversionRate = leads > 0 ? (signed / leads) * 100 : 0;
 
+    const fee = leads * state.settings.feePerLead;
+    const budget = adBudgetForRange();
+    const totalCost = totalSpend + fee;
+    const cpcWithFee = signed > 0 ? totalCost / signed : 0;
+    const used = budget > 0 ? (totalSpend / budget) * 100 : 0;
+    const budgetSub = budget > 0
+      ? (totalSpend <= budget ? pct(used) + ' used \u00b7 ' + money(budget - totalSpend) + ' left' : money(totalSpend - budget) + ' over budget')
+      : '';
+
     const tiles = [
       ['Total Leads', leads.toLocaleString('en-US'), ''],
       ['Signed Cases', signed.toLocaleString('en-US'), 'of ' + leads.toLocaleString('en-US') + ' leads'],
       ['Conversion Rate', pct(conversionRate), 'signed \u00f7 leads'],
-      ['Total Ad Spend', money(totalSpend), money(googleSpend) + ' Google + ' + money(metaSpend) + ' Meta'],
-      ['Cost / Lead', cpl ? money(cpl) : '\u2014', 'spend \u00f7 leads'],
-      ['Cost / Case', costPerCase ? money(costPerCase) : '\u2014', signed ? 'spend \u00f7 signed cases' : 'no signed cases yet'],
+      ['Cost / Lead', cpl ? money(cpl) : '\u2014', 'ad spend \u00f7 leads'],
+      ['Ad Spend', money(totalSpend), money(googleSpend) + ' Google + ' + money(metaSpend) + ' Meta'],
+      ['Marketing Fee', money(fee), leads.toLocaleString('en-US') + ' leads \u00d7 $' + state.settings.feePerLead + ' per lead'],
+      ['Ad Budget', money(budget), budgetSub],
+      ['Total Cost', money(totalCost), 'ad spend + marketing fee'],
+      ['CPC (Cost / Case)', costPerCase ? money(costPerCase) : '\u2014', signed ? 'ad spend \u00f7 signed cases' : 'no signed cases yet'],
+      ['CPC + Marketing Fee', cpcWithFee ? money(cpcWithFee) : '\u2014', signed ? 'total cost \u00f7 signed cases' : 'no signed cases yet'],
     ];
     $('#kpi-row').innerHTML = tiles.map(([label, value, sub]) =>
       '<div class="kpi"><div class="kpi-label">' + escapeHtml(label) + '</div>' +

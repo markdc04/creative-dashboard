@@ -27,6 +27,10 @@ const ALL_LEADS_GID = '1706081278';
 // Loose on purpose: the same client is spelled "Sasooness" and "Sassooness" across campaigns.
 const CAMPAIGN_PATTERN = /sas+oo?n/i;
 
+// CRM marketing-source codes that identify a lead source. Every lead on the OG intake tab carries
+// LS004 in the CRM, so a CRM lead with that code but no intake-tab match is still an OG lead.
+const SOURCE_CODES = { LS004: 'OG' };
+
 let cache = {
   leads: [], googleDaily: [], metaDaily: [], googleCampaignDaily: [], metaCampaignDaily: [],
   campaignLeadsRaw: [], updatedAt: null,
@@ -90,7 +94,9 @@ function mergeLeads(intakeSets, rowsB) {
       });
     }
   }
-  return [...byEmail.values()];
+  const leads = [...byEmail.values()];
+  for (const l of leads) if (!l.channel && SOURCE_CODES[l.marketingSource]) l.channel = SOURCE_CODES[l.marketingSource];
+  return leads;
 }
 
 // Called by the main server's own poll with its already-fetched, already-joined per-day-per-ad

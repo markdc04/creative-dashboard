@@ -2,7 +2,7 @@
 // LEADS and ALL CLIENT CASES tabs (KM's own block/sub-account only); ad spend is the KM Law Meta
 // campaign (shared Meta export) plus the Google campaign that includes KM, filtered out of the
 // main tracker's already-fetched spend.
-const { csvUrl, fetchText, parseCSVRows, parseCSV, num, toISODate } = require('./csv-utils');
+const { csvUrl, fetchText, parseCSVRows, parseCSV, num, toISODate, phone10 } = require('./csv-utils');
 const { metaDailyFor } = require('./meta-spend');
 
 const WORKBOOK_ID = '1rYN9P0oVlEwlxpk53ZqDDGIcZ9154bm-k709KUMIT_A';
@@ -56,19 +56,29 @@ function parseSettings(csv) {
   return { feePerLead: below('$/lead'), monthlyAdBudget: below('ad budget') };
 }
 
-// One lead per email (earliest date), reduced to per-day counts so no contact details reach the
+// One lead per person (earliest date), matching on email OR phone since the same person is often
+// entered twice under different emails, reduced to per-day counts so no contact details reach the
 // browser for the ~4,000 leads.
 function parseLeadsDaily(csv) {
-  const first = new Map();
+  const people = []; // { date }
+  const byEmail = new Map();
+  const byPhone = new Map();
   for (const r of parseCSV(csv)) {
     if ((r['Sub account'] || '').trim().toLowerCase() !== 'km law') continue;
     const date = toISODate(r['Date']);
-    const key = (r['Email'] || '').trim().toLowerCase() || (r['GHL Contact ID'] || '');
+    const email = (r['Email'] || '').trim().toLowerCase();
+    const phone = phone10(r['Phone']);
+    const key = email || phone || r['GHL Contact ID'] || '';
     if (!date || !key) continue;
-    if (!first.has(key) || date < first.get(key)) first.set(key, date);
+    const existing = (email && byEmail.get(email)) || (phone && byPhone.get(phone)) || null;
+    const person = existing || { date };
+    if (!existing) people.push(person);
+    else if (date < person.date) person.date = date;
+    if (email) byEmail.set(email, person);
+    if (phone) byPhone.set(phone, person);
   }
   const byDate = new Map();
-  for (const date of first.values()) byDate.set(date, (byDate.get(date) || 0) + 1);
+  for (const p of people) byDate.set(p.date, (byDate.get(p.date) || 0) + 1);
   return [...byDate.entries()].map(([date, leads]) => ({ date, leads })).sort((a, b) => (a.date < b.date ? -1 : 1));
 }
 

@@ -86,6 +86,12 @@ function parseCSVRows(text) {
   return rows;
 }
 
+// Last 10 digits of a phone number, so "(520) 788-1737" and "15207881737" are the same number.
+function phone10(v) {
+  const d = String(v || '').replace(/\D/g, '');
+  return d.length >= 10 ? d.slice(-10) : '';
+}
+
 function num(v) {
   if (v == null) return 0;
   const n = parseFloat(String(v).replace(/[$,%]/g, ''));
@@ -103,4 +109,4 @@ function toISODate(v) {
   return '';
 }
 
-module.exports = { csvUrl, fetchText, parseCSV, parseCSVRows, num, toISODate };
+module.exports = { csvUrl, fetchText, parseCSV, parseCSVRows, num, toISODate, phone10 };

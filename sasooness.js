@@ -2,7 +2,7 @@
 // three intake tabs, one per lead source) with their ad spend per campaign (Google, filtered out
 // of the main tracker's already-fetched spend; Meta, from the shared export) and per-campaign
 // lead counts (from the UTM tags on the ALL LEADS tab).
-const { csvUrl, fetchText, parseCSV, toISODate } = require('./csv-utils');
+const { csvUrl, fetchText, parseCSV, toISODate, phone10 } = require('./csv-utils');
 const { metaDailyFor, metaCampaignDailyFor } = require('./meta-spend');
 
 // Intake workbook — one tab per lead source:
@@ -33,17 +33,55 @@ const SOURCE_CODES = { LS004: 'OG' };
 
 let cache = {
   leads: [], googleDaily: [], metaDaily: [], googleCampaignDaily: [], metaCampaignDaily: [],
-  campaignByEmail: new Map(), updatedAt: null,
+  campaignTags: { byEmail: new Map(), byPhone: new Map() }, updatedAt: null,
 };
 
+function isSigned(status) { const s = (status || '').trim(); return s === 'Signed Up' || s === 'Client'; }
 function normEmail(v) { return String(v || '').trim().toLowerCase(); }
 
+// The same person often turns up under two emails (a work and a personal one) with one phone
+// number, so people are matched on email OR phone. When two records are the same person the one
+// with the most case detail is kept (a signed case beats a plain lead), and every email seen for
+// them is remembered so their campaign tag can still be found.
 function mergeLeads(intakeSets, rowsB) {
+  const people = [];
   const byEmail = new Map();
+  const byPhone = new Map();
+  const rank = (l) => (isSigned(l.status) ? 2 : l.source === 'crm' ? 1 : 0);
+
+  function place(lead) {
+    const phone = phone10(lead.phone);
+    const existing = (lead.email && byEmail.get(lead.email)) || (phone && byPhone.get(phone)) || null;
+    if (!existing) {
+      lead.emails = lead.email ? [lead.email] : [];
+      people.push(lead);
+      if (lead.email) byEmail.set(lead.email, lead);
+      if (phone) byPhone.set(phone, lead);
+      return lead;
+    }
+    // Same person: keep the richer record, but never lose the channel, IDs, emails or phone.
+    const keep = rank(lead) > rank(existing) ? lead : existing;
+    const other = keep === lead ? existing : lead;
+    if (keep === lead) {
+      lead.emails = existing.emails;
+      people[people.indexOf(existing)] = lead;
+    }
+    if (lead.email && !keep.emails.includes(lead.email)) keep.emails.push(lead.email);
+    if (!keep.channel) keep.channel = other.channel;
+    if (!keep.opportunityId) keep.opportunityId = other.opportunityId;
+    if (!keep.phone) keep.phone = other.phone;
+    if (!keep.name || keep.name.toLowerCase() === 'no name') keep.name = other.name;
+    if (!keep.email) keep.email = other.email;
+    for (const e of keep.emails) byEmail.set(e, keep);
+    const kp = phone10(keep.phone); if (kp) byPhone.set(kp, keep);
+    if (phone) byPhone.set(phone, keep);
+    return keep;
+  }
+
   for (const r of rowsB) {
     const email = normEmail(r['Email']);
-    if (!email) continue;
-    byEmail.set(email, {
+    if (!email && !phone10(r['Mobile Phone'])) continue;
+    place({
       email,
       name: r['Full Name'] || '',
       phone: r['Mobile Phone'] || '',
@@ -65,16 +103,10 @@ function mergeLeads(intakeSets, rowsB) {
   for (const { channel, rows } of intakeSets) {
     for (const r of rows) {
       const email = normEmail(r['Email']);
-      if (!email) continue;
+      if (!email && !phone10(r['Phone'])) continue;
       // A row marked "test" is a system test, not a real lead.
       if ((r['Reason for Rejection'] || '').trim().toLowerCase() === 'test') continue;
-      const existing = byEmail.get(email);
-      if (existing) {
-        if (!existing.channel) existing.channel = channel;
-        if (!existing.opportunityId) existing.opportunityId = r['Opportunity ID (Lead Docket)'] || '';
-        continue;
-      }
-      byEmail.set(email, {
+      place({
         email,
         name: r['Name'] || '',
         phone: r['Phone'] || '',
@@ -94,7 +126,7 @@ function mergeLeads(intakeSets, rowsB) {
       });
     }
   }
-  const leads = [...byEmail.values()];
+  const leads = people;
   for (const l of leads) if (!l.channel && SOURCE_CODES[l.marketingSource]) l.channel = SOURCE_CODES[l.marketingSource];
   return leads;
 }
@@ -121,16 +153,20 @@ function updateGoogleSpend(rows) {
 // The UTM campaign tag for each lead on the ALL LEADS tab, by email (earliest entry wins), so
 // every lead in the merged list can be tied to the campaign that produced it.
 function parseCampaignTags(csv) {
-  const first = new Map();
+  const byEmail = new Map();
+  const byPhone = new Map();
+  const seen = new Map(); // earliest date per key, so the earliest entry wins
   for (const r of parseCSV(csv)) {
     if (!CAMPAIGN_PATTERN.test(r['Sub account'] || '')) continue;
     const date = toISODate(r['Date']);
     const email = normEmail(r['Email']);
-    if (!date || !email) continue;
-    const cur = first.get(email);
-    if (!cur || date < cur.date) first.set(email, { date, utm: (r['UTM Campaign'] || '').trim() });
+    const phone = phone10(r['Phone']);
+    if (!date || (!email && !phone)) continue;
+    const utm = (r['UTM Campaign'] || '').trim();
+    if (email && (!seen.has('e' + email) || date < seen.get('e' + email))) { seen.set('e' + email, date); byEmail.set(email, utm); }
+    if (phone && (!seen.has('p' + phone) || date < seen.get('p' + phone))) { seen.set('p' + phone, date); byPhone.set(phone, utm); }
   }
-  return new Map([...first.entries()].map(([email, v]) => [email, v.utm]));
+  return { byEmail, byPhone };
 }
 
 // UTM tags are a campaign ID for Google, and either the campaign name or ID for Meta. Resolve
@@ -161,8 +197,8 @@ async function pollAll() {
     } else {
       cache.leads = mergeLeads(intakeSets, rowsB);
     }
-    const campaignByEmail = parseCampaignTags(allLeadsCsv);
-    if (campaignByEmail.size >= 30) cache.campaignByEmail = campaignByEmail;
+    const campaignTags = parseCampaignTags(allLeadsCsv);
+    if (campaignTags.byEmail.size >= 30) cache.campaignTags = campaignTags;
     cache.metaDaily = metaDaily;
     cache.metaCampaignDaily = metaCampaignDaily;
     cache.updatedAt = Date.now();
@@ -177,7 +213,11 @@ function getData() {
     ...cache.metaCampaignDaily.map((r) => ({ campaign: r.campaign, platform: 'Meta', date: r.date, spend: r.spend })),
   ];
   const resolve = campaignResolver();
-  const leads = cache.leads.map((l) => ({ ...l, campaign: resolve(cache.campaignByEmail.get(l.email) || '') }));
+  const tagFor = (l) => {
+    for (const e of l.emails || [l.email]) { const t = cache.campaignTags.byEmail.get(e); if (t) return t; }
+    return cache.campaignTags.byPhone.get(phone10(l.phone)) || '';
+  };
+  const leads = cache.leads.map(({ emails, ...l }) => ({ ...l, campaign: resolve(tagFor({ emails, email: l.email, phone: l.phone })) }));
   return {
     leads, googleDaily: cache.googleDaily, metaDaily: cache.metaDaily,
     campaignSpend, updatedAt: cache.updatedAt,

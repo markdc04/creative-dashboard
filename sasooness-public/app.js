@@ -33,7 +33,7 @@
     range: { key: 'all', start: null, end: null },
     // Clicking any figure, row, slice, bar or point on the page sets one of these; every table,
     // tile and chart then re-computes from the leads and spend that match.
-    filters: { status: null, campaign: null, program: null, platform: null },
+    filters: { status: null, campaign: null, program: 'og', platform: null },
     topStatuses: [],
   };
 
@@ -177,6 +177,11 @@
     return [...groups.entries()].sort((a, b) => b[1] - a[1]);
   }
 
+  // The program tabs are the view you're in, not a filter, so clearing filters keeps the program.
+  function resetFilters() {
+    state.filters = { status: null, campaign: null, program: state.filters.program, platform: null };
+  }
+
   function toggleFilter(name, value) {
     state.filters[name] = state.filters[name] === value ? null : value;
     render();
@@ -190,7 +195,7 @@
     return 'Platform: ' + value;
   }
   function renderFilterBar() {
-    const chips = Object.entries(state.filters).filter(([, v]) => v).map(([name, v]) =>
+    const chips = Object.entries(state.filters).filter(([name, v]) => v && name !== 'program').map(([name, v]) =>
       '<button class="filter-chip" data-clear="' + name + '" title="Remove this filter">' + escapeHtml(filterLabel(name, v)) + '<span aria-hidden="true">&times;</span></button>'
     );
     if (state.range.key !== 'all') {
@@ -621,8 +626,8 @@
     const counts = { og: 0, agency: 0, ppl: 0 };
     for (const l of base) counts[programOf(l)]++;
     const sel = state.filters.program;
-    const tab = (key, label, n) => '<button class="segment-tab' + ((sel || '') === key ? ' is-active' : '') + '" data-segment="' + key + '">' + escapeHtml(label) + '<span class="n">' + n.toLocaleString('en-US') + '</span></button>';
-    $('#segment-tabs').innerHTML = tab('', 'All programs', base.length) + PROGRAMS.map((p) => tab(p.key, p.label, counts[p.key])).join('');
+    const tab = (key, label, n) => '<button class="segment-tab' + (sel === key ? ' is-active' : '') + '" data-segment="' + key + '">' + escapeHtml(label) + '<span class="n">' + n.toLocaleString('en-US') + '</span></button>';
+    $('#segment-tabs').innerHTML = PROGRAMS.map((p) => tab(p.key, p.label, counts[p.key])).join('');
 
     // Agency and PPL leads have no ad spend, so the spend chart and campaign table don't apply.
     const noSpend = sel === 'agency' || sel === 'ppl';
@@ -691,7 +696,7 @@
     const clear = e.target.closest('[data-clear]');
     if (clear) {
       const what = clear.dataset.clear;
-      if (what === 'all') { state.filters = { status: null, campaign: null, program: null, platform: null }; clearRange(); }
+      if (what === 'all') { resetFilters(); clearRange(); }
       else if (what === 'range') clearRange();
       else state.filters[what] = null;
       render();
@@ -700,7 +705,7 @@
     const tile = e.target.closest('[data-tile]');
     if (tile) {
       if (tile.dataset.tile === 'signed') toggleFilter('status', SIGNED);
-      else { state.filters = { status: null, campaign: null, program: null, platform: null }; render(); }
+      else { resetFilters(); render(); }
       return;
     }
     const platform = e.target.closest('[data-platform]');
@@ -712,9 +717,9 @@
     const campaignRow = e.target.closest('tr[data-campaign]');
     if (campaignRow) { toggleFilter('campaign', campaignRow.dataset.campaign); return; }
     const programRow = e.target.closest('tr[data-program]');
-    if (programRow) { toggleFilter('program', programRow.dataset.program); return; }
+    if (programRow) { state.filters.program = programRow.dataset.program; render(); return; }
     const segment = e.target.closest('[data-segment]');
-    if (segment) { state.filters.program = segment.dataset.segment || null; render(); return; }
+    if (segment) { state.filters.program = segment.dataset.segment; render(); return; }
   });
 
   // ---- date-range controls ----
@@ -734,7 +739,7 @@
   $('#range-start').addEventListener('change', applyCustomRange);
   $('#range-end').addEventListener('change', applyCustomRange);
   $('#range-clear').addEventListener('click', () => {
-    state.filters = { status: null, campaign: null, program: null, platform: null };
+    resetFilters();
     clearRange();
     render();
   });

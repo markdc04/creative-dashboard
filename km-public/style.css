@@ -166,3 +166,4 @@ button.platform-tag{background:none;font-family:inherit;cursor:pointer;}
 button.platform-tag:hover,button.platform-tag.is-selected{background:var(--surface-raised);box-shadow:0 0 0 1px currentColor;}
 .viz-tooltip .t-hint{margin-top:6px;padding-top:5px;border-top:1px solid var(--border);color:var(--text-faint);font-size:10.5px;}
 .chip.is-active{cursor:default;}
+[hidden]{display:none !important;}

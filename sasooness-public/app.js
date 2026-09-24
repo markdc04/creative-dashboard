@@ -7,16 +7,17 @@
   const COLOR_LEADS = '#3987e5';
   const COLOR_CASES = '#199e70';
   const STATUS_COLORS = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181'];
-  // The three ways a lead reaches Sasooness. Only OG is paid advertising we run, so only OG has
-  // campaign spend; Agency and PPL leads arrive through partners.
+  // The three ways a lead reaches Sasooness:
+  //   OG      the Main Landing Page (the ad campaigns send their traffic here)
+  //   Agency  Lead Prosper leads from the Walker Agency AZ campaign (the "Lead prosper AZ" tab)
+  //   PPL     the Pay Per Lead model (the "Lead prosper WA" tab)
+  // Only OG has campaign spend on our side. Anything not on the Agency/PPL tabs, including the few
+  // CRM leads with other marketing codes, counts as OG.
   const PROGRAMS = [
-    { key: 'og', label: 'OG (paid ads)', short: 'OG' },
-    { key: 'agency', label: 'Agency', short: 'Agency' },
-    { key: 'ppl', label: 'PPL', short: 'PPL' },
+    { key: 'og', label: 'OG (Main Landing Page)', short: 'OG' },
+    { key: 'agency', label: 'Agency (Lead Prosper)', short: 'Agency' },
+    { key: 'ppl', label: 'PPL (Pay Per Lead)', short: 'PPL' },
   ];
-  // Agency = Walker Agency's AZ lead flow (Lead Prosper AZ); PPL = Sasooness's pay-per-lead
-  // model (Lead Prosper WA); everything else, including the few CRM leads with other marketing
-  // codes, is OG.
   const programOf = (l) => (l.channel === 'Lead Prosper AZ' ? 'agency' : l.channel === 'Lead Prosper WA' ? 'ppl' : 'og');
   const programLabel = (key) => (PROGRAMS.find((p) => p.key === key) || PROGRAMS[0]).label;
 
@@ -27,7 +28,7 @@
   const NO_CAMPAIGN = '@none';
 
   const state = {
-    leads: [], campaignSpend: [],
+    leads: [], campaignSpend: [], schedule: [],
     search: '',
     range: { key: 'all', start: null, end: null },
     // Clicking any figure, row, slice, bar or point on the page sets one of these; every table,
@@ -105,6 +106,7 @@
       const d = await r.json();
       state.leads = d.leads || [];
       state.campaignSpend = d.campaignSpend || [];
+      state.schedule = (d.settings && d.settings.schedule) || [];
       setLive(true);
     } catch (err) {
       setLive(false);
@@ -203,6 +205,31 @@
   function clearRange() { setRange('all', null, null); }
 
   // ================= KPI row =================
+  // The contract's ad budget and marketing fee are monthly amounts from the Sasooness tab. With no
+  // dates chosen the full schedule counts (each month whole, as the sheet totals them); with a
+  // range each day carries its month's amount divided by that month's days, so a full month gives
+  // exactly one month's figure. A month past the end of the schedule repeats the last one.
+  function contractForRange() {
+    const sched = state.schedule;
+    if (!sched.length) return { budget: 0, fee: 0 };
+    const { start, end } = state.range;
+    if (!start && !end) return { budget: sched.reduce((a, m) => a + m.budget, 0), fee: sched.reduce((a, m) => a + m.fee, 0) };
+    const byMonth = new Map(sched.map((m) => [m.month, m]));
+    const first = sched[0].month, last = sched[sched.length - 1];
+    const from = start || first + '-01';
+    const to = end || toISO(pacificToday());
+    let budget = 0, fee = 0;
+    for (let d = new Date(from + 'T00:00:00'), stop = new Date(to + 'T00:00:00'); d <= stop; d.setDate(d.getDate() + 1)) {
+      const key = d.getFullYear() + '-' + pad(d.getMonth() + 1);
+      const m = key < first ? null : byMonth.get(key) || last;
+      if (!m) continue;
+      const days = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      budget += m.budget / days;
+      fee += m.fee / days;
+    }
+    return { budget, fee };
+  }
+
   function renderKpis(leads, spendRows) {
     const total = leads.length;
     const signed = leads.filter((l) => isSignedStatus(l.status)).length;
@@ -237,15 +264,31 @@
       const cpl = paid.length > 0 && costsMeaningful ? totalSpend / paid.length : 0;
       const costPerCase = paidSigned > 0 && costsMeaningful ? totalSpend / paidSigned : 0;
       const noSplit = 'spend isn’t split by status';
+      // Fee and budget belong to the contract as a whole, so they can't be narrowed to a campaign,
+      // platform or status.
+      const f = state.filters;
+      const contractOk = !f.status && !f.campaign && !f.platform;
+      const { budget, fee } = contractForRange();
+      const totalCost = totalSpend + fee;
+      const cpcWithFee = paidSigned > 0 && costsMeaningful && contractOk ? totalCost / paidSigned : 0;
+      const used = budget > 0 ? (totalSpend / budget) * 100 : 0;
+      const budgetSub = !contractOk ? 'contract-level, not split by filter'
+        : budget <= 0 ? '' : totalSpend <= budget ? pct(used) + ' used · ' + money(budget - totalSpend) + ' left' : money(totalSpend - budget) + ' over budget';
+      const dash = '—';
       tiles = [
         ['leads', 'Total Leads', total.toLocaleString('en-US'), rejected ? rejected.toLocaleString('en-US') + ' rejected' : '', 'Click to clear the filters'],
         ['signed', 'Signed Cases', signed.toLocaleString('en-US'), 'of ' + total.toLocaleString('en-US') + ' leads', 'Click to show only signed cases'],
         ['', 'Conversion Rate', pct(conversionRate), 'signed ÷ leads', ''],
-        ['', 'Total Ad Spend', money(totalSpend), money(googleSpend) + ' Google + ' + money(metaSpend) + ' Meta', ''],
-        ['', 'Cost / Lead', cpl ? money(cpl) : '—', costsMeaningful ? 'spend ÷ OG leads' : noSplit, ''],
-        ['', 'Cost / Case', costPerCase ? money(costPerCase) : '—', !costsMeaningful ? noSplit : paidSigned ? 'spend ÷ OG signed cases' : 'no signed cases yet', ''],
+        ['', 'Cost / Lead', cpl ? money(cpl) : dash, costsMeaningful ? 'ad spend ÷ OG leads' : noSplit, ''],
+        ['', 'Ad Spend', money(totalSpend), money(googleSpend) + ' Google + ' + money(metaSpend) + ' Meta', ''],
+        ['', 'Marketing Fee', contractOk ? money(fee) : dash, contractOk ? 'monthly fee from the contract' : 'contract-level, not split by filter', ''],
+        ['', 'Ad Budget', contractOk ? money(budget) : dash, budgetSub, ''],
+        ['', 'Total Cost', contractOk ? money(totalCost) : dash, contractOk ? 'ad spend + marketing fee' : 'contract-level, not split by filter', ''],
+        ['', 'CPC (Cost / Case)', costPerCase ? money(costPerCase) : dash, !costsMeaningful ? noSplit : paidSigned ? 'ad spend ÷ signed cases' : 'no signed cases yet', ''],
+        ['', 'CPC + Marketing Fee', cpcWithFee ? money(cpcWithFee) : dash, !costsMeaningful || !contractOk ? 'not split by filter' : paidSigned ? 'total cost ÷ signed cases' : 'no signed cases yet', ''],
       ];
     }
+    $('#kpi-row').className = 'kpi-row' + (tiles.length === 10 ? ' kpi-row--10' : '');
     $('#kpi-row').innerHTML = tiles.map(([key, label, value, sub, hint]) =>
       '<div class="kpi' + (key ? ' is-clickable' : '') + (key === 'signed' && state.filters.status === SIGNED ? ' is-selected' : '') + '"' + (key ? ' data-tile="' + key + '" title="' + hint + '"' : '') + '>' +
       '<div class="kpi-label">' + escapeHtml(label) + '</div>' +
@@ -589,8 +632,8 @@
     note.hidden = !noSpend;
     if (noSpend) {
       note.innerHTML = sel === 'agency'
-        ? '<strong>Agency</strong> leads come from Walker Agency’s AZ lead flow (Lead Prosper AZ); some of them go through to Sasooness. There is no ad spend on our side, so this view shows what those leads turn into.'
-        : '<strong>PPL</strong> is Sasooness’s pay-per-lead model (Lead Prosper WA). There is no ad spend on our side, so this view shows the leads delivered and what they turn into.';
+        ? '<strong>Agency</strong> means Lead Prosper leads from the Walker Agency AZ campaign; some of them go through to Sasooness. There is no ad spend on our side, so this view shows what those leads turn into.'
+        : '<strong>PPL</strong> means the Pay Per Lead model (Lead Prosper WA). There is no ad spend on our side, so this view shows the leads delivered and what they turn into.';
     }
   }
 

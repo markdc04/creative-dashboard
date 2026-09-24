@@ -2,7 +2,7 @@
 // three intake tabs, one per lead source) with their ad spend per campaign (Google, filtered out
 // of the main tracker's already-fetched spend; Meta, from the shared export) and per-campaign
 // lead counts (from the UTM tags on the ALL LEADS tab).
-const { csvUrl, fetchText, parseCSV, toISODate, phone10 } = require('./csv-utils');
+const { csvUrl, fetchText, parseCSV, parseCSVRows, num, toISODate, phone10 } = require('./csv-utils');
 const { metaDailyFor, metaCampaignDailyFor } = require('./meta-spend');
 
 // Intake workbook — one tab per lead source:
@@ -23,6 +23,10 @@ const LEADS_B_GID = '1001225302';
 // The workbook whose ALL LEADS tab tags every lead with the UTM campaign it came from.
 const WORKBOOK_ID = '1rYN9P0oVlEwlxpk53ZqDDGIcZ9154bm-k709KUMIT_A';
 const ALL_LEADS_GID = '1706081278';
+// The workbook's Sasooness tab holds the contract's monthly ad budget and marketing fee; the ALL
+// CLIENT CASES tab lists Sasooness's signed cases, marking the ones that later dropped.
+const SASOONESS_TAB_GID = '1617897274';
+const ALL_CASES_GID = '722868032';
 
 // Loose on purpose: the same client is spelled "Sasooness" and "Sassooness" across campaigns.
 const CAMPAIGN_PATTERN = /sas+oo?n/i;
@@ -33,7 +37,7 @@ const SOURCE_CODES = { LS004: 'OG' };
 
 let cache = {
   leads: [], googleDaily: [], metaDaily: [], googleCampaignDaily: [], metaCampaignDaily: [],
-  campaignTags: { byEmail: new Map(), byPhone: new Map() }, updatedAt: null,
+  campaignTags: { byEmail: new Map(), byPhone: new Map() }, schedule: [], droppedEmails: new Set(), updatedAt: null,
 };
 
 function isSigned(status) { const s = (status || '').trim(); return s === 'Signed Up' || s === 'Client'; }
@@ -169,6 +173,41 @@ function parseCampaignTags(csv) {
   return { byEmail, byPhone };
 }
 
+
+// The Sasooness tab lists each month with its ad budget and marketing fee side by side:
+//   Jan | $10,000.00 | $6,000.00   ...   May | $20,000.00 | $12,000.00
+// so look for a month name followed by two dollar amounts. A month typed twice (the sheet has July
+// twice) counts once, first entry wins. The sheet doesn't state a year; months run in order from
+// the contract's start, so the year advances whenever the month number steps back.
+const MONTHS = { jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3, apr: 4, april: 4, may: 5, jun: 6, june: 6, jul: 7, july: 7, aug: 8, august: 8, sep: 9, sept: 9, september: 9, oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12 };
+function parseSchedule(csv) {
+  const seen = new Map(); // month number -> { budget, fee }
+  const order = [];
+  for (const row of parseCSVRows(csv)) {
+    for (let c = 0; c < row.length - 2; c++) {
+      const m = MONTHS[(row[c] || '').trim().toLowerCase()];
+      if (!m || !/\$/.test(row[c + 1] || '') || !/\$/.test(row[c + 2] || '')) continue;
+      const budget = num(row[c + 1]), fee = num(row[c + 2]);
+      if (budget > 0 && fee >= 0 && !seen.has(m)) { seen.set(m, { budget, fee }); order.push(m); }
+      break;
+    }
+  }
+  let year = 2026, prev = 0;
+  return order.map((m) => { if (m < prev) year++; prev = m; return { month: year + '-' + String(m).padStart(2, '0'), ...seen.get(m) }; });
+}
+
+// Signed cases that later dropped are marked DROPPED where the conversion date would be. The
+// Sasooness block is columns J-S of ALL CLIENT CASES (other clients sit either side of it).
+function parseDropped(csv) {
+  const out = new Set();
+  for (const r of parseCSVRows(csv).slice(2)) {
+    const block = r.slice(9, 19);
+    const email = normEmail(block[3]);
+    if (email && /dropped/i.test(block[0] || '') && !toISODate(block[0])) out.add(email);
+  }
+  return out;
+}
+
 // UTM tags are a campaign ID for Google, and either the campaign name or ID for Meta. Resolve
 // to the campaign's name; anything else non-empty keeps its own label, empty is unattributed.
 function campaignResolver() {
@@ -183,10 +222,12 @@ function campaignResolver() {
 
 async function pollAll() {
   try {
-    const [intakeCsvs, csvB, allLeadsCsv, metaDaily, metaCampaignDaily] = await Promise.all([
+    const [intakeCsvs, csvB, allLeadsCsv, tabCsv, casesCsv, metaDaily, metaCampaignDaily] = await Promise.all([
       Promise.all(INTAKE_TABS.map((t) => fetchText(csvUrl(t.gid, INTAKE_DOC_ID)))),
       fetchText(csvUrl(LEADS_B_GID, LEADS_B_DOC_ID)),
       fetchText(csvUrl(ALL_LEADS_GID, WORKBOOK_ID)),
+      fetchText(csvUrl(SASOONESS_TAB_GID, WORKBOOK_ID)),
+      fetchText(csvUrl(ALL_CASES_GID, WORKBOOK_ID)),
       metaDailyFor(CAMPAIGN_PATTERN),
       metaCampaignDailyFor(CAMPAIGN_PATTERN),
     ]);
@@ -199,6 +240,10 @@ async function pollAll() {
     }
     const campaignTags = parseCampaignTags(allLeadsCsv);
     if (campaignTags.byEmail.size >= 30) cache.campaignTags = campaignTags;
+    const schedule = parseSchedule(tabCsv);
+    if (schedule.length >= 3) cache.schedule = schedule; else console.warn(`[${new Date().toISOString()}] Sasooness fee/budget schedule not found (${schedule.length} months) — keeping last known-good`);
+    const dropped = parseDropped(casesCsv);
+    if (casesCsv.trimStart().startsWith('<')) console.warn(`[${new Date().toISOString()}] Sasooness signed-cases tab not readable — keeping last known-good dropped list`); else cache.droppedEmails = dropped;
     cache.metaDaily = metaDaily;
     cache.metaCampaignDaily = metaCampaignDaily;
     cache.updatedAt = Date.now();
@@ -217,10 +262,14 @@ function getData() {
     for (const e of l.emails || [l.email]) { const t = cache.campaignTags.byEmail.get(e); if (t) return t; }
     return cache.campaignTags.byPhone.get(phone10(l.phone)) || '';
   };
-  const leads = cache.leads.map(({ emails, ...l }) => ({ ...l, campaign: resolve(tagFor({ emails, email: l.email, phone: l.phone })) }));
+  // A signed case that later dropped is no longer a case, so it reads as Dropped everywhere.
+  const leads = cache.leads.map(({ emails, ...l }) => {
+    const dropped = isSigned(l.status) && (emails || [l.email]).some((e) => cache.droppedEmails.has(e));
+    return { ...l, status: dropped ? 'Dropped' : l.status, campaign: resolve(tagFor({ emails, email: l.email, phone: l.phone })) };
+  });
   return {
     leads, googleDaily: cache.googleDaily, metaDaily: cache.metaDaily,
-    campaignSpend, updatedAt: cache.updatedAt,
+    campaignSpend, settings: { schedule: cache.schedule }, updatedAt: cache.updatedAt,
   };
 }
 

@@ -169,3 +169,12 @@ button.platform-tag{background:none;font-family:inherit;cursor:pointer;}
 button.platform-tag:hover,button.platform-tag.is-selected{background:var(--surface-raised);box-shadow:0 0 0 1px currentColor;}
 .viz-tooltip .t-hint{margin-top:6px;padding-top:5px;border-top:1px solid var(--border);color:var(--text-faint);font-size:10.5px;}
 .chip.is-active{cursor:default;}
+
+/* ---------- program tabs ---------- */
+.segment-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 16px;padding:5px;border-radius:12px;background:var(--surface);border:1px solid var(--border);width:fit-content;max-width:100%;}
+.segment-tab{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:9px;border:none;background:none;color:var(--text-dim);font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
+.segment-tab:hover{color:var(--text);background:var(--surface-raised);}
+.segment-tab.is-active{background:linear-gradient(180deg,#f6c34d,var(--accent));color:var(--accent-ink);}
+.segment-tab .n{font-size:11px;font-weight:700;opacity:.7;}
+.program-note{margin:-4px 2px 16px;padding:11px 14px;border-radius:10px;background:var(--surface);border:1px solid var(--border);color:var(--text-dim);font-size:12.5px;line-height:1.55;}
+.program-note strong{color:var(--text);}

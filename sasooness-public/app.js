@@ -7,7 +7,18 @@
   const COLOR_LEADS = '#3987e5';
   const COLOR_CASES = '#199e70';
   const STATUS_COLORS = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181'];
-  const SOURCES = ['OG', 'Lead Prosper AZ', 'Lead Prosper WA'];
+  // The three ways a lead reaches Sasooness. Only OG is paid advertising we run, so only OG has
+  // campaign spend; Agency and PPL leads arrive through partners.
+  const PROGRAMS = [
+    { key: 'og', label: 'OG (paid ads)', short: 'OG' },
+    { key: 'agency', label: 'Agency', short: 'Agency' },
+    { key: 'ppl', label: 'PPL', short: 'PPL' },
+  ];
+  // Agency = Walker Agency's AZ lead flow (Lead Prosper AZ); PPL = Sasooness's pay-per-lead
+  // model (Lead Prosper WA); everything else, including the few CRM leads with other marketing
+  // codes, is OG.
+  const programOf = (l) => (l.channel === 'Lead Prosper AZ' ? 'agency' : l.channel === 'Lead Prosper WA' ? 'ppl' : 'og');
+  const programLabel = (key) => (PROGRAMS.find((p) => p.key === key) || PROGRAMS[0]).label;
 
   // Special filter values: leads that count as signed cases, statuses folded into the donut's
   // "Other" slice, and leads/spend with no campaign tag.
@@ -21,7 +32,7 @@
     range: { key: 'all', start: null, end: null },
     // Clicking any figure, row, slice, bar or point on the page sets one of these; every table,
     // tile and chart then re-computes from the leads and spend that match.
-    filters: { status: null, campaign: null, channel: null, platform: null },
+    filters: { status: null, campaign: null, program: null, platform: null },
     topStatuses: [],
   };
 
@@ -137,7 +148,7 @@
         else if ((l.status || '(blank)') !== f.status) return false;
       }
       if (f.campaign && skip !== 'campaign' && (l.campaign || NO_CAMPAIGN) !== f.campaign) return false;
-      if (f.channel && skip !== 'channel' && (SOURCES.includes(l.channel) ? l.channel : 'Other') !== f.channel) return false;
+      if (f.program && skip !== 'program' && programOf(l) !== f.program) return false;
       if (platformOf && platformOf.get(l.campaign) !== f.platform) return false;
       return true;
     });
@@ -145,6 +156,8 @@
 
   function spendFor(skip) {
     const f = state.filters;
+    // Agency and PPL leads have no ad spend behind them.
+    if (f.program && f.program !== 'og' && skip !== 'program') return [];
     return state.campaignSpend.filter((r) => {
       if (!inRange(r.date)) return false;
       if (f.campaign && skip !== 'campaign' && r.campaign !== f.campaign) return false;
@@ -171,7 +184,7 @@
   function filterLabel(name, value) {
     if (name === 'status') return 'Status: ' + (value === SIGNED ? 'Signed cases' : value === OTHER_STATUSES ? 'Other statuses' : value);
     if (name === 'campaign') return 'Campaign: ' + (value === NO_CAMPAIGN ? 'No campaign tag' : value);
-    if (name === 'channel') return 'Source: ' + value;
+    if (name === 'program') return 'Program: ' + programLabel(value);
     return 'Platform: ' + value;
   }
   function renderFilterBar() {
@@ -194,25 +207,45 @@
     const total = leads.length;
     const signed = leads.filter((l) => isSignedStatus(l.status)).length;
     const rejected = leads.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
-    const googleSpend = spendRows.filter((r) => r.platform === 'Google').reduce((a, r) => a + r.spend, 0);
-    const metaSpend = spendRows.filter((r) => r.platform === 'Meta').reduce((a, r) => a + r.spend, 0);
-    const totalSpend = googleSpend + metaSpend;
-    // Spend is recorded per campaign and platform, not per lead status or source, so once a
-    // status/source is picked there is no honest spend to divide by.
-    const costsMeaningful = !state.filters.status && !state.filters.channel;
-    const cpl = total > 0 && costsMeaningful ? totalSpend / total : 0;
-    const costPerCase = signed > 0 && costsMeaningful ? totalSpend / signed : 0;
     const conversionRate = total > 0 ? (signed / total) * 100 : 0;
-    const noSplit = 'spend isn’t split by status/source';
+    const program = state.filters.program;
+    let tiles;
 
-    const tiles = [
-      ['leads', 'Total Leads', total.toLocaleString('en-US'), rejected ? rejected.toLocaleString('en-US') + ' rejected' : '', 'Click to clear the filters'],
-      ['signed', 'Signed Cases', signed.toLocaleString('en-US'), 'of ' + total.toLocaleString('en-US') + ' leads', 'Click to show only signed cases'],
-      ['', 'Conversion Rate', pct(conversionRate), 'signed ÷ leads', ''],
-      ['', 'Total Ad Spend', money(totalSpend), money(googleSpend) + ' Google + ' + money(metaSpend) + ' Meta', ''],
-      ['', 'Cost / Lead', cpl ? money(cpl) : '—', costsMeaningful ? 'spend ÷ leads' : noSplit, ''],
-      ['', 'Cost / Case', costPerCase ? money(costPerCase) : '—', !costsMeaningful ? noSplit : signed ? 'spend ÷ signed cases' : 'no signed cases yet', ''],
-    ];
+    if (program === 'agency' || program === 'ppl') {
+      // No ad spend sits behind these leads, so this view is about what the leads turn into.
+      const open = leads.filter((l) => !(l.status || '').trim()).length;
+      const days = leads.filter((l) => isSignedStatus(l.status) && l.createdDate && l.signedUpDate)
+        .map((l) => Math.round((new Date(l.signedUpDate + 'T00:00:00') - new Date(l.createdDate + 'T00:00:00')) / 86400000)).filter((d) => d >= 0);
+      const avgDays = days.length ? days.reduce((a, b) => a + b, 0) / days.length : 0;
+      tiles = [
+        ['leads', 'Total Leads', total.toLocaleString('en-US'), programLabel(program) + ' program', 'Click to clear the filters'],
+        ['signed', 'Signed Cases', signed.toLocaleString('en-US'), 'of ' + total.toLocaleString('en-US') + ' leads', 'Click to show only signed cases'],
+        ['', 'Conversion Rate', pct(conversionRate), 'signed ÷ leads', ''],
+        ['', 'Rejected', rejected.toLocaleString('en-US'), total ? pct((rejected / total) * 100) + ' of leads' : '', ''],
+        ['', 'Awaiting Status', open.toLocaleString('en-US'), 'no status yet', ''],
+        ['', 'Avg. Days to Sign', avgDays ? avgDays.toLocaleString('en-US', { maximumFractionDigits: 1 }) : '—', 'lead created → signed', ''],
+      ];
+    } else {
+      const googleSpend = spendRows.filter((r) => r.platform === 'Google').reduce((a, r) => a + r.spend, 0);
+      const metaSpend = spendRows.filter((r) => r.platform === 'Meta').reduce((a, r) => a + r.spend, 0);
+      const totalSpend = googleSpend + metaSpend;
+      // Only paid (OG) leads can be produced by ad spend, so costs divide by those and not by
+      // Agency/PPL leads that arrived some other way. Spend also isn't split by status.
+      const paid = leads.filter((l) => programOf(l) === 'og');
+      const paidSigned = paid.filter((l) => isSignedStatus(l.status)).length;
+      const costsMeaningful = !state.filters.status;
+      const cpl = paid.length > 0 && costsMeaningful ? totalSpend / paid.length : 0;
+      const costPerCase = paidSigned > 0 && costsMeaningful ? totalSpend / paidSigned : 0;
+      const noSplit = 'spend isn’t split by status';
+      tiles = [
+        ['leads', 'Total Leads', total.toLocaleString('en-US'), rejected ? rejected.toLocaleString('en-US') + ' rejected' : '', 'Click to clear the filters'],
+        ['signed', 'Signed Cases', signed.toLocaleString('en-US'), 'of ' + total.toLocaleString('en-US') + ' leads', 'Click to show only signed cases'],
+        ['', 'Conversion Rate', pct(conversionRate), 'signed ÷ leads', ''],
+        ['', 'Total Ad Spend', money(totalSpend), money(googleSpend) + ' Google + ' + money(metaSpend) + ' Meta', ''],
+        ['', 'Cost / Lead', cpl ? money(cpl) : '—', costsMeaningful ? 'spend ÷ OG leads' : noSplit, ''],
+        ['', 'Cost / Case', costPerCase ? money(costPerCase) : '—', !costsMeaningful ? noSplit : paidSigned ? 'spend ÷ OG signed cases' : 'no signed cases yet', ''],
+      ];
+    }
     $('#kpi-row').innerHTML = tiles.map(([key, label, value, sub, hint]) =>
       '<div class="kpi' + (key ? ' is-clickable' : '') + (key === 'signed' && state.filters.status === SIGNED ? ' is-selected' : '') + '"' + (key ? ' data-tile="' + key + '" title="' + hint + '"' : '') + '>' +
       '<div class="kpi-label">' + escapeHtml(label) + '</div>' +
@@ -515,29 +548,50 @@
     $('#campaign-body').innerHTML = html;
   }
 
-  // ================= leads by source (OG / Lead Prosper AZ / Lead Prosper WA) =================
-  function renderSources() {
-    const leads = leadsFor('channel');
-    const selected = state.filters.channel;
-    const groups = new Map(SOURCES.map((s) => [s, []]));
-    groups.set('Other', []);
-    for (const l of leads) groups.get(SOURCES.includes(l.channel) ? l.channel : 'Other').push(l);
+  // ================= leads by program (OG / Agency / PPL) =================
+  function renderPrograms() {
+    const leads = leadsFor('program');
+    const selected = state.filters.program;
+    const groups = new Map(PROGRAMS.map((p) => [p.key, []]));
+    for (const l of leads) groups.get(programOf(l)).push(l);
     const cls = (key, empty) => 'is-clickable' + (empty ? ' row-muted' : '') + (selected === key ? ' is-selected' : selected ? ' is-dim' : '');
-    const line = (name, list) => {
+    const line = (key, list) => {
       const signed = list.filter((l) => isSignedStatus(l.status)).length;
       const rejected = list.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
-      return '<tr class="' + cls(name, list.length === 0) + '" data-channel="' + escapeHtml(name) + '"><td class="name-cell">' + escapeHtml(name) + '</td>' +
+      return '<tr class="' + cls(key, list.length === 0) + '" data-program="' + key + '"><td class="name-cell">' + escapeHtml(programLabel(key)) + '</td>' +
         '<td class="td-num num">' + list.length.toLocaleString('en-US') + '</td>' +
         '<td class="td-num num">' + signed.toLocaleString('en-US') + '</td>' +
         '<td class="td-num num">' + (list.length ? pct((signed / list.length) * 100) : '—') + '</td>' +
         '<td class="td-num num">' + rejected.toLocaleString('en-US') + '</td></tr>';
     };
     let html = '';
-    for (const [name, list] of groups) html += line(name, list);
+    for (const [key, list] of groups) html += line(key, list);
     const signedAll = leads.filter((l) => isSignedStatus(l.status)).length;
     const rejectedAll = leads.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
     html += '<tr class="row-total"><td>Total</td><td class="td-num num">' + leads.length.toLocaleString('en-US') + '</td><td class="td-num num">' + signedAll.toLocaleString('en-US') + '</td><td class="td-num num">' + (leads.length ? pct((signedAll / leads.length) * 100) : '—') + '</td><td class="td-num num">' + rejectedAll.toLocaleString('en-US') + '</td></tr>';
     $('#source-body').innerHTML = html;
+  }
+
+  // ================= program tabs (All / OG / Agency / PPL) =================
+  function renderSegmentTabs() {
+    const base = leadsFor('program');
+    const counts = { og: 0, agency: 0, ppl: 0 };
+    for (const l of base) counts[programOf(l)]++;
+    const sel = state.filters.program;
+    const tab = (key, label, n) => '<button class="segment-tab' + ((sel || '') === key ? ' is-active' : '') + '" data-segment="' + key + '">' + escapeHtml(label) + '<span class="n">' + n.toLocaleString('en-US') + '</span></button>';
+    $('#segment-tabs').innerHTML = tab('', 'All programs', base.length) + PROGRAMS.map((p) => tab(p.key, p.label, counts[p.key])).join('');
+
+    // Agency and PPL leads have no ad spend, so the spend chart and campaign table don't apply.
+    const noSpend = sel === 'agency' || sel === 'ppl';
+    $('#spend-panel').hidden = noSpend;
+    $('#campaign-panel').hidden = noSpend;
+    const note = $('#program-note');
+    note.hidden = !noSpend;
+    if (noSpend) {
+      note.innerHTML = sel === 'agency'
+        ? '<strong>Agency</strong> leads come from Walker Agency’s AZ lead flow (Lead Prosper AZ); some of them go through to Sasooness. There is no ad spend on our side, so this view shows what those leads turn into.'
+        : '<strong>PPL</strong> is Sasooness’s pay-per-lead model (Lead Prosper WA). There is no ad spend on our side, so this view shows the leads delivered and what they turn into.';
+    }
   }
 
   // ================= lead details table (secondary) =================
@@ -567,7 +621,7 @@
         '<td>' + escapeHtml(l.state || '—') + '</td>' +
         '<td>' + escapeHtml(l.severity || '—') + '</td>' +
         '<td>' + escapeHtml(l.marketingSource || '—') + '</td>' +
-        '<td><span class="source-tag">' + escapeHtml(l.channel || 'Other') + '</span></td>' +
+        '<td><span class="source-tag">' + escapeHtml(PROGRAMS.find((p) => p.key === programOf(l)).short) + '</span></td>' +
       '</tr>'
     )).join('');
   }
@@ -583,7 +637,8 @@
     renderBarChart();
     renderPieChart();
     renderCampaigns();
-    renderSources();
+    renderPrograms();
+    renderSegmentTabs();
     renderChips();
     renderLeadsTable(leads);
   }
@@ -593,7 +648,7 @@
     const clear = e.target.closest('[data-clear]');
     if (clear) {
       const what = clear.dataset.clear;
-      if (what === 'all') { state.filters = { status: null, campaign: null, channel: null, platform: null }; clearRange(); }
+      if (what === 'all') { state.filters = { status: null, campaign: null, program: null, platform: null }; clearRange(); }
       else if (what === 'range') clearRange();
       else state.filters[what] = null;
       render();
@@ -602,7 +657,7 @@
     const tile = e.target.closest('[data-tile]');
     if (tile) {
       if (tile.dataset.tile === 'signed') toggleFilter('status', SIGNED);
-      else { state.filters = { status: null, campaign: null, channel: null, platform: null }; render(); }
+      else { state.filters = { status: null, campaign: null, program: null, platform: null }; render(); }
       return;
     }
     const platform = e.target.closest('[data-platform]');
@@ -613,8 +668,10 @@
     if (legend) { toggleFilter('status', legend.dataset.status); return; }
     const campaignRow = e.target.closest('tr[data-campaign]');
     if (campaignRow) { toggleFilter('campaign', campaignRow.dataset.campaign); return; }
-    const sourceRow = e.target.closest('tr[data-channel]');
-    if (sourceRow) { toggleFilter('channel', sourceRow.dataset.channel); return; }
+    const programRow = e.target.closest('tr[data-program]');
+    if (programRow) { toggleFilter('program', programRow.dataset.program); return; }
+    const segment = e.target.closest('[data-segment]');
+    if (segment) { state.filters.program = segment.dataset.segment || null; render(); return; }
   });
 
   // ---- date-range controls ----
@@ -634,7 +691,7 @@
   $('#range-start').addEventListener('change', applyCustomRange);
   $('#range-end').addEventListener('change', applyCustomRange);
   $('#range-clear').addEventListener('click', () => {
-    state.filters = { status: null, campaign: null, channel: null, platform: null };
+    state.filters = { status: null, campaign: null, program: null, platform: null };
     clearRange();
     render();
   });

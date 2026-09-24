@@ -60,11 +60,14 @@
     </div>
   </div>
 
+  <div class="segment-tabs" id="segment-tabs"></div>
+  <p class="program-note" id="program-note" hidden></p>
+
   <div class="filter-bar" id="filter-bar" hidden></div>
 
   <div class="kpi-row" id="kpi-row"></div>
 
-  <div class="chart-row">
+  <div class="chart-row" id="spend-panel">
     <div class="panel chart-panel">
       <div class="panel-head">
         <h2 class="panel-title">Ad Spend Over Time</h2>
@@ -90,7 +93,7 @@
     </div>
   </div>
 
-  <div class="panel">
+  <div class="panel" id="campaign-panel">
     <div class="panel-head">
       <h2 class="panel-title">Performance by Campaign</h2>
       <span class="panel-sub" id="campaign-sub"></span>
@@ -106,16 +109,16 @@
 
   <div class="panel">
     <div class="panel-head">
-      <h2 class="panel-title">Leads by Source</h2>
-      <span class="panel-sub">where each lead came from</span>
+      <h2 class="panel-title">Leads by Program</h2>
+      <span class="panel-sub">click a row to filter</span>
     </div>
     <div class="table-scroll table-scroll--short">
       <table>
-        <thead><tr><th>Source</th><th class="th-num">Leads</th><th class="th-num">Signed Cases</th><th class="th-num">Conversion</th><th class="th-num">Rejected</th></tr></thead>
+        <thead><tr><th>Program</th><th class="th-num">Leads</th><th class="th-num">Signed Cases</th><th class="th-num">Conversion</th><th class="th-num">Rejected</th></tr></thead>
         <tbody id="source-body"></tbody>
       </table>
     </div>
-    <p class="footnote footnote--inside"><strong>OG</strong> is the main landing page (the paid-ad campaigns). <strong>Lead Prosper AZ</strong> is Walker Agency's AZ lead flow &mdash; some of those leads go through to Sasooness. <strong>Lead Prosper WA</strong> is Sasooness's pay-per-lead (PPL) model. <strong>Other</strong> are the few CRM leads with a different marketing-source code (not <code>LS004</code>, which is the OG code).</p>
+    <p class="footnote footnote--inside"><strong>OG</strong> is the main landing page &mdash; the paid-ad campaigns (it also includes the few CRM leads with other marketing-source codes). <strong>Agency</strong> is Walker Agency&rsquo;s AZ lead flow (Lead Prosper AZ); some of those leads go through to Sasooness. <strong>PPL</strong> is Sasooness&rsquo;s pay-per-lead model (Lead Prosper WA). Only OG has ad spend, so cost per lead and cost per case use OG leads.</p>
   </div>
 
   <div class="panel panel--secondary">
@@ -132,7 +135,7 @@
         <thead>
           <tr>
             <th>Name</th><th>Status</th><th>Case Type</th><th>Created</th><th>Signed Up</th>
-            <th>State</th><th>Severity</th><th>Marketing Source</th><th>Source</th>
+            <th>State</th><th>Severity</th><th>Marketing Source</th><th>Program</th>
           </tr>
         </thead>
         <tbody id="leads-body"></tbody>

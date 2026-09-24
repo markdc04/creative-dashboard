@@ -135,3 +135,34 @@ tbody tr:hover{background:var(--surface-raised);}
 
 .kpi-row{grid-template-columns:repeat(5,1fr);}
 @media (max-width:900px){.kpi-row{grid-template-columns:repeat(2,1fr);}}
+
+.th-num,.td-num{text-align:right;}
+.table-scroll--short{max-height:none;}
+tr.row-total td{border-top:2px solid var(--border);font-weight:700;background:var(--surface-raised);}
+tr.row-muted td{color:var(--text-faint);}
+/* ---------- click-to-filter ---------- */
+.filter-bar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0 0 18px;padding:10px 12px;border-radius:12px;background:var(--surface);border:1px solid var(--border);}
+.filter-bar-label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint);font-weight:700;margin-right:4px;}
+.filter-chip{display:inline-flex;align-items:center;gap:8px;padding:6px 10px 6px 12px;border-radius:100px;border:1px solid var(--accent);background:rgba(240,180,41,.12);color:var(--accent);font:inherit;font-size:12px;font-weight:700;cursor:pointer;max-width:100%;}
+.filter-chip span{font-size:15px;line-height:1;opacity:.8;}
+.filter-chip:hover{background:rgba(240,180,41,.2);}
+.filter-clear-all{margin-left:auto;background:none;border:none;color:var(--text-dim);font:inherit;font-size:12px;font-weight:700;cursor:pointer;padding:6px 8px;}
+.filter-clear-all:hover{color:var(--text);}
+
+.is-clickable{cursor:pointer;}
+tr.is-clickable:hover td{background:var(--surface-raised);}
+tr.is-selected td{background:rgba(240,180,41,.10);}
+tr.is-selected td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+tr.is-dim{opacity:.45;}
+tr.is-dim:hover{opacity:.8;}
+.kpi.is-clickable{transition:border-color .12s,transform .12s;}
+.kpi.is-clickable:hover{border-color:var(--text-faint);transform:translateY(-1px);}
+.kpi.is-selected{border-color:var(--accent);background:rgba(240,180,41,.08);}
+.legend-btn{background:none;border:none;font:inherit;padding:2px 4px;border-radius:6px;cursor:pointer;color:var(--text-dim);font-size:11.5px;font-weight:600;}
+.legend-btn:hover{background:var(--surface-raised);color:var(--text);}
+.legend-btn.is-selected{color:var(--text);box-shadow:0 0 0 1px var(--accent);}
+.legend-btn.is-dim{opacity:.4;}
+button.platform-tag{background:none;font-family:inherit;cursor:pointer;}
+button.platform-tag:hover,button.platform-tag.is-selected{background:var(--surface-raised);box-shadow:0 0 0 1px currentColor;}
+.viz-tooltip .t-hint{margin-top:6px;padding-top:5px;border-top:1px solid var(--border);color:var(--text-faint);font-size:10.5px;}
+.chip.is-active{cursor:default;}

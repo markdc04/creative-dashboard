@@ -33,7 +33,7 @@ const SOURCE_CODES = { LS004: 'OG' };
 
 let cache = {
   leads: [], googleDaily: [], metaDaily: [], googleCampaignDaily: [], metaCampaignDaily: [],
-  campaignLeadsRaw: [], updatedAt: null,
+  campaignByEmail: new Map(), updatedAt: null,
 };
 
 function normEmail(v) { return String(v || '').trim().toLowerCase(); }
@@ -118,31 +118,31 @@ function updateGoogleSpend(rows) {
   cache.updatedAt = Date.now();
 }
 
-// One lead per email (earliest date) from the ALL LEADS tab, keeping only the date and the UTM
-// campaign tag — no contact details are sent to the browser for these.
-function parseCampaignLeads(csv) {
+// The UTM campaign tag for each lead on the ALL LEADS tab, by email (earliest entry wins), so
+// every lead in the merged list can be tied to the campaign that produced it.
+function parseCampaignTags(csv) {
   const first = new Map();
   for (const r of parseCSV(csv)) {
     if (!CAMPAIGN_PATTERN.test(r['Sub account'] || '')) continue;
     const date = toISODate(r['Date']);
-    const key = normEmail(r['Email']) || r['GHL Contact ID'] || '';
-    if (!date || !key) continue;
-    const cur = first.get(key);
-    if (!cur || date < cur.date) first.set(key, { date, utm: (r['UTM Campaign'] || '').trim() });
+    const email = normEmail(r['Email']);
+    if (!date || !email) continue;
+    const cur = first.get(email);
+    if (!cur || date < cur.date) first.set(email, { date, utm: (r['UTM Campaign'] || '').trim() });
   }
-  return [...first.values()];
+  return new Map([...first.entries()].map(([email, v]) => [email, v.utm]));
 }
 
 // UTM tags are a campaign ID for Google, and either the campaign name or ID for Meta. Resolve
 // to the campaign's name; anything else non-empty keeps its own label, empty is unattributed.
-function resolveCampaigns(raw) {
+function campaignResolver() {
   const names = new Map(); // lower-cased name -> name
   const ids = new Map(); // id -> name
   for (const r of [...cache.googleCampaignDaily, ...cache.metaCampaignDaily]) {
     names.set(r.campaign.toLowerCase(), r.campaign);
     if (r.campaignId) ids.set(r.campaignId, r.campaign);
   }
-  return raw.map(({ date, utm }) => ({ date, campaign: !utm ? '' : names.get(utm.toLowerCase()) || ids.get(utm) || utm }));
+  return (utm) => (!utm ? '' : names.get(utm.toLowerCase()) || ids.get(utm) || utm);
 }
 
 async function pollAll() {
@@ -161,8 +161,8 @@ async function pollAll() {
     } else {
       cache.leads = mergeLeads(intakeSets, rowsB);
     }
-    const campaignLeadsRaw = parseCampaignLeads(allLeadsCsv);
-    if (campaignLeadsRaw.length >= 30) cache.campaignLeadsRaw = campaignLeadsRaw;
+    const campaignByEmail = parseCampaignTags(allLeadsCsv);
+    if (campaignByEmail.size >= 30) cache.campaignByEmail = campaignByEmail;
     cache.metaDaily = metaDaily;
     cache.metaCampaignDaily = metaCampaignDaily;
     cache.updatedAt = Date.now();
@@ -176,9 +176,11 @@ function getData() {
     ...cache.googleCampaignDaily.map((r) => ({ campaign: r.campaign, platform: 'Google', date: r.date, spend: r.spend })),
     ...cache.metaCampaignDaily.map((r) => ({ campaign: r.campaign, platform: 'Meta', date: r.date, spend: r.spend })),
   ];
+  const resolve = campaignResolver();
+  const leads = cache.leads.map((l) => ({ ...l, campaign: resolve(cache.campaignByEmail.get(l.email) || '') }));
   return {
-    leads: cache.leads, googleDaily: cache.googleDaily, metaDaily: cache.metaDaily,
-    campaignSpend, campaignLeads: resolveCampaigns(cache.campaignLeadsRaw), updatedAt: cache.updatedAt,
+    leads, googleDaily: cache.googleDaily, metaDaily: cache.metaDaily,
+    campaignSpend, updatedAt: cache.updatedAt,
   };
 }
 

@@ -7,11 +7,22 @@
   const COLOR_LEADS = '#3987e5';
   const COLOR_CASES = '#199e70';
   const STATUS_COLORS = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181'];
+  const SOURCES = ['OG', 'Lead Prosper AZ', 'Lead Prosper WA'];
+
+  // Special filter values: leads that count as signed cases, statuses folded into the donut's
+  // "Other" slice, and leads/spend with no campaign tag.
+  const SIGNED = '@signed';
+  const OTHER_STATUSES = '@other';
+  const NO_CAMPAIGN = '@none';
 
   const state = {
-    leads: [], googleDaily: [], metaDaily: [], campaignSpend: [], campaignLeads: [],
-    search: '', statusFilter: 'all',
+    leads: [], campaignSpend: [],
+    search: '',
     range: { key: 'all', start: null, end: null },
+    // Clicking any figure, row, slice, bar or point on the page sets one of these; every table,
+    // tile and chart then re-computes from the leads and spend that match.
+    filters: { status: null, campaign: null, channel: null, platform: null },
+    topStatuses: [],
   };
 
   function escapeHtml(s) {
@@ -58,19 +69,31 @@
     const { key, start, end } = state.range;
     const opt = document.querySelector(`#quick-range option[value="${key}"]`);
     if (key !== 'custom' && opt) return key === 'all' ? '' : '· ' + opt.textContent.toLowerCase();
-    if (start && end) return '· ' + start + ' to ' + end;
+    if (start && end) return '· ' + (start === end ? start : start + ' to ' + end);
     return '';
+  }
+  function rangeText() {
+    const { key, start, end } = state.range;
+    const opt = document.querySelector(`#quick-range option[value="${key}"]`);
+    if (key !== 'custom' && opt) return opt.textContent;
+    return start === end ? start : start + ' to ' + end;
+  }
+  // Sets the date range and keeps the quick-range dropdown and date boxes in step with it.
+  function setRange(key, start, end) {
+    state.range = { key, start, end };
+    const opt = document.querySelector(`#quick-range option[value="${key}"]`);
+    $('#quick-range').value = opt ? key : 'custom';
+    $('#range-start').value = start || '';
+    $('#range-end').value = end || '';
   }
 
   async function fetchData() {
     try {
       const r = await fetch('/sasooness-api/data', { cache: 'no-store' });
+      if (!r.ok) throw new Error('bad status');
       const d = await r.json();
       state.leads = d.leads || [];
-      state.googleDaily = d.googleDaily || [];
-      state.metaDaily = d.metaDaily || [];
       state.campaignSpend = d.campaignSpend || [];
-      state.campaignLeads = d.campaignLeads || [];
       setLive(true);
     } catch (err) {
       setLive(false);
@@ -97,10 +120,38 @@
     return [lead.name, lead.email, lead.phone].some((v) => (v || '').toLowerCase().includes(q));
   }
 
-  // ---- filtered views, recomputed on every render ----
-  function filteredLeads() { return state.leads.filter((l) => inRange(l.createdDate)); }
-  function filteredGoogle() { return state.googleDaily.filter((r) => inRange(r.date)); }
-  function filteredMeta() { return state.metaDaily.filter((r) => inRange(r.date)); }
+  // ---- what matches the current filters ----
+  // A view that offers its own dimension as the thing to click (the donut for status, the
+  // campaign table for campaign, ...) is computed with that one filter skipped, so the other
+  // choices stay on screen to switch to instead of vanishing when one is picked.
+  const campaignPlatform = () => new Map(state.campaignSpend.map((r) => [r.campaign, r.platform]));
+
+  function leadsFor(skip, ignoreDate) {
+    const f = state.filters;
+    const platformOf = f.platform && skip !== 'platform' ? campaignPlatform() : null;
+    return state.leads.filter((l) => {
+      if (!ignoreDate && !inRange(l.createdDate)) return false;
+      if (f.status && skip !== 'status') {
+        if (f.status === SIGNED) { if (!isSignedStatus(l.status)) return false; }
+        else if (f.status === OTHER_STATUSES) { if (state.topStatuses.includes(l.status || '(blank)')) return false; }
+        else if ((l.status || '(blank)') !== f.status) return false;
+      }
+      if (f.campaign && skip !== 'campaign' && (l.campaign || NO_CAMPAIGN) !== f.campaign) return false;
+      if (f.channel && skip !== 'channel' && (SOURCES.includes(l.channel) ? l.channel : 'Other') !== f.channel) return false;
+      if (platformOf && platformOf.get(l.campaign) !== f.platform) return false;
+      return true;
+    });
+  }
+
+  function spendFor(skip) {
+    const f = state.filters;
+    return state.campaignSpend.filter((r) => {
+      if (!inRange(r.date)) return false;
+      if (f.campaign && skip !== 'campaign' && r.campaign !== f.campaign) return false;
+      if (f.platform && skip !== 'platform' && r.platform !== f.platform) return false;
+      return true;
+    });
+  }
 
   function statusGroups(leads) {
     const groups = new Map();
@@ -111,28 +162,60 @@
     return [...groups.entries()].sort((a, b) => b[1] - a[1]);
   }
 
+  function toggleFilter(name, value) {
+    state.filters[name] = state.filters[name] === value ? null : value;
+    render();
+  }
+
+  // ================= active-filter bar =================
+  function filterLabel(name, value) {
+    if (name === 'status') return 'Status: ' + (value === SIGNED ? 'Signed cases' : value === OTHER_STATUSES ? 'Other statuses' : value);
+    if (name === 'campaign') return 'Campaign: ' + (value === NO_CAMPAIGN ? 'No campaign tag' : value);
+    if (name === 'channel') return 'Source: ' + value;
+    return 'Platform: ' + value;
+  }
+  function renderFilterBar() {
+    const chips = Object.entries(state.filters).filter(([, v]) => v).map(([name, v]) =>
+      '<button class="filter-chip" data-clear="' + name + '" title="Remove this filter">' + escapeHtml(filterLabel(name, v)) + '<span aria-hidden="true">&times;</span></button>'
+    );
+    if (state.range.key !== 'all') {
+      chips.push('<button class="filter-chip" data-clear="range" title="Remove this filter">Dates ' + escapeHtml(rangeLabel().replace('· ', '')) + '<span aria-hidden="true">&times;</span></button>');
+    }
+    const bar = $('#filter-bar');
+    bar.hidden = chips.length === 0;
+    bar.innerHTML = chips.length
+      ? '<span class="filter-bar-label">Filtered by</span>' + chips.join('') + '<button class="filter-clear-all" data-clear="all">Clear all</button>'
+      : '';
+  }
+  function clearRange() { setRange('all', null, null); }
+
   // ================= KPI row =================
-  function renderKpis(leads, googleDaily, metaDaily) {
+  function renderKpis(leads, spendRows) {
     const total = leads.length;
     const signed = leads.filter((l) => isSignedStatus(l.status)).length;
     const rejected = leads.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
-    const googleSpend = googleDaily.reduce((a, r) => a + r.spend, 0);
-    const metaSpend = metaDaily.reduce((a, r) => a + r.spend, 0);
+    const googleSpend = spendRows.filter((r) => r.platform === 'Google').reduce((a, r) => a + r.spend, 0);
+    const metaSpend = spendRows.filter((r) => r.platform === 'Meta').reduce((a, r) => a + r.spend, 0);
     const totalSpend = googleSpend + metaSpend;
-    const cpl = total > 0 ? totalSpend / total : 0;
-    const costPerCase = signed > 0 ? totalSpend / signed : 0;
+    // Spend is recorded per campaign and platform, not per lead status or source, so once a
+    // status/source is picked there is no honest spend to divide by.
+    const costsMeaningful = !state.filters.status && !state.filters.channel;
+    const cpl = total > 0 && costsMeaningful ? totalSpend / total : 0;
+    const costPerCase = signed > 0 && costsMeaningful ? totalSpend / signed : 0;
     const conversionRate = total > 0 ? (signed / total) * 100 : 0;
+    const noSplit = 'spend isn’t split by status/source';
 
     const tiles = [
-      ['Total Leads', total.toLocaleString('en-US'), rejected ? rejected.toLocaleString('en-US') + ' rejected' : ''],
-      ['Signed Cases', signed.toLocaleString('en-US'), 'of ' + total.toLocaleString('en-US') + ' leads'],
-      ['Conversion Rate', pct(conversionRate), 'signed ÷ leads'],
-      ['Total Ad Spend', money(totalSpend), money(googleSpend) + ' Google + ' + money(metaSpend) + ' Meta'],
-      ['Cost / Lead', money(cpl), 'spend ÷ leads'],
-      ['Cost / Case', costPerCase ? money(costPerCase) : '—', signed ? 'spend ÷ signed cases' : 'no signed cases yet'],
+      ['leads', 'Total Leads', total.toLocaleString('en-US'), rejected ? rejected.toLocaleString('en-US') + ' rejected' : '', 'Click to clear the filters'],
+      ['signed', 'Signed Cases', signed.toLocaleString('en-US'), 'of ' + total.toLocaleString('en-US') + ' leads', 'Click to show only signed cases'],
+      ['', 'Conversion Rate', pct(conversionRate), 'signed ÷ leads', ''],
+      ['', 'Total Ad Spend', money(totalSpend), money(googleSpend) + ' Google + ' + money(metaSpend) + ' Meta', ''],
+      ['', 'Cost / Lead', cpl ? money(cpl) : '—', costsMeaningful ? 'spend ÷ leads' : noSplit, ''],
+      ['', 'Cost / Case', costPerCase ? money(costPerCase) : '—', !costsMeaningful ? noSplit : signed ? 'spend ÷ signed cases' : 'no signed cases yet', ''],
     ];
-    $('#kpi-row').innerHTML = tiles.map(([label, value, sub]) =>
-      '<div class="kpi"><div class="kpi-label">' + escapeHtml(label) + '</div>' +
+    $('#kpi-row').innerHTML = tiles.map(([key, label, value, sub, hint]) =>
+      '<div class="kpi' + (key ? ' is-clickable' : '') + (key === 'signed' && state.filters.status === SIGNED ? ' is-selected' : '') + '"' + (key ? ' data-tile="' + key + '" title="' + hint + '"' : '') + '>' +
+      '<div class="kpi-label">' + escapeHtml(label) + '</div>' +
       '<div class="kpi-value num">' + value + '</div>' +
       (sub ? '<div class="kpi-sub">' + escapeHtml(sub) + '</div>' : '') + '</div>'
     ).join('');
@@ -163,18 +246,22 @@
   }
 
   // ================= line chart: daily Google vs Meta spend =================
-  function renderSpendChart(googleDaily, metaDaily) {
+  function renderSpendChart() {
     const container = $('#spend-chart');
     container.innerHTML = '';
-    $('#spend-legend').innerHTML =
-      '<span class="legend-item"><span class="legend-swatch legend-swatch--line" style="background:' + COLOR_GOOGLE + '"></span>Google</span>' +
-      '<span class="legend-item"><span class="legend-swatch legend-swatch--line" style="background:' + COLOR_META + '"></span>Meta</span>';
+    const pf = state.filters.platform;
+    const legendItem = (name, color) =>
+      '<button class="legend-item legend-btn' + (pf === name ? ' is-selected' : '') + (pf && pf !== name ? ' is-dim' : '') + '" data-platform="' + name + '" title="Click to filter by ' + name + '">' +
+      '<span class="legend-swatch legend-swatch--line" style="background:' + color + '"></span>' + name + '</button>';
+    $('#spend-legend').innerHTML = legendItem('Google', COLOR_GOOGLE) + legendItem('Meta', COLOR_META);
 
     const byDate = new Map();
-    for (const r of googleDaily) { if (!byDate.has(r.date)) byDate.set(r.date, { google: 0, meta: 0 }); byDate.get(r.date).google += r.spend; }
-    for (const r of metaDaily) { if (!byDate.has(r.date)) byDate.set(r.date, { google: 0, meta: 0 }); byDate.get(r.date).meta += r.spend; }
+    for (const r of spendFor('platform')) {
+      if (!byDate.has(r.date)) byDate.set(r.date, { google: 0, meta: 0 });
+      byDate.get(r.date)[r.platform === 'Google' ? 'google' : 'meta'] += r.spend;
+    }
     const dates = [...byDate.keys()].sort();
-    if (!dates.length) { container.innerHTML = '<div class="empty-msg">No spend recorded yet for this range.</div>'; return; }
+    if (!dates.length) { container.innerHTML = '<div class="empty-msg">No spend recorded for this selection.</div>'; return; }
 
     const W = 900, H = 260, padL = 44, padR = 12, padT = 14, padB = 28;
     const innerW = W - padL - padR, innerH = H - padT - padB;
@@ -183,8 +270,6 @@
     const y = (v) => padT + innerH - (v / maxVal) * innerH;
 
     const svg = svgEl('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', height: H, style: 'display:block;overflow:visible' });
-
-    // gridlines + y labels
     const steps = 4;
     for (let i = 0; i <= steps; i++) {
       const v = (maxVal / steps) * i;
@@ -194,7 +279,6 @@
       label.textContent = '$' + Math.round(v).toLocaleString('en-US');
       svg.appendChild(label);
     }
-    // x labels — about 6 evenly spaced
     const labelEvery = Math.max(1, Math.ceil(dates.length / 6));
     dates.forEach((d, i) => {
       if (i % labelEvery !== 0 && i !== dates.length - 1) return;
@@ -203,11 +287,10 @@
       svg.appendChild(label);
     });
 
-    function linePath(key) {
-      return dates.map((d, i) => (i === 0 ? 'M' : 'L') + x(i) + ',' + y(byDate.get(d)[key])).join(' ');
-    }
-    svg.appendChild(svgEl('path', { d: linePath('google'), fill: 'none', stroke: COLOR_GOOGLE, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
-    svg.appendChild(svgEl('path', { d: linePath('meta'), fill: 'none', stroke: COLOR_META, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    const linePath = (key) => dates.map((d, i) => (i === 0 ? 'M' : 'L') + x(i) + ',' + y(byDate.get(d)[key])).join(' ');
+    const lineOpacity = (name) => (pf && pf !== name ? 0.18 : 1);
+    svg.appendChild(svgEl('path', { d: linePath('google'), fill: 'none', stroke: COLOR_GOOGLE, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', opacity: lineOpacity('Google') }));
+    svg.appendChild(svgEl('path', { d: linePath('meta'), fill: 'none', stroke: COLOR_META, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', opacity: lineOpacity('Meta') }));
 
     const crosshair = svgEl('line', { class: 'viz-crosshair', x1: 0, x2: 0, y1: padT, y2: H - padB, visibility: 'hidden' });
     const dotG = svgEl('circle', { r: 4, fill: COLOR_GOOGLE, stroke: 'var(--surface)', 'stroke-width': 2, visibility: 'hidden' });
@@ -217,7 +300,7 @@
     const hitW = innerW / Math.max(1, dates.length - 1 || 1);
     const tip = ensureTooltip(container);
     dates.forEach((d, i) => {
-      const rect = svgEl('rect', { class: 'bar-hover-rect', x: x(i) - hitW / 2, y: padT, width: hitW, height: innerH });
+      const rect = svgEl('rect', { class: 'bar-hover-rect is-clickable', x: x(i) - hitW / 2, y: padT, width: hitW, height: innerH });
       rect.addEventListener('mouseenter', () => {
         const v = byDate.get(d);
         crosshair.setAttribute('x1', x(i)); crosshair.setAttribute('x2', x(i)); crosshair.setAttribute('visibility', 'visible');
@@ -225,11 +308,13 @@
         dotM.setAttribute('cx', x(i)); dotM.setAttribute('cy', y(v.meta)); dotM.setAttribute('visibility', 'visible');
         tip.innerHTML = '<div class="t-date">' + d + '</div>' +
           '<div class="t-row"><span><span class="legend-swatch" style="background:' + COLOR_GOOGLE + ';display:inline-block;margin-right:5px"></span>Google</span><strong>' + money(v.google) + '</strong></div>' +
-          '<div class="t-row"><span><span class="legend-swatch" style="background:' + COLOR_META + ';display:inline-block;margin-right:5px"></span>Meta</span><strong>' + money(v.meta) + '</strong></div>';
+          '<div class="t-row"><span><span class="legend-swatch" style="background:' + COLOR_META + ';display:inline-block;margin-right:5px"></span>Meta</span><strong>' + money(v.meta) + '</strong></div>' +
+          '<div class="t-hint">Click to filter to this day</div>';
         tip.hidden = false;
-        positionTooltip(tip, container, (x(i) / W) * container.clientWidth, (y(Math.max(v.google, v.meta)) / H) * H);
+        positionTooltip(tip, container, (x(i) / W) * container.clientWidth, y(Math.max(v.google, v.meta)));
       });
       rect.addEventListener('mouseleave', () => { crosshair.setAttribute('visibility', 'hidden'); dotG.setAttribute('visibility', 'hidden'); dotM.setAttribute('visibility', 'hidden'); tip.hidden = true; });
+      rect.addEventListener('click', () => { setRange('custom', d, d); render(); });
       svg.appendChild(rect);
     });
 
@@ -238,15 +323,16 @@
   }
 
   // ================= grouped bar chart: leads vs signed cases per month =================
-  function renderBarChart(leads) {
+  function renderBarChart() {
     const container = $('#bar-chart');
     container.innerHTML = '';
     $('#bar-legend').innerHTML =
       '<span class="legend-item"><span class="legend-swatch" style="background:' + COLOR_LEADS + '"></span>Leads</span>' +
       '<span class="legend-item"><span class="legend-swatch" style="background:' + COLOR_CASES + '"></span>Signed Cases</span>';
 
+    // Months outside the chosen dates stay on screen (dimmed) so another month is one click away.
     const byMonth = new Map();
-    for (const l of leads) {
+    for (const l of leadsFor(null, true)) {
       if (!l.createdDate) continue;
       const key = l.createdDate.slice(0, 7);
       if (!byMonth.has(key)) byMonth.set(key, { leads: 0, cases: 0 });
@@ -254,14 +340,18 @@
       if (isSignedStatus(l.status)) byMonth.get(key).cases++;
     }
     const months = [...byMonth.keys()].sort();
-    if (!months.length) { container.innerHTML = '<div class="empty-msg">No leads in this range.</div>'; return; }
+    if (!months.length) { container.innerHTML = '<div class="empty-msg">No leads for this selection.</div>'; return; }
+    const { start, end } = state.range;
+    const monthInRange = (m) => {
+      const y = Number(m.slice(0, 4)), mo = Number(m.slice(5, 7));
+      return (!end || toISO(startOfMonth(y, mo)) <= end) && (!start || toISO(endOfMonth(y, mo)) >= start);
+    };
 
     const W = 560, H = 260, padL = 34, padR = 10, padT = 14, padB = 30;
     const innerW = W - padL - padR, innerH = H - padT - padB;
     const maxVal = niceMax(Math.max(...months.map((m) => byMonth.get(m).leads)));
     const groupW = innerW / months.length;
     const barW = Math.min(22, groupW * 0.32);
-    const y0 = padT + innerH;
     const yOf = (v) => padT + innerH - (v / maxVal) * innerH;
 
     const svg = svgEl('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', height: H, style: 'display:block;overflow:visible' });
@@ -281,26 +371,30 @@
       const cx = padL + groupW * i + groupW / 2;
       const v = byMonth.get(m);
       const gap = 3;
-      const leadsX = cx - barW - gap / 2, casesX = cx + gap / 2;
-      const leadsH = innerH - (yOf(v.leads) - padT), casesH = innerH - (yOf(v.cases) - padT);
-
-      const rLeads = svgEl('rect', { x: leadsX, y: yOf(v.leads), width: barW, height: leadsH, rx: 3, fill: COLOR_LEADS });
-      const rCases = svgEl('rect', { x: casesX, y: yOf(v.cases), width: barW, height: casesH, rx: 3, fill: COLOR_CASES });
-      svg.appendChild(rLeads); svg.appendChild(rCases);
-
+      const on = monthInRange(m);
+      const g = svgEl('g', { opacity: on ? 1 : 0.3 });
+      g.appendChild(svgEl('rect', { x: cx - barW - gap / 2, y: yOf(v.leads), width: barW, height: innerH - (yOf(v.leads) - padT), rx: 3, fill: COLOR_LEADS }));
+      g.appendChild(svgEl('rect', { x: cx + gap / 2, y: yOf(v.cases), width: barW, height: innerH - (yOf(v.cases) - padT), rx: 3, fill: COLOR_CASES }));
+      svg.appendChild(g);
       const label = svgEl('text', { class: 'viz-axis-label', x: cx, y: H - 8, 'text-anchor': 'middle' });
       label.textContent = monthName(m);
       svg.appendChild(label);
 
-      const hit = svgEl('rect', { class: 'bar-hover-rect', x: padL + groupW * i, y: padT, width: groupW, height: innerH });
-      hit.addEventListener('mouseenter', (e) => {
-        tip.innerHTML = '<div class="t-date">' + monthName(m) + ' 2026</div>' +
+      const hit = svgEl('rect', { class: 'bar-hover-rect is-clickable', x: padL + groupW * i, y: padT, width: groupW, height: innerH });
+      hit.addEventListener('mouseenter', () => {
+        tip.innerHTML = '<div class="t-date">' + monthName(m) + ' ' + m.slice(0, 4) + '</div>' +
           '<div class="t-row"><span><span class="legend-swatch" style="background:' + COLOR_LEADS + ';display:inline-block;margin-right:5px"></span>Leads</span><strong>' + v.leads + '</strong></div>' +
-          '<div class="t-row"><span><span class="legend-swatch" style="background:' + COLOR_CASES + ';display:inline-block;margin-right:5px"></span>Signed Cases</span><strong>' + v.cases + '</strong></div>';
+          '<div class="t-row"><span><span class="legend-swatch" style="background:' + COLOR_CASES + ';display:inline-block;margin-right:5px"></span>Signed Cases</span><strong>' + v.cases + '</strong></div>' +
+          '<div class="t-hint">Click to filter to this month</div>';
         tip.hidden = false;
-        positionTooltip(tip, container, (cx / W) * container.clientWidth, (yOf(Math.max(v.leads, v.cases)) / H) * H);
+        positionTooltip(tip, container, (cx / W) * container.clientWidth, yOf(v.leads));
       });
       hit.addEventListener('mouseleave', () => { tip.hidden = true; });
+      hit.addEventListener('click', () => {
+        const y = Number(m.slice(0, 4)), mo = Number(m.slice(5, 7));
+        if (state.range.key === m) clearRange(); else setRange(m, toISO(startOfMonth(y, mo)), toISO(endOfMonth(y, mo)));
+        render();
+      });
       svg.appendChild(hit);
     });
 
@@ -309,17 +403,20 @@
   }
 
   // ================= donut chart: leads by status =================
-  function renderPieChart(leads) {
+  function renderPieChart() {
     const container = $('#pie-chart');
     container.innerHTML = '';
-    if (!leads.length) { container.innerHTML = '<div class="empty-msg">No leads in this range.</div>'; return; }
+    const leads = leadsFor('status');
+    if (!leads.length) { container.innerHTML = '<div class="empty-msg">No leads for this selection.</div>'; return; }
 
     const groups = statusGroups(leads);
     const top = groups.slice(0, 4);
     const otherCount = groups.slice(4).reduce((a, [, c]) => a + c, 0);
-    const slices = otherCount > 0 ? [...top, ['Other', otherCount]] : top;
-    const colors = STATUS_COLORS;
+    const slices = otherCount > 0 ? [...top, [OTHER_STATUSES, otherCount]] : top;
+    const sliceName = (key) => (key === OTHER_STATUSES ? 'Other' : key);
     const total = leads.length;
+    const sf = state.filters.status;
+    const isSelected = (key) => sf === key || (sf === SIGNED && isSignedStatus(key));
 
     const size = 220, cx = size / 2, cy = size / 2, rOuter = 92, rInner = 58;
     const svg = svgEl('svg', { viewBox: '0 0 ' + size + ' ' + size, width: size, height: size });
@@ -328,7 +425,7 @@
     const wrap = document.createElement('div');
     wrap.style.cssText = 'display:flex;align-items:center;gap:22px;flex-wrap:wrap;justify-content:center';
 
-    slices.forEach(([status, count], i) => {
+    slices.forEach(([key, count], i) => {
       const frac = count / total;
       const a0 = angle, a1 = angle + frac * Math.PI * 2;
       angle = a1;
@@ -337,19 +434,20 @@
       const p1o = [cx + rOuter * Math.cos(a1), cy + rOuter * Math.sin(a1)];
       const p0i = [cx + rInner * Math.cos(a1), cy + rInner * Math.sin(a1)];
       const p1i = [cx + rInner * Math.cos(a0), cy + rInner * Math.sin(a0)];
-      const d = ['M', p0o.join(','), 'A', rOuter, rOuter, 0, large, 1, p1o.join(','), 'L', p0i.join(','), 'A', rInner, rInner, 0, large, 0, p1i.join(','), 'Z'].join(' ');
-      const path = svgEl('path', { d, fill: colors[i % colors.length], stroke: 'var(--surface)', 'stroke-width': 2 });
+      const d = frac >= 0.9999
+        ? ['M', cx, cy - rOuter, 'A', rOuter, rOuter, 0, 1, 1, cx - 0.01, cy - rOuter, 'L', cx - 0.01, cy - rInner, 'A', rInner, rInner, 0, 1, 0, cx, cy - rInner, 'Z'].join(' ')
+        : ['M', p0o.join(','), 'A', rOuter, rOuter, 0, large, 1, p1o.join(','), 'L', p0i.join(','), 'A', rInner, rInner, 0, large, 0, p1i.join(','), 'Z'].join(' ');
+      const dim = sf && !isSelected(key);
+      const path = svgEl('path', { d, class: 'is-clickable', fill: STATUS_COLORS[i % STATUS_COLORS.length], stroke: 'var(--surface)', 'stroke-width': 2, opacity: dim ? 0.3 : 1 });
       path.addEventListener('mouseenter', (e) => {
-        tip.innerHTML = '<div class="t-row"><span><span class="legend-swatch" style="background:' + colors[i % colors.length] + ';display:inline-block;margin-right:5px"></span>' + escapeHtml(status) + '</span><strong>' + count + ' (' + pct((count / total) * 100) + ')</strong></div>';
+        tip.innerHTML = '<div class="t-row"><span><span class="legend-swatch" style="background:' + STATUS_COLORS[i % STATUS_COLORS.length] + ';display:inline-block;margin-right:5px"></span>' + escapeHtml(sliceName(key)) + '</span><strong>' + count + ' (' + pct((count / total) * 100) + ')</strong></div><div class="t-hint">Click to filter to this status</div>';
         tip.hidden = false;
         const rect = container.getBoundingClientRect();
         positionTooltip(tip, container, e.clientX - rect.left, e.clientY - rect.top);
       });
-      path.addEventListener('mousemove', (e) => {
-        const rect = container.getBoundingClientRect();
-        positionTooltip(tip, container, e.clientX - rect.left, e.clientY - rect.top);
-      });
+      path.addEventListener('mousemove', (e) => { const rect = container.getBoundingClientRect(); positionTooltip(tip, container, e.clientX - rect.left, e.clientY - rect.top); });
       path.addEventListener('mouseleave', () => { tip.hidden = true; });
+      path.addEventListener('click', () => { tip.hidden = true; toggleFilter('status', key); });
       svg.appendChild(path);
     });
 
@@ -360,9 +458,8 @@
     svg.appendChild(centerVal); svg.appendChild(centerSub);
 
     const legend = document.createElement('div');
-    legend.innerHTML = slices.map(([status, count], i) =>
-      '<div class="legend-item" style="margin-bottom:7px"><span class="legend-swatch" style="background:' + colors[i % colors.length] + '"></span>' +
-      escapeHtml(status) + ' &middot; ' + count + '</div>'
+    legend.innerHTML = slices.map(([key, count], i) =>
+      '<button class="legend-item legend-btn' + (isSelected(key) ? ' is-selected' : '') + (sf && !isSelected(key) ? ' is-dim' : '') + '" data-status="' + escapeHtml(key) + '" style="display:flex;margin-bottom:7px"><span class="legend-swatch" style="background:' + STATUS_COLORS[i % STATUS_COLORS.length] + '"></span>' + escapeHtml(sliceName(key)) + ' &middot; ' + count + '</button>'
     ).join('');
 
     container.style.position = 'relative';
@@ -371,46 +468,11 @@
     container.appendChild(tip);
   }
 
-  // ================= lead details table (secondary) =================
-  function renderChips(leads) {
-    const groups = statusGroups(leads);
-    const chips = ['<button class="chip' + (state.statusFilter === 'all' ? ' is-active' : '') + '" data-status="all">All<span class="n">' + leads.length + '</span></button>']
-      .concat(groups.map(([status, count]) =>
-        '<button class="chip' + (state.statusFilter === status ? ' is-active' : '') + '" data-status="' + escapeHtml(status) + '">' + escapeHtml(status) + '<span class="n">' + count + '</span></button>'
-      ));
-    $('#status-chips').innerHTML = chips.join('');
-    $('#status-chips').querySelectorAll('.chip').forEach((btn) => {
-      btn.addEventListener('click', () => { state.statusFilter = btn.dataset.status; render(); });
-    });
-  }
-
-  function renderLeadsTable(leads) {
-    const rows = leads
-      .filter((l) => (state.statusFilter === 'all' || (l.status || '(blank)') === state.statusFilter) && matchesSearch(l))
-      .sort((a, b) => (b.createdDate || '').localeCompare(a.createdDate || ''));
-
-    $('#lead-count').textContent = leads.length.toLocaleString('en-US');
-    $('#range-label').textContent = rangeLabel();
-    $('#leads-empty').hidden = rows.length > 0;
-    $('#leads-body').innerHTML = rows.map((l) => (
-      '<tr>' +
-        '<td><div class="name-cell">' + escapeHtml(l.name || '(no name)') + '</div><div class="email-cell">' + escapeHtml(l.email) + (l.phone ? ' &middot; ' + escapeHtml(l.phone) : '') + '</div></td>' +
-        '<td><span class="status-pill ' + statusClass(l.status) + '">' + escapeHtml(l.status || '—') + '</span>' + (l.subStatus ? '<div class="kpi-sub" style="margin-top:4px">' + escapeHtml(l.subStatus) + '</div>' : '') + '</td>' +
-        '<td>' + escapeHtml(l.caseType || '—') + '</td>' +
-        '<td>' + escapeHtml(l.createdDate || '—') + '</td>' +
-        '<td>' + escapeHtml(l.signedUpDate || '—') + '</td>' +
-        '<td>' + escapeHtml(l.state || '—') + '</td>' +
-        '<td>' + escapeHtml(l.severity || '—') + '</td>' +
-        '<td>' + escapeHtml(l.marketingSource || '—') + '</td>' +
-        '<td><span class="source-tag">' + escapeHtml(l.channel || 'CRM only') + '</span></td>' +
-      '</tr>'
-    )).join('');
-  }
-
   // ================= performance by campaign =================
   function renderCampaigns() {
-    const spendRows = state.campaignSpend.filter((r) => inRange(r.date));
-    const leadRows = state.campaignLeads.filter((r) => inRange(r.date));
+    const spendRows = spendFor('campaign');
+    const leadRows = leadsFor('campaign');
+    const selected = state.filters.campaign;
     const byCampaign = new Map();
     const get = (name, platform) => {
       if (!byCampaign.has(name)) byCampaign.set(name, { name, platform: platform || '', spend: 0, leads: 0, first: '9999', last: '' });
@@ -425,92 +487,155 @@
       if (r.date > row.last) row.last = r.date;
     }
     let unattributed = 0;
-    for (const r of leadRows) { if (!r.campaign) unattributed++; else get(r.campaign).leads++; }
+    for (const l of leadRows) { if (!l.campaign) unattributed++; else get(l.campaign).leads++; }
 
     const rows = [...byCampaign.values()].filter((r) => r.spend > 0 || r.leads > 0).sort((a, b) => b.spend - a.spend);
     const totalSpend = rows.reduce((s, r) => s + r.spend, 0);
     const totalLeads = rows.reduce((s, r) => s + r.leads, 0) + unattributed;
-    $('#campaign-sub').textContent = rows.length ? rows.length + ' campaigns' : '';
+    $('#campaign-sub').textContent = rows.length ? rows.length + ' campaigns · click a row to filter' : '';
     $('#campaign-empty').hidden = rows.length > 0 || unattributed > 0;
     if (!rows.length && !unattributed) { $('#campaign-body').innerHTML = ''; return; }
 
-    const tag = (p) => p ? '<span class="platform-tag platform-tag--' + p.toLowerCase() + '">' + escapeHtml(p) + '</span>' : '\u2014';
+    const cls = (key) => 'is-clickable' + (selected === key ? ' is-selected' : selected ? ' is-dim' : '');
+    const tag = (p) => p ? '<button class="platform-tag platform-tag--' + p.toLowerCase() + (state.filters.platform === p ? ' is-selected' : '') + '" data-platform="' + p + '" title="Click to filter by ' + p + '">' + escapeHtml(p) + '</button>' : '—';
     let html = rows.map((r) => (
-      '<tr>' +
-        '<td><div class="name-cell">' + escapeHtml(r.name) + '</div>' + (r.first <= r.last ? '<div class="email-cell">' + escapeHtml(r.first) + ' \u2192 ' + escapeHtml(r.last) + '</div>' : '') + '</td>' +
+      '<tr class="' + cls(r.name) + '" data-campaign="' + escapeHtml(r.name) + '">' +
+        '<td><div class="name-cell">' + escapeHtml(r.name) + '</div>' + (r.first <= r.last ? '<div class="email-cell">' + escapeHtml(r.first) + ' → ' + escapeHtml(r.last) + '</div>' : '') + '</td>' +
         '<td>' + tag(r.platform) + '</td>' +
         '<td class="td-num num">' + money(r.spend) + '</td>' +
         '<td class="td-num num">' + r.leads.toLocaleString('en-US') + '</td>' +
-        '<td class="td-num num">' + (r.leads > 0 && r.spend > 0 ? money(r.spend / r.leads) : '\u2014') + '</td>' +
-        '<td class="td-num num">' + (totalSpend > 0 ? pct((r.spend / totalSpend) * 100) : '\u2014') + '</td>' +
+        '<td class="td-num num">' + (r.leads > 0 && r.spend > 0 ? money(r.spend / r.leads) : '—') + '</td>' +
+        '<td class="td-num num">' + (totalSpend > 0 ? pct((r.spend / totalSpend) * 100) : '—') + '</td>' +
       '</tr>'
     )).join('');
     if (unattributed > 0) {
-      html += '<tr class="row-muted"><td><div class="name-cell">No campaign tag</div><div class="email-cell">leads without a UTM campaign</div></td><td>\u2014</td><td class="td-num num">\u2014</td><td class="td-num num">' + unattributed.toLocaleString('en-US') + '</td><td class="td-num num">\u2014</td><td class="td-num num">\u2014</td></tr>';
+      html += '<tr class="row-muted ' + cls(NO_CAMPAIGN) + '" data-campaign="' + NO_CAMPAIGN + '"><td><div class="name-cell">No campaign tag</div><div class="email-cell">leads without a UTM campaign</div></td><td>—</td><td class="td-num num">—</td><td class="td-num num">' + unattributed.toLocaleString('en-US') + '</td><td class="td-num num">—</td><td class="td-num num">—</td></tr>';
     }
-    html += '<tr class="row-total"><td>Total</td><td></td><td class="td-num num">' + money(totalSpend) + '</td><td class="td-num num">' + totalLeads.toLocaleString('en-US') + '</td><td class="td-num num">' + (totalLeads > 0 && totalSpend > 0 ? money(totalSpend / totalLeads) : '\u2014') + '</td><td class="td-num num">' + (totalSpend > 0 ? '100%' : '\u2014') + '</td></tr>';
+    html += '<tr class="row-total"><td>Total</td><td></td><td class="td-num num">' + money(totalSpend) + '</td><td class="td-num num">' + totalLeads.toLocaleString('en-US') + '</td><td class="td-num num">' + (totalLeads > 0 && totalSpend > 0 ? money(totalSpend / totalLeads) : '—') + '</td><td class="td-num num">' + (totalSpend > 0 ? '100%' : '—') + '</td></tr>';
     $('#campaign-body').innerHTML = html;
   }
 
   // ================= leads by source (OG / Lead Prosper AZ / Lead Prosper WA) =================
-  const SOURCES = ['OG', 'Lead Prosper AZ', 'Lead Prosper WA'];
-  function renderSources(leads) {
+  function renderSources() {
+    const leads = leadsFor('channel');
+    const selected = state.filters.channel;
     const groups = new Map(SOURCES.map((s) => [s, []]));
     groups.set('Other', []);
     for (const l of leads) groups.get(SOURCES.includes(l.channel) ? l.channel : 'Other').push(l);
-    const line = (name, list, muted) => {
+    const cls = (key, empty) => 'is-clickable' + (empty ? ' row-muted' : '') + (selected === key ? ' is-selected' : selected ? ' is-dim' : '');
+    const line = (name, list) => {
       const signed = list.filter((l) => isSignedStatus(l.status)).length;
       const rejected = list.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
-      return '<tr' + (muted ? ' class="row-muted"' : '') + '><td class="name-cell">' + escapeHtml(name) + '</td>' +
+      return '<tr class="' + cls(name, list.length === 0) + '" data-channel="' + escapeHtml(name) + '"><td class="name-cell">' + escapeHtml(name) + '</td>' +
         '<td class="td-num num">' + list.length.toLocaleString('en-US') + '</td>' +
         '<td class="td-num num">' + signed.toLocaleString('en-US') + '</td>' +
-        '<td class="td-num num">' + (list.length ? pct((signed / list.length) * 100) : '\u2014') + '</td>' +
+        '<td class="td-num num">' + (list.length ? pct((signed / list.length) * 100) : '—') + '</td>' +
         '<td class="td-num num">' + rejected.toLocaleString('en-US') + '</td></tr>';
     };
     let html = '';
-    for (const [name, list] of groups) html += line(name, list, list.length === 0);
+    for (const [name, list] of groups) html += line(name, list);
     const signedAll = leads.filter((l) => isSignedStatus(l.status)).length;
     const rejectedAll = leads.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
-    html += '<tr class="row-total"><td>Total</td><td class="td-num num">' + leads.length.toLocaleString('en-US') + '</td><td class="td-num num">' + signedAll.toLocaleString('en-US') + '</td><td class="td-num num">' + (leads.length ? pct((signedAll / leads.length) * 100) : '\u2014') + '</td><td class="td-num num">' + rejectedAll.toLocaleString('en-US') + '</td></tr>';
+    html += '<tr class="row-total"><td>Total</td><td class="td-num num">' + leads.length.toLocaleString('en-US') + '</td><td class="td-num num">' + signedAll.toLocaleString('en-US') + '</td><td class="td-num num">' + (leads.length ? pct((signedAll / leads.length) * 100) : '—') + '</td><td class="td-num num">' + rejectedAll.toLocaleString('en-US') + '</td></tr>';
     $('#source-body').innerHTML = html;
   }
 
+  // ================= lead details table (secondary) =================
+  function renderChips() {
+    const base = leadsFor('status');
+    const groups = statusGroups(base);
+    const sf = state.filters.status;
+    const chips = ['<button class="chip' + (!sf ? ' is-active' : '') + '" data-status="">All<span class="n">' + base.length + '</span></button>']
+      .concat(groups.map(([status, count]) =>
+        '<button class="chip' + (sf === status ? ' is-active' : '') + '" data-status="' + escapeHtml(status) + '">' + escapeHtml(status) + '<span class="n">' + count + '</span></button>'
+      ));
+    $('#status-chips').innerHTML = chips.join('');
+  }
+
+  function renderLeadsTable(leads) {
+    const rows = leads.filter(matchesSearch).sort((a, b) => (b.createdDate || '').localeCompare(a.createdDate || ''));
+    $('#lead-count').textContent = leads.length.toLocaleString('en-US');
+    $('#range-label').textContent = rangeLabel();
+    $('#leads-empty').hidden = rows.length > 0;
+    $('#leads-body').innerHTML = rows.map((l) => (
+      '<tr>' +
+        '<td><div class="name-cell">' + escapeHtml(l.name || '(no name)') + '</div><div class="email-cell">' + escapeHtml(l.email) + (l.phone ? ' &middot; ' + escapeHtml(l.phone) : '') + '</div></td>' +
+        '<td><span class="status-pill ' + statusClass(l.status) + '">' + escapeHtml(l.status || '—') + '</span>' + (l.subStatus ? '<div class="kpi-sub" style="margin-top:4px">' + escapeHtml(l.subStatus) + '</div>' : '') + '</td>' +
+        '<td>' + escapeHtml(l.caseType || '—') + '</td>' +
+        '<td>' + escapeHtml(l.createdDate || '—') + '</td>' +
+        '<td>' + escapeHtml(l.signedUpDate || '—') + '</td>' +
+        '<td>' + escapeHtml(l.state || '—') + '</td>' +
+        '<td>' + escapeHtml(l.severity || '—') + '</td>' +
+        '<td>' + escapeHtml(l.marketingSource || '—') + '</td>' +
+        '<td><span class="source-tag">' + escapeHtml(l.channel || 'Other') + '</span></td>' +
+      '</tr>'
+    )).join('');
+  }
+
   function render() {
-    const leads = filteredLeads();
-    const googleDaily = filteredGoogle();
-    const metaDaily = filteredMeta();
-    renderKpis(leads, googleDaily, metaDaily);
-    renderSpendChart(googleDaily, metaDaily);
-    renderBarChart(leads);
-    renderPieChart(leads);
+    // Which statuses the donut shows individually (the rest fold into "Other") — computed first
+    // because an "Other statuses" filter is defined in terms of it.
+    state.topStatuses = statusGroups(leadsFor('status')).slice(0, 4).map(([s]) => s);
+    const leads = leadsFor();
+    renderFilterBar();
+    renderKpis(leads, spendFor());
+    renderSpendChart();
+    renderBarChart();
+    renderPieChart();
     renderCampaigns();
-    renderSources(leads);
-    renderChips(leads);
+    renderSources();
+    renderChips();
     renderLeadsTable(leads);
   }
+
+  // ---- click handling: everything clickable is wired here by data attribute ----
+  document.addEventListener('click', (e) => {
+    const clear = e.target.closest('[data-clear]');
+    if (clear) {
+      const what = clear.dataset.clear;
+      if (what === 'all') { state.filters = { status: null, campaign: null, channel: null, platform: null }; clearRange(); }
+      else if (what === 'range') clearRange();
+      else state.filters[what] = null;
+      render();
+      return;
+    }
+    const tile = e.target.closest('[data-tile]');
+    if (tile) {
+      if (tile.dataset.tile === 'signed') toggleFilter('status', SIGNED);
+      else { state.filters = { status: null, campaign: null, channel: null, platform: null }; render(); }
+      return;
+    }
+    const platform = e.target.closest('[data-platform]');
+    if (platform) { e.stopPropagation(); toggleFilter('platform', platform.dataset.platform); return; }
+    const chip = e.target.closest('.chip[data-status]');
+    if (chip) { state.filters.status = chip.dataset.status || null; render(); return; }
+    const legend = e.target.closest('.legend-btn[data-status]');
+    if (legend) { toggleFilter('status', legend.dataset.status); return; }
+    const campaignRow = e.target.closest('tr[data-campaign]');
+    if (campaignRow) { toggleFilter('campaign', campaignRow.dataset.campaign); return; }
+    const sourceRow = e.target.closest('tr[data-channel]');
+    if (sourceRow) { toggleFilter('channel', sourceRow.dataset.channel); return; }
+  });
 
   // ---- date-range controls ----
   $('#quick-range').addEventListener('change', (e) => {
     const key = e.target.value;
     if (key === 'custom') { $('#range-start').focus(); return; }
     const { start, end } = computeRange(key);
-    state.range = { key, start, end };
-    $('#range-start').value = start || ''; $('#range-end').value = end || '';
+    setRange(key, start, end);
     render();
   });
   function applyCustomRange() {
     const start = $('#range-start').value || null, end = $('#range-end').value || null;
     if (!start && !end) return;
-    state.range = { key: 'custom', start, end };
-    $('#quick-range').value = 'custom';
+    setRange('custom', start, end);
     render();
   }
   $('#range-start').addEventListener('change', applyCustomRange);
   $('#range-end').addEventListener('change', applyCustomRange);
   $('#range-clear').addEventListener('click', () => {
-    $('#quick-range').value = 'all';
-    $('#range-start').value = ''; $('#range-end').value = '';
-    state.range = { key: 'all', start: null, end: null };
+    state.filters = { status: null, campaign: null, channel: null, platform: null };
+    clearRange();
     render();
   });
 

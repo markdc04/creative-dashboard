@@ -60,6 +60,8 @@
     </div>
   </div>
 
+  <div class="filter-bar" id="filter-bar" hidden></div>
+
   <div class="kpi-row" id="kpi-row"></div>
 
   <div class="chart-row">
@@ -86,6 +88,20 @@
       </div>
       <div id="pie-chart" class="chart-slot chart-slot--pie"></div>
     </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2 class="panel-title">Signed Cases by Ad</h2>
+      <span class="panel-sub" id="ad-sub"></span>
+    </div>
+    <div class="table-scroll table-scroll--short">
+      <table>
+        <thead><tr><th>Ad</th><th class="th-num">Signed Cases</th><th class="th-num">% of Cases</th></tr></thead>
+        <tbody id="ad-body"></tbody>
+      </table>
+    </div>
+    <div id="ad-empty" class="empty-msg" hidden>No signed cases in this range.</div>
   </div>
 
   <p class="footnote">Leads and signed cases come from the Getloud Active Client workbook (ALL LEADS and ALL CLIENT CASES tabs, KM Law only). Ad spend is the KM Law Meta campaign plus the Google campaign &ldquo;W2 PA - General (including KM)&rdquo;. Marketing fee is the per-lead fee from the KM Law tab times leads, and the ad budget is that tab's monthly AD Budget spread by day. CPC here means cost per case. Everything before spend tracking began on Jan 1, 2026 is left out.</p>

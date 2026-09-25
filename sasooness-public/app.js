@@ -773,16 +773,14 @@
       '</tr>';
     }).join('');
 
-    // One strip of facts per Walker campaign: what was sent, what Walker logged, what it spent, and
-    // the Sasooness ad spend that follows from the day-by-day table below.
+    // One strip of facts per Walker campaign: the Sasooness ad spend that follows from the day-by-day
+    // table below, the campaign, and the leads sent.
     const cents0 = (n) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     $('#deduct-facts').innerHTML = rows.length ? rows.map((r) => {
       const statuses = r.statuses.map(([st, k]) => k + ' ' + st.toLowerCase()).join(' · ');
-      return '<div class="fact"><div class="fact-label">Walker campaign</div><div class="fact-value">' + escapeHtml(r.name) + '</div></div>' +
-        '<div class="fact"><div class="fact-label">Sent to Sasooness</div><div class="fact-value">' + r.n + ' lead' + (r.n === 1 ? '' : 's') + '</div><div class="fact-sub">' + escapeHtml(statuses) + '</div></div>' +
-        '<div class="fact"><div class="fact-label">Walker leads (period)</div><div class="fact-value">' + r.all.toLocaleString('en-US') + '</div><div class="fact-sub">' + r.qual.toLocaleString('en-US') + ' qualified · ' + (r.all - r.qual).toLocaleString('en-US') + ' disqualified</div></div>' +
-        '<div class="fact"><div class="fact-label">Campaign ad spend (period)</div><div class="fact-value">' + cents0(r.spend) + '</div><div class="fact-sub">avg ' + (r.cpl ? cents0(r.cpl) : dash) + ' per lead</div></div>' +
-        '<div class="fact fact--total"><div class="fact-label">Sasooness ad spend</div><div class="fact-value">' + cents0(r.deduct) + '</div><div class="fact-sub">sum of the days below</div></div>';
+      return '<div class="fact fact--total"><div class="fact-label">Sasooness ad spend</div><div class="fact-value">' + cents0(r.deduct) + '</div><div class="fact-sub">already spent in Walker’s campaign · sum of the days below</div></div>' +
+        '<div class="fact"><div class="fact-label">Walker campaign</div><div class="fact-value">' + escapeHtml(r.name) + '</div></div>' +
+        '<div class="fact"><div class="fact-label">Sent to Sasooness</div><div class="fact-value">' + r.n + ' lead' + (r.n === 1 ? '' : 's') + '</div><div class="fact-sub">' + escapeHtml(statuses) + '</div></div>';
     }).join('') : '<div class="fact"><div class="fact-value">No Walker campaign found for the leads in this range.</div></div>';
 
     // Two decimals here so every step can be checked by hand: spend ÷ Walker leads = cost per

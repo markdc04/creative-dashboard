@@ -212,16 +212,16 @@
 
   // ================= KPI row =================
   // What Sasooness's Agency/PPL leads cost in Walker's campaigns, day by day. A lead's cost lands on
-  // the day Walker logged it (when the campaign paid for it): that day's campaign spend divided
-  // by every lead Walker logged from the campaign that day, whatever its status. Summing the
-  // sent leads' daily costs gives the ad spend already used on Sasooness's leads.
+  // the day it reached Sasooness: that day's campaign spend divided by every lead Walker logged
+  // from the campaign that day, whatever its status. Summing the sent leads' daily costs gives the
+  // ad spend already used on Sasooness's leads.
   function partnerDeduction(leads) {
     const sent = new Map();
     for (const l of leads) {
       const o = l.origin;
-      if (!o || !o.campaignId || !o.walkerDate) continue;
-      const key = o.campaignId + '|' + o.walkerDate;
-      if (!sent.has(key)) sent.set(key, { campaignId: o.campaignId, date: o.walkerDate, n: 0 });
+      if (!o || !o.campaignId || !l.createdDate) continue;
+      const key = o.campaignId + '|' + l.createdDate;
+      if (!sent.has(key)) sent.set(key, { campaignId: o.campaignId, date: l.createdDate, n: 0 });
       sent.get(key).n++;
     }
     const nameOf = new Map(state.walker.campaigns.map((c) => [c.campaignId, c.name]));
@@ -677,7 +677,7 @@
   }
 
   // Cost per lead for each lead: a partner (Agency/PPL) lead carries its Walker campaign's cost per
-  // lead on the day Walker logged it (all leads, regardless of status); an OG lead carries its own
+  // lead on the day it reached Sasooness (all leads, regardless of status); an OG lead carries its own
   // campaign's spend divided by that campaign's leads, the same figure as the campaign table.
   function cplMaps() {
     const walker = new Map(); // campaignId|date -> that day's cost per lead
@@ -708,14 +708,14 @@
       const campaignName = o.campaignName || l.campaign;
       let cplHtml = dash;
       if (partner) {
-        const c = cpl.walker.get(o.campaignId + '|' + o.walkerDate);
+        const c = cpl.walker.get(o.campaignId + '|' + l.createdDate);
         if (c) cplHtml = money(c);
       } else if (cpl.og.get(l.campaign)) {
         cplHtml = money(cpl.og.get(l.campaign));
       }
       return '<tr>' +
         '<td><div class="name-cell">' + escapeHtml(l.name || '(no name)') + '</div><div class="email-cell">' + escapeHtml(l.email || l.phone || '') + (l.email && l.phone ? ' &middot; ' + escapeHtml(l.phone) : '') + '</div></td>' +
-        '<td>' + escapeHtml(l.createdDate || dash) + (partner && o.walkerDate && o.walkerDate !== l.createdDate ? '<div class="email-cell">cost day ' + escapeHtml(o.walkerDate) + '</div>' : '') + '</td>' +
+        '<td>' + escapeHtml(l.createdDate || dash) + '' + '</td>' +
         '<td><span class="status-pill ' + statusClass(l.status) + '">' + escapeHtml(l.status || dash) + '</span>' + (l.subStatus ? '<div class="kpi-sub" style="margin-top:4px">' + escapeHtml(l.subStatus) + '</div>' : '') + '</td>' +
         '<td>' + escapeHtml(source || dash) + '</td>' +
         '<td><div class="name-cell">' + escapeHtml(campaignName || dash) + '</div>' + (o.campaignId ? '<div class="email-cell">ID ' + escapeHtml(o.campaignId) + '</div>' : '') + '</td>' +

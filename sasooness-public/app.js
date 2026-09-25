@@ -773,17 +773,17 @@
       '</tr>';
     }).join('');
 
-    const tot = rows.reduce((t, r) => ({ n: t.n + r.n, deduct: t.deduct + r.deduct }), { n: 0, deduct: 0 });
-    $('#deduct-body').innerHTML = rows.map((r) => (
-      '<tr><td class="name-cell">' + escapeHtml(r.name) + '</td>' +
-      '<td class="td-num num">' + r.n + '</td>' +
-      '<td>' + r.statuses.map(([st, k]) => '<div><strong>' + k + '</strong> ' + escapeHtml(st) + '</div>').join('') + '</td>' +
-      '<td class="td-num num">' + money(r.spend) + '</td>' +
-      '<td class="td-num num">' + r.all.toLocaleString('en-US') + '<div class="email-cell">' + r.qual.toLocaleString('en-US') + ' qualified &middot; ' + (r.all - r.qual).toLocaleString('en-US') + ' disqualified</div></td>' +
-      '<td class="td-num num">' + (r.cpl ? money(r.cpl) : dash) + '</td><td class="td-num num">' + (r.deduct ? money(r.deduct) : dash) + '</td></tr>'
-    )).join('') + (rows.length
-      ? '<tr class="row-total"><td>Total</td><td class="td-num num">' + tot.n + '</td><td></td><td></td><td></td><td></td><td class="td-num num">' + money(tot.deduct) + '</td></tr>'
-      : '<tr class="row-muted"><td colspan="7">No Walker campaign found for the leads in this range.</td></tr>');
+    // One strip of facts per Walker campaign: what was sent, what Walker logged, what it spent, and
+    // the Sasooness ad spend that follows from the day-by-day table below.
+    const cents0 = (n) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    $('#deduct-facts').innerHTML = rows.length ? rows.map((r) => {
+      const statuses = r.statuses.map(([st, k]) => k + ' ' + st.toLowerCase()).join(' · ');
+      return '<div class="fact"><div class="fact-label">Walker campaign</div><div class="fact-value">' + escapeHtml(r.name) + '</div></div>' +
+        '<div class="fact"><div class="fact-label">Sent to Sasooness</div><div class="fact-value">' + r.n + ' lead' + (r.n === 1 ? '' : 's') + '</div><div class="fact-sub">' + escapeHtml(statuses) + '</div></div>' +
+        '<div class="fact"><div class="fact-label">Walker leads (period)</div><div class="fact-value">' + r.all.toLocaleString('en-US') + '</div><div class="fact-sub">' + r.qual.toLocaleString('en-US') + ' qualified · ' + (r.all - r.qual).toLocaleString('en-US') + ' disqualified</div></div>' +
+        '<div class="fact"><div class="fact-label">Campaign ad spend (period)</div><div class="fact-value">' + cents0(r.spend) + '</div><div class="fact-sub">avg ' + (r.cpl ? cents0(r.cpl) : dash) + ' per lead</div></div>' +
+        '<div class="fact fact--total"><div class="fact-label">Sasooness ad spend</div><div class="fact-value">' + cents0(r.deduct) + '</div><div class="fact-sub">sum of the days below</div></div>';
+    }).join('') : '<div class="fact"><div class="fact-value">No Walker campaign found for the leads in this range.</div></div>';
 
     // Two decimals here so every step can be checked by hand: spend ÷ Walker leads = cost per
     // lead; cost per lead × leads sent = Sasooness's ad spend for the day.

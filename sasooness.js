@@ -186,9 +186,9 @@ function parseCampaignTags(csv) {
     const email = normEmail(r['Email']);
     const phone = phone10(r['Phone']);
     if (!date || (!email && !phone)) continue;
-    const utm = (r['UTM Campaign'] || '').trim();
-    if (email && (!seen.has('e' + email) || date < seen.get('e' + email))) { seen.set('e' + email, date); byEmail.set(email, utm); }
-    if (phone && (!seen.has('p' + phone) || date < seen.get('p' + phone))) { seen.set('p' + phone, date); byPhone.set(phone, utm); }
+    const tag = { utm: (r['UTM Campaign'] || '').trim(), source: (r['Contact Source (survey)'] || '').trim(), term: (r['UTM Term'] || '').trim() };
+    if (email && (!seen.has('e' + email) || date < seen.get('e' + email))) { seen.set('e' + email, date); byEmail.set(email, tag); }
+    if (phone && (!seen.has('p' + phone) || date < seen.get('p' + phone))) { seen.set('p' + phone, date); byPhone.set(phone, tag); }
   }
   return { byEmail, byPhone };
 }
@@ -314,10 +314,19 @@ function getData() {
     ...cache.metaCampaignDaily.map((r) => ({ campaign: r.campaign, platform: 'Meta', date: r.date, spend: r.spend })),
   ];
   const resolve = campaignResolver();
-  const tagFor = (l) => {
+  const tagsFor = (l) => {
+    for (const e of l.emails || [l.email]) { const t = cache.campaignTags.byEmail.get(e); if (t && t.utm) return t; }
     for (const e of l.emails || [l.email]) { const t = cache.campaignTags.byEmail.get(e); if (t) return t; }
-    return cache.campaignTags.byPhone.get(phone10(l.phone)) || '';
+    return cache.campaignTags.byPhone.get(phone10(l.phone)) || null;
   };
+  // An OG lead's ad: Google tags carry the ad ID (resolved to its name); Meta tags carry the ad name.
+  const ogOrigin = (tags, campaign) => ({
+    contactSource: tags ? tags.source : '',
+    campaignId: '',
+    campaignName: campaign,
+    adId: tags && /^\d{6,}$/.test(tags.term) ? tags.term : '',
+    adName: tags ? (/^\d{6,}$/.test(tags.term) ? cache.adNames.get(tags.term) || '' : tags.term) : '',
+  });
   // A signed case that later dropped is no longer a case, so it reads as Dropped everywhere.
   const wByEmail = new Map(), wByPhone = new Map();
   for (const w of cache.walkerLog) {
@@ -327,9 +336,11 @@ function getData() {
   const leads = cache.leads.map(({ emails, ...l }) => {
     const dropped = isSigned(l.status) && (emails || [l.email]).some((e) => cache.droppedEmails.has(e));
     const partner = l.channel === 'Lead Prosper AZ' || l.channel === 'Lead Prosper WA';
+    const tags = tagsFor({ emails, email: l.email, phone: l.phone });
+    const campaign = resolve(tags ? tags.utm : '');
     return {
-      ...l, status: dropped ? 'Dropped' : l.status, campaign: resolve(tagFor({ emails, email: l.email, phone: l.phone })),
-      origin: partner ? walkerOrigin({ emails, email: l.email, phone: l.phone }, wByEmail, wByPhone) : undefined,
+      ...l, status: dropped ? 'Dropped' : l.status, campaign,
+      origin: partner ? walkerOrigin({ emails, email: l.email, phone: l.phone }, wByEmail, wByPhone) : ogOrigin(tags, campaign),
     };
   });
 

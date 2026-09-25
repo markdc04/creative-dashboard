@@ -655,53 +655,70 @@
     $('#status-chips').innerHTML = chips.join('');
   }
 
+  // Cost per lead for each lead: a partner (Agency/PPL) lead carries its Walker campaign's cost per
+  // lead over the chosen dates (all leads, and qualified only); an OG lead carries its own
+  // campaign's spend divided by that campaign's leads, the same figure as the campaign table.
+  function cplMaps() {
+    const walker = new Map();
+    for (const c of state.walker.campaigns) {
+      const spend = state.walker.spendDaily.filter((r) => r.campaignId === c.campaignId && inRange(r.date)).reduce((t, r) => t + r.spend, 0);
+      const days = state.walker.leadsDaily.filter((r) => r.campaignId === c.campaignId && inRange(r.date));
+      const all = days.reduce((t, r) => t + r.leads, 0), qual = days.reduce((t, r) => t + r.qualified, 0);
+      walker.set(c.campaignId, { all: all > 0 ? spend / all : 0, qual: qual > 0 ? spend / qual : 0 });
+    }
+    const spendBy = new Map(), leadsBy = new Map();
+    for (const r of spendFor('campaign')) spendBy.set(r.campaign, (spendBy.get(r.campaign) || 0) + r.spend);
+    for (const l of leadsFor('campaign')) if (l.campaign) leadsBy.set(l.campaign, (leadsBy.get(l.campaign) || 0) + 1);
+    const og = new Map();
+    for (const [name, spend] of spendBy) { const n = leadsBy.get(name) || 0; if (n > 0 && spend > 0) og.set(name, spend / n); }
+    return { walker, og };
+  }
+
   function renderLeadsTable(leads) {
     const rows = leads.filter(matchesSearch).sort((a, b) => (b.createdDate || '').localeCompare(a.createdDate || ''));
+    const dash = '—';
+    const cpl = cplMaps();
+    const platformOf = campaignPlatform();
     $('#lead-count').textContent = leads.length.toLocaleString('en-US');
     $('#range-label').textContent = rangeLabel();
     $('#leads-empty').hidden = rows.length > 0;
-    $('#leads-body').innerHTML = rows.map((l) => (
-      '<tr>' +
-        '<td><div class="name-cell">' + escapeHtml(l.name || '(no name)') + '</div><div class="email-cell">' + escapeHtml(l.email) + (l.phone ? ' &middot; ' + escapeHtml(l.phone) : '') + '</div></td>' +
-        '<td><span class="status-pill ' + statusClass(l.status) + '">' + escapeHtml(l.status || '—') + '</span>' + (l.subStatus ? '<div class="kpi-sub" style="margin-top:4px">' + escapeHtml(l.subStatus) + '</div>' : '') + '</td>' +
-        '<td>' + escapeHtml(l.caseType || '—') + '</td>' +
-        '<td>' + escapeHtml(l.createdDate || '—') + '</td>' +
-        '<td>' + escapeHtml(l.signedUpDate || '—') + '</td>' +
-        '<td>' + escapeHtml(l.state || '—') + '</td>' +
-        '<td>' + escapeHtml(l.severity || '—') + '</td>' +
-        '<td>' + escapeHtml(l.marketingSource || '—') + '</td>' +
-        '<td><span class="source-tag">' + escapeHtml(PROGRAMS.find((p) => p.key === programOf(l)).short) + '</span></td>' +
-      '</tr>'
-    )).join('');
+    $('#leads-body').innerHTML = rows.map((l) => {
+      const o = l.origin || {};
+      const partner = programOf(l) !== 'og';
+      const source = o.contactSource || (!partner && platformOf.get(l.campaign) ? platformOf.get(l.campaign) + ' ad' : '');
+      const campaignName = o.campaignName || l.campaign;
+      let cplHtml = dash;
+      if (partner) {
+        const c = cpl.walker.get(o.campaignId);
+        if (c && c.all) cplHtml = money(c.all) + (c.qual ? '<div class="email-cell">' + money(c.qual) + ' qualified</div>' : '');
+      } else if (cpl.og.get(l.campaign)) {
+        cplHtml = money(cpl.og.get(l.campaign));
+      }
+      return '<tr>' +
+        '<td><div class="name-cell">' + escapeHtml(l.name || '(no name)') + '</div><div class="email-cell">' + escapeHtml(l.email || l.phone || '') + (l.email && l.phone ? ' &middot; ' + escapeHtml(l.phone) : '') + '</div></td>' +
+        '<td>' + escapeHtml(l.createdDate || dash) + '</td>' +
+        '<td><span class="status-pill ' + statusClass(l.status) + '">' + escapeHtml(l.status || dash) + '</span>' + (l.subStatus ? '<div class="kpi-sub" style="margin-top:4px">' + escapeHtml(l.subStatus) + '</div>' : '') + '</td>' +
+        '<td>' + escapeHtml(source || dash) + '</td>' +
+        '<td><div class="name-cell">' + escapeHtml(campaignName || dash) + '</div>' + (o.campaignId ? '<div class="email-cell">ID ' + escapeHtml(o.campaignId) + '</div>' : '') + '</td>' +
+        '<td><div class="name-cell">' + escapeHtml(o.adName || (o.adId ? 'Ad ' + o.adId : dash)) + '</div>' + (o.adId ? '<div class="email-cell">ID ' + escapeHtml(o.adId) + '</div>' : '') + '</td>' +
+        '<td class="td-num num">' + cplHtml + '</td>' +
+      '</tr>';
+    }).join('');
   }
 
   // ================= where Agency / PPL leads came from, and what to deduct =================
   function renderOrigins() {
     const partner = state.filters.program === 'agency' || state.filters.program === 'ppl';
     $('#deduct-panel').hidden = !partner;
-    $('#origin-panel').hidden = !partner;
+    $('#origin-panel').hidden = true;
     if (!partner) return;
 
     const leads = leadsFor().slice().sort((a, b) => (b.createdDate || '').localeCompare(a.createdDate || ''));
-    $('#origin-sub').textContent = leads.length ? leads.length + ' leads' : '';
-    $('#origin-empty').hidden = leads.length > 0;
     const dash = '—';
-    $('#origin-body').innerHTML = leads.map((l) => {
-      const o = l.origin;
-      return '<tr>' +
-        '<td><div class="name-cell">' + escapeHtml(l.name || '(no name)') + '</div><div class="email-cell">' + escapeHtml(l.email || l.phone || '') + '</div></td>' +
-        '<td>' + escapeHtml(l.createdDate || dash) + '</td>' +
-        (o
-          ? '<td>' + escapeHtml(o.contactSource || dash) + '</td>' +
-            '<td><div class="name-cell">' + escapeHtml(o.campaignName || (o.campaignId ? 'Campaign ' + o.campaignId : dash)) + '</div>' + (o.campaignId ? '<div class="email-cell">ID ' + escapeHtml(o.campaignId) + '</div>' : '') + '</td>' +
-            '<td><div class="name-cell">' + escapeHtml(o.adName || (o.adId ? 'Ad ' + o.adId : dash)) + '</div>' + (o.adId ? '<div class="email-cell">ID ' + escapeHtml(o.adId) + '</div>' : '') + '</td>' +
-            '<td>' + escapeHtml(o.walkerDate) + (o.walkerStatus ? '<div class="email-cell">' + escapeHtml(o.walkerStatus) + '</div>' : '') + '</td>'
-          : '<td colspan="4" class="email-cell">Not found in Walker’s lead log</td>') +
-      '</tr>';
-    }).join('');
 
-    // Deduction: for each Walker campaign these leads came from, its spend and lead counts over
-    // the chosen dates give a cost per lead; multiplying by the leads sent on gives the amount.
+    // Each Walker campaign these leads came from: its spend and lead counts over the chosen dates
+    // give a cost per lead (over all of Walker's leads, and over only the qualified ones);
+    // multiplying by the leads sent to Sasooness gives the amount to deduct.
     const sent = new Map();
     for (const l of leads) { const id = l.origin && l.origin.campaignId; if (id) sent.set(id, (sent.get(id) || 0) + 1); }
     const rows = state.walker.campaigns.filter((c) => sent.has(c.campaignId)).map((c) => {
@@ -710,8 +727,27 @@
       const all = days.reduce((a, r) => a + r.leads, 0), qual = days.reduce((a, r) => a + r.qualified, 0);
       const n = sent.get(c.campaignId);
       const cplAll = all > 0 ? spend / all : 0, cplQ = qual > 0 ? spend / qual : 0;
-      return { name: c.name, n, spend, all, qual, cplAll, cplQ, dAll: n * cplAll, dQ: n * cplQ };
+      return { id: c.campaignId, name: c.name, n, spend, all, qual, cplAll, cplQ, dAll: n * cplAll, dQ: n * cplQ };
     });
+    const cplOf = new Map(rows.map((r) => [r.id, r]));
+
+    $('#origin-sub').textContent = leads.length ? leads.length + ' leads' : '';
+    $('#origin-empty').hidden = leads.length > 0;
+    $('#origin-body').innerHTML = leads.map((l) => {
+      const o = l.origin;
+      const c = o && cplOf.get(o.campaignId);
+      return '<tr>' +
+        '<td><div class="name-cell">' + escapeHtml(l.name || '(no name)') + '</div><div class="email-cell">' + escapeHtml(l.email || l.phone || '') + '</div></td>' +
+        '<td>' + escapeHtml(l.createdDate || dash) + '</td>' +
+        (o
+          ? '<td>' + escapeHtml(o.contactSource || dash) + '</td>' +
+            '<td><div class="name-cell">' + escapeHtml(o.campaignName || (o.campaignId ? 'Campaign ' + o.campaignId : dash)) + '</div>' + (o.campaignId ? '<div class="email-cell">ID ' + escapeHtml(o.campaignId) + '</div>' : '') + '</td>' +
+            '<td><div class="name-cell">' + escapeHtml(o.adName || (o.adId ? 'Ad ' + o.adId : dash)) + '</div>' + (o.adId ? '<div class="email-cell">ID ' + escapeHtml(o.adId) + '</div>' : '') + '</td>'
+          : '<td colspan="3" class="email-cell">Not found in Walker’s lead log</td>') +
+        '<td class="td-num num">' + (c && c.cplAll ? money(c.cplAll) + '<div class="email-cell">' + (c.cplQ ? money(c.cplQ) + ' qualified' : '') + '</div>' : dash) + '</td>' +
+      '</tr>';
+    }).join('');
+
     const tot = rows.reduce((t, r) => ({ n: t.n + r.n, dAll: t.dAll + r.dAll, dQ: t.dQ + r.dQ }), { n: 0, dAll: 0, dQ: 0 });
     $('#deduct-body').innerHTML = rows.map((r) => (
       '<tr><td class="name-cell">' + escapeHtml(r.name) + '</td>' +

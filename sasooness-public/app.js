@@ -28,7 +28,7 @@
   const NO_CAMPAIGN = '@none';
 
   const state = {
-    leads: [], campaignSpend: [], schedule: [],
+    leads: [], campaignSpend: [], schedule: [], walker: { campaigns: [], spendDaily: [], leadsDaily: [] },
     search: '',
     range: { key: 'all', start: null, end: null },
     // Clicking any figure, row, slice, bar or point on the page sets one of these; every table,
@@ -107,6 +107,7 @@
       state.leads = d.leads || [];
       state.campaignSpend = d.campaignSpend || [];
       state.schedule = (d.settings && d.settings.schedule) || [];
+      state.walker = d.walker || state.walker;
       setLive(true);
     } catch (err) {
       setLive(false);
@@ -674,6 +675,55 @@
     )).join('');
   }
 
+  // ================= where Agency / PPL leads came from, and what to deduct =================
+  function renderOrigins() {
+    const partner = state.filters.program === 'agency' || state.filters.program === 'ppl';
+    $('#deduct-panel').hidden = !partner;
+    $('#origin-panel').hidden = !partner;
+    if (!partner) return;
+
+    const leads = leadsFor().slice().sort((a, b) => (b.createdDate || '').localeCompare(a.createdDate || ''));
+    $('#origin-sub').textContent = leads.length ? leads.length + ' leads' : '';
+    $('#origin-empty').hidden = leads.length > 0;
+    const dash = '—';
+    $('#origin-body').innerHTML = leads.map((l) => {
+      const o = l.origin;
+      return '<tr>' +
+        '<td><div class="name-cell">' + escapeHtml(l.name || '(no name)') + '</div><div class="email-cell">' + escapeHtml(l.email || l.phone || '') + '</div></td>' +
+        '<td>' + escapeHtml(l.createdDate || dash) + '</td>' +
+        (o
+          ? '<td>' + escapeHtml(o.contactSource || dash) + '</td>' +
+            '<td><div class="name-cell">' + escapeHtml(o.campaignName || (o.campaignId ? 'Campaign ' + o.campaignId : dash)) + '</div>' + (o.campaignId ? '<div class="email-cell">ID ' + escapeHtml(o.campaignId) + '</div>' : '') + '</td>' +
+            '<td><div class="name-cell">' + escapeHtml(o.adName || (o.adId ? 'Ad ' + o.adId : dash)) + '</div>' + (o.adId ? '<div class="email-cell">ID ' + escapeHtml(o.adId) + '</div>' : '') + '</td>' +
+            '<td>' + escapeHtml(o.walkerDate) + (o.walkerStatus ? '<div class="email-cell">' + escapeHtml(o.walkerStatus) + '</div>' : '') + '</td>'
+          : '<td colspan="4" class="email-cell">Not found in Walker’s lead log</td>') +
+      '</tr>';
+    }).join('');
+
+    // Deduction: for each Walker campaign these leads came from, its spend and lead counts over
+    // the chosen dates give a cost per lead; multiplying by the leads sent on gives the amount.
+    const sent = new Map();
+    for (const l of leads) { const id = l.origin && l.origin.campaignId; if (id) sent.set(id, (sent.get(id) || 0) + 1); }
+    const rows = state.walker.campaigns.filter((c) => sent.has(c.campaignId)).map((c) => {
+      const spend = state.walker.spendDaily.filter((r) => r.campaignId === c.campaignId && inRange(r.date)).reduce((a, r) => a + r.spend, 0);
+      const days = state.walker.leadsDaily.filter((r) => r.campaignId === c.campaignId && inRange(r.date));
+      const all = days.reduce((a, r) => a + r.leads, 0), qual = days.reduce((a, r) => a + r.qualified, 0);
+      const n = sent.get(c.campaignId);
+      const cplAll = all > 0 ? spend / all : 0, cplQ = qual > 0 ? spend / qual : 0;
+      return { name: c.name, n, spend, all, qual, cplAll, cplQ, dAll: n * cplAll, dQ: n * cplQ };
+    });
+    const tot = rows.reduce((t, r) => ({ n: t.n + r.n, dAll: t.dAll + r.dAll, dQ: t.dQ + r.dQ }), { n: 0, dAll: 0, dQ: 0 });
+    $('#deduct-body').innerHTML = rows.map((r) => (
+      '<tr><td class="name-cell">' + escapeHtml(r.name) + '</td>' +
+      '<td class="td-num num">' + r.n + '</td><td class="td-num num">' + money(r.spend) + '</td>' +
+      '<td class="td-num num">' + r.all.toLocaleString('en-US') + '</td><td class="td-num num">' + r.qual.toLocaleString('en-US') + '</td>' +
+      '<td class="td-num num">' + (r.cplAll ? money(r.cplAll) : dash) + '</td><td class="td-num num">' + (r.cplQ ? money(r.cplQ) : dash) + '</td>' +
+      '<td class="td-num num">' + (r.dAll ? money(r.dAll) : dash) + '</td><td class="td-num num">' + (r.dQ ? money(r.dQ) : dash) + '</td></tr>'
+    )).join('') + (rows.length
+      ? '<tr class="row-total"><td>Total</td><td class="td-num num">' + tot.n + '</td><td></td><td></td><td></td><td></td><td></td><td class="td-num num">' + money(tot.dAll) + '</td><td class="td-num num">' + money(tot.dQ) + '</td></tr>'
+      : '<tr class="row-muted"><td colspan="9">No Walker campaign found for the leads in this range.</td></tr>');
+  }
+
   function render() {
     // Which statuses the donut shows individually (the rest fold into "Other") — computed first
     // because an "Other statuses" filter is defined in terms of it.
@@ -687,6 +737,7 @@
     renderCampaigns();
     renderPrograms();
     renderSegmentTabs();
+    renderOrigins();
     renderChips();
     renderLeadsTable(leads);
   }

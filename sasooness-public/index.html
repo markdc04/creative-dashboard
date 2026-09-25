@@ -67,6 +67,34 @@
 
   <div class="kpi-row" id="kpi-row"></div>
 
+  <div class="panel" id="deduct-panel" hidden>
+    <div class="panel-head">
+      <h2 class="panel-title">Walker Agency Campaign Deduction</h2>
+      <span class="panel-sub">what these leads cost in Walker&rsquo;s campaign</span>
+    </div>
+    <div class="table-scroll table-scroll--short">
+      <table>
+        <thead><tr><th>Walker campaign</th><th class="th-num">Sent to Sasooness</th><th class="th-num">Campaign spend</th><th class="th-num">Walker leads</th><th class="th-num">Qualified</th><th class="th-num">Cost / lead (all)</th><th class="th-num">Cost / lead (qualified)</th><th class="th-num">Deduct (all)</th><th class="th-num">Deduct (qualified)</th></tr></thead>
+        <tbody id="deduct-body"></tbody>
+      </table>
+    </div>
+    <p class="footnote footnote--inside">Spend and Walker lead counts cover the dates chosen above. <strong>Deduct</strong> is leads sent to Sasooness &times; that campaign&rsquo;s cost per lead. Which one applies depends on whether Walker is billed on all leads or only qualified ones, so both are shown.</p>
+  </div>
+
+  <div class="panel" id="origin-panel" hidden>
+    <div class="panel-head">
+      <h2 class="panel-title">Where These Leads Came From</h2>
+      <span class="panel-sub" id="origin-sub"></span>
+    </div>
+    <div class="table-scroll table-scroll--short">
+      <table>
+        <thead><tr><th>Lead</th><th>Sent to Sasooness</th><th>Contact Source</th><th>Campaign</th><th>Ad</th><th>First in Walker&rsquo;s log</th></tr></thead>
+        <tbody id="origin-body"></tbody>
+      </table>
+    </div>
+    <div id="origin-empty" class="empty-msg" hidden>No Agency or PPL leads in this range.</div>
+  </div>
+
   <div class="chart-row" id="spend-panel">
     <div class="panel chart-panel">
       <div class="panel-head">

@@ -28,6 +28,12 @@ const ALL_LEADS_GID = '1706081278';
 const SASOONESS_TAB_GID = '1617897274';
 const ALL_CASES_GID = '722868032';
 
+// Walker Agency's master lead log. Agency and PPL leads are Walker campaign leads that get passed
+// on to Sasooness, so this is where each one's contact source, Google campaign and ad are recorded
+// (UTM Campaign = Google campaign ID, UTM Term = Google ad ID). Read by tab name.
+const WALKER_DOC_ID = '1vKenNfW_B8c_438CeF7LukFPNqzPjflJTFo9zB_3Knw';
+const WALKER_LOG_TAB = 'Walker agency ppl 6 states';
+
 // Loose on purpose: the same client is spelled "Sasooness" and "Sassooness" across campaigns.
 const CAMPAIGN_PATTERN = /sas+oo?n/i;
 
@@ -37,7 +43,7 @@ const SOURCE_CODES = { LS004: 'OG' };
 
 let cache = {
   leads: [], googleDaily: [], metaDaily: [], googleCampaignDaily: [], metaCampaignDaily: [],
-  campaignTags: { byEmail: new Map(), byPhone: new Map() }, schedule: [], droppedEmails: new Set(), updatedAt: null,
+  campaignTags: { byEmail: new Map(), byPhone: new Map() }, schedule: [], droppedEmails: new Set(), walkerLog: [], agencySpend: [], adNames: new Map(), campaignNames: new Map(), updatedAt: null,
 };
 
 function isSigned(status) { const s = (status || '').trim(); return s === 'Signed Up' || s === 'Client'; }
@@ -149,6 +155,20 @@ function updateGoogleSpend(rows) {
     byCampaign.set(key, cur);
   }
   const round = (n) => Math.round(n * 100) / 100;
+  // Names for the IDs Walker's log carries, and Walker's own agency campaigns' daily spend.
+  const adNames = new Map(), campaignNames = new Map(), agency = new Map();
+  for (const r of rows) {
+    if (r.platform !== 'GOOGLE') continue;
+    if (r.adId && r.adName) adNames.set(String(r.adId), r.adName);
+    if (r.campaignId && r.campaignName) campaignNames.set(String(r.campaignId), r.campaignName);
+    if (/agency/i.test(r.campaignName || '') && r.campaignId) {
+      const key = r.campaignId + '|' + r.date;
+      agency.set(key, { campaignId: String(r.campaignId), date: r.date, spend: (agency.get(key)?.spend || 0) + r.spend });
+    }
+  }
+  cache.adNames = adNames;
+  cache.campaignNames = campaignNames;
+  cache.agencySpend = [...agency.values()].map((r) => ({ ...r, spend: round(r.spend) }));
   cache.googleDaily = [...byDate.entries()].map(([date, spend]) => ({ date, spend: round(spend) })).sort((a, b) => (a.date < b.date ? -1 : 1));
   cache.googleCampaignDaily = [...byCampaign.values()].map((r) => ({ ...r, spend: round(r.spend) }));
   cache.updatedAt = Date.now();
@@ -208,6 +228,39 @@ function parseDropped(csv) {
   return out;
 }
 
+// One entry per row of Walker's lead log, reduced to what the origin tables need.
+function parseWalkerLog(csv) {
+  return parseCSV(csv).map((r) => ({
+    date: toISODate(r['Date']),
+    email: normEmail(r['Email']),
+    phone: phone10(r['Phone']),
+    source: (r['Contact Source'] || '').trim(),
+    campaignId: (r['UTM Campaign'] || '').trim(),
+    adId: (r['UTM Term'] || '').trim(),
+    status: (r['Accurate Status'] || r['Status'] || '').trim(),
+  })).filter((r) => r.date && (r.email || r.phone));
+}
+
+// Where an Agency/PPL lead came from: the earliest row for that person in Walker's log (the row
+// that first brought them in from an ad).
+function walkerOrigin(lead, byEmail, byPhone) {
+  const hits = [];
+  for (const e of lead.emails || [lead.email]) if (byEmail.has(e)) hits.push(...byEmail.get(e));
+  const p = phone10(lead.phone);
+  if (p && byPhone.has(p)) hits.push(...byPhone.get(p));
+  if (!hits.length) return null;
+  const first = hits.reduce((a, b) => (b.date < a.date ? b : a));
+  return {
+    walkerDate: first.date,
+    contactSource: first.source,
+    campaignId: first.campaignId,
+    campaignName: cache.campaignNames.get(first.campaignId) || '',
+    adId: first.adId,
+    adName: cache.adNames.get(first.adId) || '',
+    walkerStatus: first.status,
+  };
+}
+
 // UTM tags are a campaign ID for Google, and either the campaign name or ID for Meta. Resolve
 // to the campaign's name; anything else non-empty keeps its own label, empty is unattributed.
 function campaignResolver() {
@@ -222,12 +275,13 @@ function campaignResolver() {
 
 async function pollAll() {
   try {
-    const [intakeCsvs, csvB, allLeadsCsv, tabCsv, casesCsv, metaDaily, metaCampaignDaily] = await Promise.all([
+    const [intakeCsvs, csvB, allLeadsCsv, tabCsv, casesCsv, walkerCsv, metaDaily, metaCampaignDaily] = await Promise.all([
       Promise.all(INTAKE_TABS.map((t) => fetchText(csvUrl(t.gid, INTAKE_DOC_ID)))),
       fetchText(csvUrl(LEADS_B_GID, LEADS_B_DOC_ID)),
       fetchText(csvUrl(ALL_LEADS_GID, WORKBOOK_ID)),
       fetchText(csvUrl(SASOONESS_TAB_GID, WORKBOOK_ID)),
       fetchText(csvUrl(ALL_CASES_GID, WORKBOOK_ID)),
+      fetchText('https://docs.google.com/spreadsheets/d/' + WALKER_DOC_ID + '/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent(WALKER_LOG_TAB)),
       metaDailyFor(CAMPAIGN_PATTERN),
       metaCampaignDailyFor(CAMPAIGN_PATTERN),
     ]);
@@ -244,6 +298,8 @@ async function pollAll() {
     if (schedule.length >= 3) cache.schedule = schedule; else console.warn(`[${new Date().toISOString()}] Sasooness fee/budget schedule not found (${schedule.length} months) — keeping last known-good`);
     const dropped = parseDropped(casesCsv);
     if (casesCsv.trimStart().startsWith('<')) console.warn(`[${new Date().toISOString()}] Sasooness signed-cases tab not readable — keeping last known-good dropped list`); else cache.droppedEmails = dropped;
+    const walkerLog = parseWalkerLog(walkerCsv);
+    if (walkerLog.length >= 100) cache.walkerLog = walkerLog; else console.warn(`[${new Date().toISOString()}] Walker lead log looks broken (${walkerLog.length} rows) — keeping last known-good`);
     cache.metaDaily = metaDaily;
     cache.metaCampaignDaily = metaCampaignDaily;
     cache.updatedAt = Date.now();
@@ -263,13 +319,40 @@ function getData() {
     return cache.campaignTags.byPhone.get(phone10(l.phone)) || '';
   };
   // A signed case that later dropped is no longer a case, so it reads as Dropped everywhere.
+  const wByEmail = new Map(), wByPhone = new Map();
+  for (const w of cache.walkerLog) {
+    if (w.email) (wByEmail.get(w.email) || wByEmail.set(w.email, []).get(w.email)).push(w);
+    if (w.phone) (wByPhone.get(w.phone) || wByPhone.set(w.phone, []).get(w.phone)).push(w);
+  }
   const leads = cache.leads.map(({ emails, ...l }) => {
     const dropped = isSigned(l.status) && (emails || [l.email]).some((e) => cache.droppedEmails.has(e));
-    return { ...l, status: dropped ? 'Dropped' : l.status, campaign: resolve(tagFor({ emails, email: l.email, phone: l.phone })) };
+    const partner = l.channel === 'Lead Prosper AZ' || l.channel === 'Lead Prosper WA';
+    return {
+      ...l, status: dropped ? 'Dropped' : l.status, campaign: resolve(tagFor({ emails, email: l.email, phone: l.phone })),
+      origin: partner ? walkerOrigin({ emails, email: l.email, phone: l.phone }, wByEmail, wByPhone) : undefined,
+    };
   });
+
+  // For the deduction table: for every Walker campaign an Agency/PPL lead came from, that
+  // campaign's daily spend and daily lead counts (all leads, and qualified ones) from Walker's log.
+  const usedCampaigns = new Set(leads.filter((l) => l.origin && l.origin.campaignId).map((l) => l.origin.campaignId));
+  const leadsByDay = new Map();
+  for (const w of cache.walkerLog) {
+    if (!usedCampaigns.has(w.campaignId)) continue;
+    const key = w.campaignId + '|' + w.date;
+    const cur = leadsByDay.get(key) || { campaignId: w.campaignId, date: w.date, leads: 0, qualified: 0 };
+    cur.leads++;
+    if (/^qualified$/i.test(w.status)) cur.qualified++;
+    leadsByDay.set(key, cur);
+  }
+  const walker = {
+    campaigns: [...usedCampaigns].map((id) => ({ campaignId: id, name: cache.campaignNames.get(id) || id })),
+    spendDaily: cache.agencySpend.filter((r) => usedCampaigns.has(r.campaignId)),
+    leadsDaily: [...leadsByDay.values()],
+  };
   return {
     leads, googleDaily: cache.googleDaily, metaDaily: cache.metaDaily,
-    campaignSpend, settings: { schedule: cache.schedule }, updatedAt: cache.updatedAt,
+    campaignSpend, walker, settings: { schedule: cache.schedule }, updatedAt: cache.updatedAt,
   };
 }
 

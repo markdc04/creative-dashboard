@@ -656,15 +656,14 @@
   }
 
   // Cost per lead for each lead: a partner (Agency/PPL) lead carries its Walker campaign's cost per
-  // lead over the chosen dates (all leads, and qualified only); an OG lead carries its own
+  // lead over the chosen dates (all leads, regardless of status); an OG lead carries its own
   // campaign's spend divided by that campaign's leads, the same figure as the campaign table.
   function cplMaps() {
     const walker = new Map();
     for (const c of state.walker.campaigns) {
       const spend = state.walker.spendDaily.filter((r) => r.campaignId === c.campaignId && inRange(r.date)).reduce((t, r) => t + r.spend, 0);
-      const days = state.walker.leadsDaily.filter((r) => r.campaignId === c.campaignId && inRange(r.date));
-      const all = days.reduce((t, r) => t + r.leads, 0), qual = days.reduce((t, r) => t + r.qualified, 0);
-      walker.set(c.campaignId, { all: all > 0 ? spend / all : 0, qual: qual > 0 ? spend / qual : 0 });
+      const all = state.walker.leadsDaily.filter((r) => r.campaignId === c.campaignId && inRange(r.date)).reduce((t, r) => t + r.leads, 0);
+      walker.set(c.campaignId, { all: all > 0 ? spend / all : 0 });
     }
     const spendBy = new Map(), leadsBy = new Map();
     for (const r of spendFor('campaign')) spendBy.set(r.campaign, (spendBy.get(r.campaign) || 0) + r.spend);
@@ -690,7 +689,7 @@
       let cplHtml = dash;
       if (partner) {
         const c = cpl.walker.get(o.campaignId);
-        if (c && c.all) cplHtml = money(c.all) + (c.qual ? '<div class="email-cell">' + money(c.qual) + ' qualified</div>' : '');
+        if (c && c.all) cplHtml = money(c.all);
       } else if (cpl.og.get(l.campaign)) {
         cplHtml = money(cpl.og.get(l.campaign));
       }
@@ -717,25 +716,31 @@
     const dash = '—';
 
     // Each Walker campaign these leads came from: its spend and lead counts over the chosen dates
-    // give a cost per lead (over all of Walker's leads, and over only the qualified ones);
+    // give a cost per lead (over all of Walker's leads, regardless of status);
     // multiplying by the leads sent to Sasooness gives the amount to deduct.
     const sent = new Map();
-    for (const l of leads) { const id = l.origin && l.origin.campaignId; if (id) sent.set(id, (sent.get(id) || 0) + 1); }
+    const statusBy = new Map(); // campaign ID -> Map(status -> leads sent)
+    for (const l of leads) {
+      const id = l.origin && l.origin.campaignId;
+      if (!id) continue;
+      sent.set(id, (sent.get(id) || 0) + 1);
+      const st = (l.status || '').trim() || 'Awaiting status';
+      if (!statusBy.has(id)) statusBy.set(id, new Map());
+      statusBy.get(id).set(st, (statusBy.get(id).get(st) || 0) + 1);
+    }
     const rows = state.walker.campaigns.filter((c) => sent.has(c.campaignId)).map((c) => {
       const spend = state.walker.spendDaily.filter((r) => r.campaignId === c.campaignId && inRange(r.date)).reduce((a, r) => a + r.spend, 0);
       const days = state.walker.leadsDaily.filter((r) => r.campaignId === c.campaignId && inRange(r.date));
       const all = days.reduce((a, r) => a + r.leads, 0), qual = days.reduce((a, r) => a + r.qualified, 0);
       const n = sent.get(c.campaignId);
-      const cplAll = all > 0 ? spend / all : 0, cplQ = qual > 0 ? spend / qual : 0;
-      return { id: c.campaignId, name: c.name, n, spend, all, qual, cplAll, cplQ, dAll: n * cplAll, dQ: n * cplQ };
+      const cpl = all > 0 ? spend / all : 0;
+      return { id: c.campaignId, name: c.name, n, spend, all, qual, cpl, deduct: n * cpl, statuses: [...(statusBy.get(c.campaignId) || new Map()).entries()].sort((a, b) => b[1] - a[1]) };
     });
-    const cplOf = new Map(rows.map((r) => [r.id, r]));
 
     $('#origin-sub').textContent = leads.length ? leads.length + ' leads' : '';
     $('#origin-empty').hidden = leads.length > 0;
     $('#origin-body').innerHTML = leads.map((l) => {
       const o = l.origin;
-      const c = o && cplOf.get(o.campaignId);
       return '<tr>' +
         '<td><div class="name-cell">' + escapeHtml(l.name || '(no name)') + '</div><div class="email-cell">' + escapeHtml(l.email || l.phone || '') + '</div></td>' +
         '<td>' + escapeHtml(l.createdDate || dash) + '</td>' +
@@ -744,20 +749,20 @@
             '<td><div class="name-cell">' + escapeHtml(o.campaignName || (o.campaignId ? 'Campaign ' + o.campaignId : dash)) + '</div>' + (o.campaignId ? '<div class="email-cell">ID ' + escapeHtml(o.campaignId) + '</div>' : '') + '</td>' +
             '<td><div class="name-cell">' + escapeHtml(o.adName || (o.adId ? 'Ad ' + o.adId : dash)) + '</div>' + (o.adId ? '<div class="email-cell">ID ' + escapeHtml(o.adId) + '</div>' : '') + '</td>'
           : '<td colspan="3" class="email-cell">Not found in Walker’s lead log</td>') +
-        '<td class="td-num num">' + (c && c.cplAll ? money(c.cplAll) + '<div class="email-cell">' + (c.cplQ ? money(c.cplQ) + ' qualified' : '') + '</div>' : dash) + '</td>' +
       '</tr>';
     }).join('');
 
-    const tot = rows.reduce((t, r) => ({ n: t.n + r.n, dAll: t.dAll + r.dAll, dQ: t.dQ + r.dQ }), { n: 0, dAll: 0, dQ: 0 });
+    const tot = rows.reduce((t, r) => ({ n: t.n + r.n, deduct: t.deduct + r.deduct }), { n: 0, deduct: 0 });
     $('#deduct-body').innerHTML = rows.map((r) => (
       '<tr><td class="name-cell">' + escapeHtml(r.name) + '</td>' +
-      '<td class="td-num num">' + r.n + '</td><td class="td-num num">' + money(r.spend) + '</td>' +
-      '<td class="td-num num">' + r.all.toLocaleString('en-US') + '</td><td class="td-num num">' + r.qual.toLocaleString('en-US') + '</td>' +
-      '<td class="td-num num">' + (r.cplAll ? money(r.cplAll) : dash) + '</td><td class="td-num num">' + (r.cplQ ? money(r.cplQ) : dash) + '</td>' +
-      '<td class="td-num num">' + (r.dAll ? money(r.dAll) : dash) + '</td><td class="td-num num">' + (r.dQ ? money(r.dQ) : dash) + '</td></tr>'
+      '<td class="td-num num">' + r.n + '</td>' +
+      '<td>' + r.statuses.map(([st, k]) => '<div>' + escapeHtml(st) + ' <strong>' + k + '</strong></div>').join('') + '</td>' +
+      '<td class="td-num num">' + money(r.spend) + '</td>' +
+      '<td class="td-num num">' + r.all.toLocaleString('en-US') + '<div class="email-cell">' + r.qual.toLocaleString('en-US') + ' qualified &middot; ' + (r.all - r.qual).toLocaleString('en-US') + ' disqualified</div></td>' +
+      '<td class="td-num num">' + (r.cpl ? money(r.cpl) : dash) + '</td><td class="td-num num">' + (r.deduct ? money(r.deduct) : dash) + '</td></tr>'
     )).join('') + (rows.length
-      ? '<tr class="row-total"><td>Total</td><td class="td-num num">' + tot.n + '</td><td></td><td></td><td></td><td></td><td></td><td class="td-num num">' + money(tot.dAll) + '</td><td class="td-num num">' + money(tot.dQ) + '</td></tr>'
-      : '<tr class="row-muted"><td colspan="9">No Walker campaign found for the leads in this range.</td></tr>');
+      ? '<tr class="row-total"><td>Total</td><td class="td-num num">' + tot.n + '</td><td></td><td></td><td></td><td></td><td class="td-num num">' + money(tot.deduct) + '</td></tr>'
+      : '<tr class="row-muted"><td colspan="7">No Walker campaign found for the leads in this range.</td></tr>');
   }
 
   function render() {

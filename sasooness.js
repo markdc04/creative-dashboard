@@ -241,15 +241,19 @@ function parseWalkerLog(csv) {
   })).filter((r) => r.date && (r.email || r.phone));
 }
 
-// Where an Agency/PPL lead came from: the earliest row for that person in Walker's log (the row
-// that first brought them in from an ad).
+// Where an Agency/PPL lead came from, from Walker's log. A person can be logged more than once (a
+// re-entry tagged "dup" appears on the day the lead is passed on), so the row used is the one dated
+// the day the lead reached Sasooness; failing that, the latest row before that day; failing that,
+// the earliest row.
 function walkerOrigin(lead, byEmail, byPhone) {
   const hits = [];
   for (const e of lead.emails || [lead.email]) if (byEmail.has(e)) hits.push(...byEmail.get(e));
   const p = phone10(lead.phone);
   if (p && byPhone.has(p)) hits.push(...byPhone.get(p));
   if (!hits.length) return null;
-  const first = hits.reduce((a, b) => (b.date < a.date ? b : a));
+  const same = hits.filter((h) => h.date === lead.createdDate);
+  const before = hits.filter((h) => h.date <= lead.createdDate).sort((a, b) => (a.date < b.date ? 1 : -1));
+  const first = same[0] || before[0] || hits.reduce((a, b) => (b.date < a.date ? b : a));
   return {
     walkerDate: first.date,
     contactSource: first.source,
@@ -340,7 +344,7 @@ function getData() {
     const campaign = resolve(tags ? tags.utm : '');
     return {
       ...l, status: dropped ? 'Dropped' : l.status, campaign,
-      origin: partner ? walkerOrigin({ emails, email: l.email, phone: l.phone }, wByEmail, wByPhone) : ogOrigin(tags, campaign),
+      origin: partner ? walkerOrigin({ emails, email: l.email, phone: l.phone, createdDate: l.createdDate }, wByEmail, wByPhone) : ogOrigin(tags, campaign),
     };
   });
 

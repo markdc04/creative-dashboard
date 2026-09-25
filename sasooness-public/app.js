@@ -715,7 +715,7 @@
       }
       return '<tr>' +
         '<td><div class="name-cell">' + escapeHtml(l.name || '(no name)') + '</div><div class="email-cell">' + escapeHtml(l.email || l.phone || '') + (l.email && l.phone ? ' &middot; ' + escapeHtml(l.phone) : '') + '</div></td>' +
-        '<td>' + escapeHtml(l.createdDate || dash) + '</td>' +
+        '<td>' + escapeHtml(l.createdDate || dash) + (partner && o.walkerDate && o.walkerDate !== l.createdDate ? '<div class="email-cell">cost day ' + escapeHtml(o.walkerDate) + '</div>' : '') + '</td>' +
         '<td><span class="status-pill ' + statusClass(l.status) + '">' + escapeHtml(l.status || dash) + '</span>' + (l.subStatus ? '<div class="kpi-sub" style="margin-top:4px">' + escapeHtml(l.subStatus) + '</div>' : '') + '</td>' +
         '<td>' + escapeHtml(source || dash) + '</td>' +
         '<td><div class="name-cell">' + escapeHtml(campaignName || dash) + '</div>' + (o.campaignId ? '<div class="email-cell">ID ' + escapeHtml(o.campaignId) + '</div>' : '') + '</td>' +

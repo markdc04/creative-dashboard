@@ -785,14 +785,27 @@
       ? '<tr class="row-total"><td>Total</td><td class="td-num num">' + tot.n + '</td><td></td><td></td><td></td><td></td><td class="td-num num">' + money(tot.deduct) + '</td></tr>'
       : '<tr class="row-muted"><td colspan="7">No Walker campaign found for the leads in this range.</td></tr>');
 
+    // Two decimals here so every step can be checked by hand: spend ÷ Walker leads = cost per
+    // lead; cost per lead × leads sent = Sasooness's ad spend for the day.
+    const cents = (n) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const sentTotal = ded.days.reduce((t, d) => t + d.n, 0);
     $('#deduct-days-body').innerHTML = ded.days.map((d) => (
       '<tr><td>' + escapeHtml(d.date) + '</td><td class="name-cell">' + escapeHtml(d.name) + '</td>' +
-      '<td class="td-num num">' + d.n + '</td><td class="td-num num">' + money(d.spend) + '</td>' +
+      '<td class="td-num num">' + cents(d.spend) + '</td>' +
       '<td class="td-num num">' + d.walkerLeads.toLocaleString('en-US') + '</td>' +
-      '<td class="td-num num">' + (d.cpl ? money(d.cpl) : dash) + '</td><td class="td-num num">' + (d.deduct ? money(d.deduct) : dash) + '</td></tr>'
+      '<td class="td-num num">' + (d.cpl ? cents(d.cpl) : dash) + '</td>' +
+      '<td class="td-num num">' + d.n + '</td>' +
+      '<td class="td-num num">' + (d.deduct ? cents(d.deduct) : dash) + '</td></tr>'
     )).join('') + (ded.days.length
-      ? '<tr class="row-total"><td>Total</td><td></td><td class="td-num num">' + ded.days.reduce((t, d) => t + d.n, 0) + '</td><td></td><td></td><td></td><td class="td-num num">' + money(ded.total) + '</td></tr>'
+      ? '<tr class="row-total"><td>Total</td><td></td><td></td><td></td><td></td><td class="td-num num">' + sentTotal + '</td><td class="td-num num">' + cents(ded.total) + '</td></tr>'
       : '<tr class="row-muted"><td colspan="7">No leads to show for this range.</td></tr>');
+
+    // The example is the biggest day, since today is only part of a day's spend.
+    const first = ded.days.filter((d) => d.deduct > 0).reduce((a, b) => (!a || b.deduct > a.deduct ? b : a), null);
+    $('#deduct-workings').innerHTML = first
+      ? '<strong>How it’s worked out.</strong> Take ' + escapeHtml(first.date) + ': the campaign spent <strong>' + cents(first.spend) + '</strong> and Walker logged <strong>' + first.walkerLeads + '</strong> leads, so each lead cost ' + cents(first.spend) + ' ÷ ' + first.walkerLeads + ' = <strong>' + cents(first.cpl) + '</strong>. ' + first.n + ' of those went to Sasooness, so its ad spend for the day is ' + cents(first.cpl) + ' × ' + first.n + ' = <strong>' + cents(first.deduct) + '</strong>.' +
+        (ded.days.length > 1 ? '<br>Add up every day: ' + ded.days.map((d) => cents(d.deduct)).join(' + ') + ' = <strong>' + cents(ded.total) + '</strong> ad spend already used on Sasooness’s leads.' : '')
+      : '';
   }
 
   function render() {

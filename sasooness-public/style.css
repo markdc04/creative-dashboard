@@ -184,3 +184,7 @@ button.platform-tag:hover,button.platform-tag.is-selected{background:var(--surfa
 [hidden]{display:none !important;}
 
 .sub-title{margin:22px 2px 10px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint);font-weight:700;}
+
+.th-sub{display:block;margin-top:2px;font-size:9.5px;letter-spacing:.04em;text-transform:none;font-weight:600;color:var(--text-dim);}
+.workings{margin:12px 2px 4px;padding:11px 14px;border-radius:10px;background:var(--surface-raised);border:1px solid var(--border);color:var(--text-dim);font-size:12.5px;line-height:1.7;}
+.workings strong{color:var(--text);}

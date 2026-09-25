@@ -81,11 +81,12 @@
     <h3 class="sub-title">Day by day</h3>
     <div class="table-scroll table-scroll--short">
       <table>
-        <thead><tr><th>Date</th><th>Walker campaign</th><th class="th-num">Sent to Sasooness</th><th class="th-num">Campaign spend that day</th><th class="th-num">Walker leads that day</th><th class="th-num">Cost / lead</th><th class="th-num">Deduct</th></tr></thead>
+        <thead><tr><th>Date</th><th>Walker campaign</th><th class="th-num">Campaign ad spend that day<span class="th-sub">A</span></th><th class="th-num">Walker leads that day<span class="th-sub">B</span></th><th class="th-num">Cost per lead<span class="th-sub">A &divide; B</span></th><th class="th-num">Leads sent to Sasooness<span class="th-sub">C</span></th><th class="th-num">Sasooness ad spend<span class="th-sub">A &divide; B &times; C</span></th></tr></thead>
         <tbody id="deduct-days-body"></tbody>
       </table>
     </div>
-    <p class="footnote footnote--inside">Each day is the leads that reached Sasooness that day &times; that day&rsquo;s cost per lead (the campaign&rsquo;s spend that day &divide; all of Walker&rsquo;s leads that day, whatever their status). The <strong>Deduct</strong> and <strong>Ad Spent</strong> totals are the sum of these days. <strong>Status in Sasooness</strong> is where the leads sent to Sasooness stand in this dashboard; under <strong>Walker leads</strong> is how many of Walker&rsquo;s leads from that campaign were marked qualified. Spend and lead counts cover the dates chosen above.</p>
+    <p class="workings" id="deduct-workings"></p>
+    <p class="footnote footnote--inside">Every lead counts as a lead for the day&rsquo;s cost per lead, whatever its status. The leads sent to Sasooness are among Walker&rsquo;s leads that day, so Sasooness pays only for its own share of that day&rsquo;s spend. The <strong>Deduct</strong> and <strong>Ad Spent</strong> totals are the sum of these days. <strong>Status in Sasooness</strong> is where the leads sent to Sasooness stand in this dashboard; under <strong>Walker leads</strong> is how many of Walker&rsquo;s leads from that campaign were marked qualified. Spend and lead counts cover the dates chosen above.</p>
   </div>
 
   <div class="panel" id="origin-panel" hidden>

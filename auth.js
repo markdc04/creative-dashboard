@@ -20,6 +20,9 @@ const USERS = {
 const EMAILS = { 'brandon@loudrmedia.com': 'brandon', 'jaypro@loudrmedia.com': 'jaypro', 'mark@loudrmedia.com': 'mark', 'alexander@loudrmedia.com': 'alexander' };
 for (const [email, key] of Object.entries(EMAILS)) USERS[email] = USERS[key];
 
+// Nichole's work email has its own password (her first-name login keeps the PIN above).
+USERS['nichole@loudrmedia.com'] = { name: 'Nichole', hash: '08ae6184ee540e895fad37d7d90bff23$be3eacdf771e9d8052bc8be30bd6c76f51a817cfa46f6b591b554aa385130ee5' };
+
 const SESSION_MS = 30 * 24 * 60 * 60 * 1000;
 const SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 

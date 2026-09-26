@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const USERS = {
   'jaypro': { name: 'Jay Pro', hash: '4add571d11b758c13c23136d502e5bad$d604c825afab5ba004e1985ccd03a6461a1e88b9247d7cb917a69ac44fc04957' },
   'brandon': { name: 'Brandon', hash: 'ca442f3d65cfae8ad3493575a0bb966a$6edc2982acbf3b48c6d5efa644a3aec78a28c62fa4cb275327a66d9704cf731b' },
-  'nichole': { name: 'Nichole', hash: '4f58e9147af730e85069ae17bab58940$bc1fafa9038167f59778c5b6115633c2d088efec445339cb70a8331a989e6813' },
+  'nichole': { name: 'Nichole', hash: '44cf15a4b6e85eb4654766dad9d959af$9c0d350e594b73e425ff4a26942abbb68b9aac3e95e46538a0197dde88635ada' },
   'alexander': { name: 'Alexander', hash: '505f58959f0d3075adec831e82150c6d$85ba5a11c7f68e54928cf666da58086f4b63d46f3ddab776fe9805cc9e832862' },
   'christian': { name: 'Christian', hash: '17372bb3a74d228eeb698dda3e8ba6c0$92754c3cc30fd2bc0e67a47b0c17f7eda0f15e09962d4f03da9954ad5063400a' },
   'zeke': { name: 'Zeke', hash: 'fcd0dea93211b6b2eada65a8663efe81$f90cb52864ff800e70b35d0cb2fa3af2ef3c247083e9294ac41cf40cbe022294' },

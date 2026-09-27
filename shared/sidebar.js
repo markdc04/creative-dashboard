@@ -37,20 +37,19 @@
     try { localStorage.setItem('loudr_sidebar_collapsed', now ? '1' : '0'); } catch (err) { /* ignore */ }
   });
 
-  // Logged in -> show who you are (and drop the lock); logged out -> the Dashboard item shows a lock.
-  // A client login (including the shared creative-team login, scoped to the leaderboard) can't
-  // open the pages it doesn't own, so those links are removed rather than left to bounce back
-  // home when clicked.
+  // Logged in -> show who you are (and drop the lock); logged out -> the Dashboard item shows a
+  // lock. A client login only ever owns one page (the leaderboard, for the shared creative-team
+  // login, or their own dashboard for the others) so it gets no sidebar at all, same as the
+  // other client-facing pages — there's nothing for it to navigate between.
   fetch('/api/me', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((me) => {
     if (!me) return;
+    if (me.role === 'client') {
+      nav.remove();
+      document.body.classList.remove('has-sidebar', 'side-collapsed');
+      return;
+    }
     document.querySelectorAll('.side-lock-slot').forEach((el) => { el.hidden = true; });
     document.getElementById('side-user-name').textContent = me.name;
     document.getElementById('side-user').hidden = false;
-    if (me.role === 'client' && me.scope === 'leaderboard') {
-      ['dashboard', 'sasooness', 'km', 'bryan'].forEach((slug) => {
-        const link = nav.querySelector('a[href="/' + slug + '/"]');
-        if (link) link.remove();
-      });
-    }
   }).catch(() => {});
 })();

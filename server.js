@@ -429,8 +429,13 @@ const server = http.createServer((req, res) => {
     if (s.role === 'admin') return true;
     if (pathname.startsWith('/shared/') || PUBLIC_ASSETS.has(pathname)) return true;
     if (s.role === 'client') {
-      // The leaderboard scope's page is the site root, not a "/leaderboard/" path.
-      if (s.scope === 'leaderboard') return pathname === '/' || pathname.startsWith('/api/');
+      // The leaderboard scope's page (and its own static assets — style.css, app.js, the logo,
+      // the favicon) all live at the site root rather than under their own path, so it's allowed
+      // everything except the other dashboards' paths, rather than an exact-path allowlist.
+      if (s.scope === 'leaderboard') {
+        const others = ['/dashboard', '/sasooness', '/km', '/bryan'];
+        return !others.some((p) => pathname === p || pathname.startsWith(p + '/') || pathname === p + '-api/data');
+      }
       return pathname === '/' + s.scope || pathname.startsWith('/' + s.scope + '/') || pathname === '/' + s.scope + '-api/data';
     }
     return false;

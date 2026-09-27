@@ -67,15 +67,25 @@ function parseWalkerLog(csv) {
 
 // Where a lead came from: matched by name within 3 days of the CRM date (verified against phone
 // where both sides have one — 110 of 111 candidate matches agreed on phone during testing, so a
-// name+date match without a phone to check is trusted too), earliest candidate wins ties.
-function findOrigin(lead, byName) {
+// name+date match without a phone to check is trusted too), earliest candidate wins ties. Some
+// CRM rows name a relative the lead is calling about (e.g. "Jace Peterson (son)") rather than the
+// contact who actually submitted the form — those never match by name, so a same-day phone match
+// against the whole log is tried next before giving up.
+function findOrigin(lead, byName, byPhone) {
   const candidates = (byName.get(normName(lead.name)) || []).filter(
     (w) => Math.abs((new Date(w.date) - new Date(lead.createdDate)) / 86400000) <= 3
   );
-  if (!candidates.length) return null;
   const phone = phone10(lead.phone);
-  const byPhone = phone && candidates.find((w) => w.phone === phone);
-  const w = byPhone || candidates.reduce((a, b) => (b.date < a.date ? b : a));
+  if (candidates.length) {
+    const exactPhone = phone && candidates.find((w) => w.phone === phone);
+    const w = exactPhone || candidates.reduce((a, b) => (b.date < a.date ? b : a));
+    return { campaignId: w.campaignId, campaignName: cache.campaignNames.get(w.campaignId) || '', contactSource: w.source, walkerDate: w.date };
+  }
+  const phoneMatches = (phone && byPhone.get(phone) || []).filter(
+    (w) => Math.abs((new Date(w.date) - new Date(lead.createdDate)) / 86400000) <= 3
+  );
+  if (!phoneMatches.length) return null;
+  const w = phoneMatches.reduce((a, b) => (b.date < a.date ? b : a));
   return { campaignId: w.campaignId, campaignName: cache.campaignNames.get(w.campaignId) || '', contactSource: w.source, walkerDate: w.date };
 }
 
@@ -110,11 +120,16 @@ async function pollAll() {
     if (walkerLog.length < 1000) { console.warn(`[${new Date().toISOString()}] Walker PPL log looks broken (${walkerLog.length} rows) — keeping last known-good`); return; }
 
     const byName = new Map();
-    for (const w of walkerLog) { if (!byName.has(w.name)) byName.set(w.name, []); byName.get(w.name).push(w); }
+    const byPhone = new Map();
+    for (const w of walkerLog) {
+      if (!byName.has(w.name)) byName.set(w.name, []);
+      byName.get(w.name).push(w);
+      if (w.phone) { if (!byPhone.has(w.phone)) byPhone.set(w.phone, []); byPhone.get(w.phone).push(w); }
+    }
 
     const usedCampaignIds = new Set();
     const withOrigin = leads.map((l) => {
-      const origin = findOrigin(l, byName);
+      const origin = findOrigin(l, byName, byPhone);
       if (origin && origin.campaignId) usedCampaignIds.add(origin.campaignId);
       return { ...l, origin };
     });

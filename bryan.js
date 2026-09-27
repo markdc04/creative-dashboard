@@ -17,6 +17,9 @@ const WALKER_GID = '1067474187';
 
 const START_DATE = '2026-08-03'; // Bryan started on this date.
 
+// Leads confirmed by hand (in GoHighLevel) to be genuinely organic — see the note in pollAll.
+const ORGANIC_OVERRIDES = [{ name: 'Linda Parfait', createdDate: '2026-08-04' }];
+
 let cache = {
   leads: [], walkerLog: [], walkerLeadsDaily: [], spendDaily: [],
   campaignNames: new Map(), usedCampaignIds: new Set(), updatedAt: null,
@@ -143,7 +146,15 @@ async function pollAll() {
 
     const usedCampaignIds = new Set();
     const withOrigin = leads.map((l) => {
-      const origin = findOrigin(l, byName, byPhone);
+      let origin = findOrigin(l, byName, byPhone);
+      // Walker's log carries no UTM for this one lead (blank campaign fields), and her CRM
+      // Contact Source alone doesn't say why. Checked directly in GoHighLevel: her first and
+      // latest attribution source is Organic Search, with no campaign anywhere in her activity
+      // log — a real $0-ad-spend lead, not a gap in the join. Labeled here so she shows up as her
+      // own line in the campaign breakdown instead of falling into "not traced."
+      if (origin && !origin.campaignId && ORGANIC_OVERRIDES.some((o) => o.name === l.name && o.createdDate === l.createdDate)) {
+        origin = { ...origin, campaignName: 'Organic Search (verified in GHL)' };
+      }
       if (origin && origin.campaignId) usedCampaignIds.add(origin.campaignId);
       return { ...l, origin };
     });

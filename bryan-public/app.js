@@ -348,6 +348,39 @@
     container.appendChild(tip);
   }
 
+  // ================= Walker Agency Campaign Deduction panel =================
+  function renderDeduction(leads) {
+    const { days, total } = dailyDeduction(leads);
+    const cents = (n) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const dash = '—';
+
+    const byCampaign = new Map(); // campaignId -> { name, n }
+    for (const l of leads) {
+      const o = l.origin;
+      if (!o || !o.campaignId) continue;
+      if (!byCampaign.has(o.campaignId)) byCampaign.set(o.campaignId, { name: o.campaignName || o.campaignId, n: 0 });
+      byCampaign.get(o.campaignId).n++;
+    }
+    const campaignNames = [...byCampaign.values()].map((c) => c.name + ' · ' + c.n + ' lead' + (c.n === 1 ? '' : 's')).join(', ');
+
+    $('#deduct-facts').innerHTML =
+      '<div class="fact fact--total"><div class="fact-label">Bryan ad spend</div><div class="fact-value">' + cents(total) + '</div><div class="fact-sub">already spent in Walker&rsquo;s campaigns &middot; sum of the days below</div></div>' +
+      '<div class="fact"><div class="fact-label">Walker campaigns</div><div class="fact-value">' + (byCampaign.size || dash) + '</div><div class="fact-sub">' + escapeHtml(campaignNames || 'No Walker campaign found for the leads in this range.') + '</div></div>' +
+      '<div class="fact"><div class="fact-label">Leads with a traced day</div><div class="fact-value">' + days.reduce((t, d) => t + d.n, 0) + ' of ' + leads.length + '</div></div>';
+
+    const sentTotal = days.reduce((t, d) => t + d.n, 0);
+    $('#deduct-days-body').innerHTML = days.map((d) => (
+      '<tr><td>' + escapeHtml(d.date) + '</td><td class="name-cell">' + escapeHtml(d.name) + '</td>' +
+      '<td class="td-num num">' + cents(d.spend) + '</td>' +
+      '<td class="td-num num">' + d.walkerLeads.toLocaleString('en-US') + '</td>' +
+      '<td class="td-num num">' + d.n + '</td>' +
+      '<td class="td-num num">' + (d.cpl ? cents(d.cpl) : dash) + '</td>' +
+      '<td class="td-num num">' + (d.deduct ? cents(d.deduct) : dash) + '</td></tr>'
+    )).join('') + (days.length
+      ? '<tr class="row-total"><td>Total</td><td></td><td></td><td></td><td class="td-num num">' + sentTotal + '</td><td></td><td class="td-num num">' + cents(total) + '</td></tr>'
+      : '<tr class="row-muted"><td colspan="7">No leads to show for this range.</td></tr>');
+  }
+
   // ================= leads by campaign table =================
   function renderCampaignTable(leads) {
     const byCampaign = new Map();
@@ -397,6 +430,7 @@
     const leads = leadsFor();
     renderKpis(leads);
     const { days } = dailyDeduction(leads);
+    renderDeduction(leads);
     renderSpendChart(days);
     renderBarChart(leads);
     renderPieChart(leads);

@@ -23,6 +23,7 @@
     '<a class="side-item' + (active === 'dashboard' ? ' is-active' : '') + '" href="/dashboard/" title="Creative Dashboard">' + icons.dash + '<span class="side-text">Creative Dashboard</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
     '<a class="side-item' + (active === 'sasooness' ? ' is-active' : '') + '" href="/sasooness/" title="Sasooness Law Group, APC">' + icons.scale + '<span class="side-text">Sasooness Law Group, APC</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
     '<a class="side-item' + (active === 'km' ? ' is-active' : '') + '" href="/km/" title="KM Law Firm PLLC">' + icons.brief + '<span class="side-text">KM Law Firm PLLC</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
+    '<a class="side-item' + (active === 'bryan' ? ' is-active' : '') + '" href="/bryan/" title="Bryan Rodriguez">' + icons.brief + '<span class="side-text">Bryan Rodriguez</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
     '<div class="side-spacer"></div>' +
     '<div class="side-user" id="side-user" hidden><strong id="side-user-name"></strong><a href="/logout">Log out</a></div>' +
     '<button class="side-collapse" id="side-collapse" type="button" title="Collapse">' + icons.collapse + '<span>Collapse</span></button>';

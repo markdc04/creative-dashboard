@@ -6,6 +6,7 @@ const auth = require('./auth');
 const { csvUrl: sharedCsvUrl, fetchText, parseCSV, num, toISODate } = require('./csv-utils');
 const sasooness = require('./sasooness');
 const km = require('./km');
+const bryan = require('./bryan');
 
 const DOC_ID = '1YkpQh4hR96iMtvd_bvtrT0fN0zCaLQNKl3pa6Tix8BA';
 
@@ -289,6 +290,7 @@ async function pollAll() {
     // request for it.
     sasooness.updateGoogleSpend(rows);
     km.updateGoogleSpend(rows);
+    bryan.updateGoogleSpend(rows);
   } catch (err) {
     console.error('poll error:', err.message);
   }
@@ -401,9 +403,9 @@ const server = http.createServer((req, res) => {
   }
 
   const sessionName = auth.readSession(req.headers.cookie);
-  const needsLogin = url.pathname.startsWith('/api/') || url.pathname === '/dashboard' || url.pathname.startsWith('/dashboard/') || url.pathname === '/sasooness-api/data' || url.pathname === '/sasooness' || url.pathname.startsWith('/sasooness/') || url.pathname === '/km-api/data' || url.pathname === '/km' || url.pathname.startsWith('/km/');
+  const needsLogin = url.pathname.startsWith('/api/') || url.pathname === '/dashboard' || url.pathname.startsWith('/dashboard/') || url.pathname === '/sasooness-api/data' || url.pathname === '/sasooness' || url.pathname.startsWith('/sasooness/') || url.pathname === '/km-api/data' || url.pathname === '/km' || url.pathname.startsWith('/km/') || url.pathname === '/bryan-api/data' || url.pathname === '/bryan' || url.pathname.startsWith('/bryan/');
   if (!publicZone && !sessionName && needsLogin && !PUBLIC_ASSETS.has(url.pathname)) {
-    if (url.pathname.startsWith('/api/') || url.pathname === '/sasooness-api/data' || url.pathname === '/km-api/data') {
+    if (url.pathname.startsWith('/api/') || url.pathname === '/sasooness-api/data' || url.pathname === '/km-api/data' || url.pathname === '/bryan-api/data') {
       res.writeHead(401, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'login required' }));
     } else {
@@ -483,6 +485,12 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (url.pathname === '/bryan-api/data') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(bryan.getData()));
+    return;
+  }
+
   // One process serves everything: the leaderboard at the site root, the dashboard under
   // /dashboard/ (login enforced above), and the shared side-panel files under /shared/.
   let root = 'leaderboard-public';
@@ -491,9 +499,11 @@ const server = http.createServer((req, res) => {
   if (rel === '/dashboard') { res.writeHead(301, { Location: '/dashboard/' }); res.end(); return; }
   if (rel === '/sasooness') { res.writeHead(301, { Location: '/sasooness/' }); res.end(); return; }
   if (rel === '/km') { res.writeHead(301, { Location: '/km/' }); res.end(); return; }
+  if (rel === '/bryan') { res.writeHead(301, { Location: '/bryan/' }); res.end(); return; }
   if (rel.startsWith('/dashboard/')) { root = 'public'; rel = rel.slice('/dashboard'.length); }
   else if (rel.startsWith('/sasooness/')) { root = 'sasooness-public'; rel = rel.slice('/sasooness'.length); }
   else if (rel.startsWith('/km/')) { root = 'km-public'; rel = rel.slice('/km'.length); }
+  else if (rel.startsWith('/bryan/')) { root = 'bryan-public'; rel = rel.slice('/bryan'.length); }
   else if (rel.startsWith('/shared/')) { root = 'shared'; rel = rel.slice('/shared'.length); }
   const rootDir = path.join(__dirname, root);
   let filePath = path.join(rootDir, rel === '/' ? 'index.html' : rel);
@@ -512,6 +522,8 @@ sasooness.pollAll();
 setInterval(sasooness.pollAll, POLL_MS);
 km.pollAll();
 setInterval(km.pollAll, POLL_MS);
+bryan.pollAll();
+setInterval(bryan.pollAll, POLL_MS);
 
 server.listen(PORT, () => {
   console.log(`Creative Dashboard running at http://localhost:${PORT}`);

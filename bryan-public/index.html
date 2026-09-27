@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bryan Rodriguez — Loudr Media</title>
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="/shared/sidebar.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brandbar">
+    <img src="/shared/logo-loudr.png" alt="Loudr Media" class="brandlogo">
+    <div class="brandbar-right">
+      <button id="refresh-btn" class="refresh-btn" title="Refresh now" aria-label="Refresh now">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+      </button>
+      <span id="live-pill" class="live-pill">
+        <span class="live-dot"></span>
+        <span id="live-text">Live &ndash; checked just now</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="topbar">
+    <div>
+      <p class="brand-eyebrow">Client Dashboard</p>
+      <h1>Bryan Rodriguez</h1>
+      <p class="topbar-sub"><span id="lead-count">&mdash;</span> leads <span id="range-label"></span> &middot; live from Google Sheets</p>
+    </div>
+    <div class="date-bar">
+      <div class="select-wrap">
+        <select id="quick-range">
+          <option value="all">All time</option>
+          <option value="today">Today</option>
+          <option value="yesterday">Yesterday</option>
+          <option value="wtd">Week to date</option>
+          <option value="lastweek">Last week</option>
+          <option value="2026-09">September 2026</option>
+          <option value="2026-08">August 2026</option>
+          <option value="2026-07">July 2026</option>
+          <option value="2026-06">June 2026</option>
+          <option value="2026-05">May 2026</option>
+          <option value="2026-04">April 2026</option>
+          <option value="2026-03">March 2026</option>
+          <option value="2026-02">February 2026</option>
+          <option value="2026-01">January 2026</option>
+          <option value="custom">Custom range&hellip;</option>
+        </select>
+        <svg class="select-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+      <div class="date-inputs">
+        <input type="date" id="range-start">
+        <span class="date-arrow">&rarr;</span>
+        <input type="date" id="range-end">
+      </div>
+      <button id="range-clear" class="clear-btn">Clear</button>
+    </div>
+  </div>
+
+  <div class="filter-bar" id="filter-bar" hidden></div>
+
+  <div class="kpi-row" id="kpi-row"></div>
+
+  <div class="chart-row">
+    <div class="panel chart-panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Ad Spend Over Time</h2>
+        <div class="legend" id="spend-legend"></div>
+      </div>
+      <div id="spend-chart" class="chart-slot"></div>
+    </div>
+  </div>
+
+  <div class="chart-row chart-row--split">
+    <div class="panel chart-panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Leads &amp; Signed Cases by Month</h2>
+        <div class="legend" id="bar-legend"></div>
+      </div>
+      <div id="bar-chart" class="chart-slot"></div>
+    </div>
+    <div class="panel chart-panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Ad Spend by Platform</h2>
+      </div>
+      <div id="pie-chart" class="chart-slot chart-slot--pie"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2 class="panel-title">Leads by Campaign</h2>
+      <span class="panel-sub" id="ad-sub"></span>
+    </div>
+    <div class="table-scroll table-scroll--short">
+      <table>
+        <thead><tr><th>Campaign</th><th class="th-num">Leads</th><th class="th-num">% of Leads</th></tr></thead>
+        <tbody id="ad-body"></tbody>
+      </table>
+    </div>
+    <div id="ad-empty" class="empty-msg" hidden>No leads in this range.</div>
+  </div>
+
+  <p class="footnote">Bryan is a pay-per-lead (PPL) client only &mdash; he buys leads out of a shared pool of Loudr's own Texas Google campaigns, the same campaigns other PPL buyers draw from. Leads are matched to their source campaign by name and phone against Walker's PPL delivery log, since that log has no email for most rows. His own CRM sheet has no clean status field, only call-log notes, so leads are read as Signed, Rejected, In Progress or Awaiting Contact by keyword; the note itself is shown in Lead Details. Tracked from August 3, 2026.</p>
+
+  <div class="panel panel--secondary">
+    <div class="panel-head">
+      <h2 class="panel-title panel-title--secondary">Lead Details</h2>
+      <div class="search-box">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="search" type="text" placeholder="Search name, email, phone&hellip;">
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Created</th><th>Status</th><th>Note</th><th>Contact Source</th><th>Campaign</th><th class="th-num">CPL</th></tr>
+        </thead>
+        <tbody id="leads-body"></tbody>
+      </table>
+    </div>
+    <div id="leads-empty" class="empty-msg" hidden>No leads in this range.</div>
+  </div>
+
+</div>
+<script src="app.js"></script>
+<script src="/shared/sidebar.js" data-active="bryan"></script>
+</body>
+</html>

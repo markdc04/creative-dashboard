@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loudr Media Dashboard</title>
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brandbar">
+    <img src="/shared/logo-loudr.png" alt="Loudr Media" class="brandlogo">
+    <div class="brandbar-right">
+      <span id="live-pill" class="live-pill">
+        <span class="live-dot"></span>
+        <span id="live-text">Live &ndash; checked just now</span>
+      </span>
+      <a href="/logout" class="logout-link">Log out</a>
+    </div>
+  </div>
+
+  <p class="brand-eyebrow">Client Dashboard</p>
+  <h1 id="client-title">&mdash;</h1>
+  <p class="topbar-sub"><span id="lead-count">&mdash;</span> leads</p>
+
+  <div class="kpi-row" id="kpi-row"></div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2 class="panel-title">Leads</h2>
+      <div class="search-box">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="search" type="text" placeholder="Search name&hellip;">
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Name</th><th>Date</th><th>Status</th></tr></thead>
+        <tbody id="leads-body"></tbody>
+      </table>
+    </div>
+    <div id="leads-empty" class="empty-msg" hidden>No leads yet.</div>
+  </div>
+
+  <p class="footnote">Updated automatically as new leads come in. For questions about this data, contact your Loudr Media account manager.</p>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>

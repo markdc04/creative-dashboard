@@ -38,10 +38,18 @@
   });
 
   // Logged in -> show who you are (and drop the lock); logged out -> the Dashboard item shows a lock.
+  // A creative-role login can't open the client financial dashboards, so those links are removed
+  // rather than left to bounce back home when clicked.
   fetch('/api/me', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((me) => {
     if (!me) return;
     document.querySelectorAll('.side-lock-slot').forEach((el) => { el.hidden = true; });
     document.getElementById('side-user-name').textContent = me.name;
     document.getElementById('side-user').hidden = false;
+    if (me.role === 'creative') {
+      ['sasooness', 'km', 'bryan'].forEach((slug) => {
+        const link = nav.querySelector('a[href="/' + slug + '/"]');
+        if (link) link.remove();
+      });
+    }
   }).catch(() => {});
 })();

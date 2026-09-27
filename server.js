@@ -7,6 +7,7 @@ const { csvUrl: sharedCsvUrl, fetchText, parseCSV, num, toISODate } = require('.
 const sasooness = require('./sasooness');
 const km = require('./km');
 const bryan = require('./bryan');
+const clientView = require('./client-view');
 
 const DOC_ID = '1YkpQh4hR96iMtvd_bvtrT0fN0zCaLQNKl3pa6Tix8BA';
 
@@ -357,14 +358,13 @@ function sendLogin(res, { username = '', next = '/dashboard/', error = '' } = {}
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
-  // The site opens on the no-financials leaderboard, which (with its data feed under /lb-api/)
-  // stays open. The dashboard (/dashboard/) and the full data API (/api/) need a login.
-  let publicZone = false;
+  // The leaderboard's data feed lives under /lb-api/ but is really just the same /api/ feed the
+  // creative dashboard uses — rewritten here so both share one set of handlers below. Every
+  // route requires login now (checked further down); the leaderboard is no longer public.
   if (url.pathname.startsWith('/lb-api/')) {
     const apiPath = '/api/' + url.pathname.slice('/lb-api/'.length);
     if (!LEADERBOARD_API.has(apiPath)) { res.writeHead(404); res.end('Not found'); return; }
     url.pathname = apiPath;
-    publicZone = true;
   }
 
   if (url.pathname === '/login' && req.method === 'GET') {
@@ -381,35 +381,60 @@ const server = http.createServer((req, res) => {
       const next = safeNext(form.get('next'));
       const ip = clientIp(req);
       if (auth.isLocked(ip)) { res.writeHead(302, { Location: '/login?error=locked' }); res.end(); return; }
-      const name = auth.verifyLogin(username, form.get('password'));
-      if (!name) {
+      const user = auth.verifyLogin(username, form.get('password'));
+      if (!user) {
         auth.noteFailure(ip);
         res.writeHead(302, { Location: '/login?error=1&u=' + encodeURIComponent(username.slice(0, 40)) + '&next=' + encodeURIComponent(next) });
         res.end();
         return;
       }
       auth.clearFailures(ip);
-      recordVisit(name);
-      res.writeHead(302, { 'Set-Cookie': sessionCookie(req, auth.makeSession(name), Math.floor(auth.SESSION_MS / 1000)), Location: next });
+      recordVisit(user.name);
+      // A client login ignores whatever `next` said (it may have been aimed at a page they can't
+      // reach) and always lands on their own dashboard; everyone else keeps the page they asked for.
+      const dest = user.role === 'client' ? '/' + user.scope + '/' : next;
+      res.writeHead(302, { 'Set-Cookie': sessionCookie(req, auth.makeSession(user), Math.floor(auth.SESSION_MS / 1000)), Location: dest });
       res.end();
     });
     return;
   }
 
   if (url.pathname === '/logout') {
-    res.writeHead(302, { 'Set-Cookie': sessionCookie(req, '', 0), Location: '/' });
+    res.writeHead(302, { 'Set-Cookie': sessionCookie(req, '', 0), Location: '/login' });
     res.end();
     return;
   }
 
-  const sessionName = auth.readSession(req.headers.cookie);
-  const needsLogin = url.pathname.startsWith('/api/') || url.pathname === '/dashboard' || url.pathname.startsWith('/dashboard/') || url.pathname === '/sasooness-api/data' || url.pathname === '/sasooness' || url.pathname.startsWith('/sasooness/') || url.pathname === '/km-api/data' || url.pathname === '/km' || url.pathname.startsWith('/km/') || url.pathname === '/bryan-api/data' || url.pathname === '/bryan' || url.pathname.startsWith('/bryan/');
-  if (!publicZone && !sessionName && needsLogin && !PUBLIC_ASSETS.has(url.pathname)) {
-    if (url.pathname.startsWith('/api/') || url.pathname === '/sasooness-api/data' || url.pathname === '/km-api/data' || url.pathname === '/bryan-api/data') {
+  const session = auth.readSession(req.headers.cookie);
+  // Every route needs a login now (the leaderboard used to be the public front door; it isn't
+  // anymore), except the login page itself and the handful of static assets the login page
+  // renders with. Once logged in, a role further limits which paths it may reach at all.
+  const isApiPath = url.pathname.startsWith('/api/') || /^\/[a-z]+-api\/data$/.test(url.pathname);
+  if (!session && !PUBLIC_ASSETS.has(url.pathname)) {
+    if (isApiPath) {
       res.writeHead(401, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'login required' }));
     } else {
-      res.writeHead(302, { Location: '/login?next=' + encodeURIComponent(url.pathname === '/dashboard' ? '/dashboard/' : url.pathname) });
+      res.writeHead(302, { Location: '/login?next=' + encodeURIComponent(url.pathname) });
+      res.end();
+    }
+    return;
+  }
+
+  function roleHome(s) { return s.role === 'client' ? '/' + s.scope + '/' : '/'; }
+  function pathAllowed(s, pathname) {
+    if (s.role === 'admin') return true;
+    if (pathname.startsWith('/shared/') || PUBLIC_ASSETS.has(pathname)) return true;
+    if (s.role === 'creative') return pathname === '/' || pathname.startsWith('/dashboard') || pathname.startsWith('/api/');
+    if (s.role === 'client') return pathname === '/' + s.scope || pathname.startsWith('/' + s.scope + '/') || pathname === '/' + s.scope + '-api/data';
+    return false;
+  }
+  if (session && !pathAllowed(session, url.pathname)) {
+    if (isApiPath) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'forbidden' }));
+    } else {
+      res.writeHead(302, { Location: roleHome(session) });
       res.end();
     }
     return;
@@ -417,7 +442,7 @@ const server = http.createServer((req, res) => {
 
   if (url.pathname === '/api/me') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    res.end(JSON.stringify({ name: sessionName }));
+    res.end(JSON.stringify(session));
     return;
   }
 
@@ -474,20 +499,23 @@ const server = http.createServer((req, res) => {
   }
 
   if (url.pathname === '/sasooness-api/data') {
+    const data = session.role === 'client' ? clientView.simplifyLeads(sasooness.getData().leads) : sasooness.getData();
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(sasooness.getData()));
+    res.end(JSON.stringify(data));
     return;
   }
 
   if (url.pathname === '/km-api/data') {
+    const data = session.role === 'client' ? clientView.simplifyCases(km.getData().cases) : km.getData();
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(km.getData()));
+    res.end(JSON.stringify(data));
     return;
   }
 
   if (url.pathname === '/bryan-api/data') {
+    const data = session.role === 'client' ? clientView.simplifyLeads(bryan.getData().leads) : bryan.getData();
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(bryan.getData()));
+    res.end(JSON.stringify(data));
     return;
   }
 
@@ -501,6 +529,13 @@ const server = http.createServer((req, res) => {
   if (rel === '/km') { res.writeHead(301, { Location: '/km/' }); res.end(); return; }
   if (rel === '/bryan') { res.writeHead(301, { Location: '/bryan/' }); res.end(); return; }
   if (rel.startsWith('/dashboard/')) { root = 'public'; rel = rel.slice('/dashboard'.length); }
+  // A client-role session gets the shared, limited client-view app for any of the three client
+  // dashboards instead of the internal one admins/creative see at the same URL — one small static
+  // app that reads which client it's for from the URL path at runtime (see client-public/app.js).
+  else if (session.role === 'client' && (rel.startsWith('/sasooness/') || rel.startsWith('/km/') || rel.startsWith('/bryan/'))) {
+    const scope = rel.split('/')[1];
+    root = 'client-public'; rel = rel.slice(('/' + scope).length);
+  }
   else if (rel.startsWith('/sasooness/')) { root = 'sasooness-public'; rel = rel.slice('/sasooness'.length); }
   else if (rel.startsWith('/km/')) { root = 'km-public'; rel = rel.slice('/km'.length); }
   else if (rel.startsWith('/bryan/')) { root = 'bryan-public'; rel = rel.slice('/bryan'.length); }

@@ -10,14 +10,12 @@
 const SIGNED_VALUES = new Set(['signed', 'signed up', 'client']);
 function isSignedStatus(status) { return SIGNED_VALUES.has((status || '').trim().toLowerCase()); }
 
-// Sasooness runs leads through three channels internally (OG, Agency via Lead Prosper AZ, PPL via
-// Lead Prosper WA); the client only asked to switch between the Agency and PPL views specifically,
-// so those two carry through as `program` and everything else (OG, the bulk of their volume) is
-// left unset — the client page treats unset as "no program filter applies to this lead."
+// Sasooness's own two-model split, per the client: OG (Main Landing Page) and Agency (Lead
+// Prosper AZ) are both the AZ side of the business and count together as "Agency" here; Pay Per
+// Lead is WA only (Lead Prosper WA). So every lead gets exactly one of these two, unlike the
+// internal dashboard's three-way OG/Agency/PPL split.
 function programOf(channel) {
-  if (channel === 'Lead Prosper AZ') return 'agency';
-  if (channel === 'Lead Prosper WA') return 'ppl';
-  return null;
+  return channel === 'Lead Prosper WA' ? 'ppl' : 'agency';
 }
 
 function simplifyLeads(leads) {

@@ -425,7 +425,9 @@ const server = http.createServer((req, res) => {
   function pathAllowed(s, pathname) {
     if (s.role === 'admin') return true;
     if (pathname.startsWith('/shared/') || PUBLIC_ASSETS.has(pathname)) return true;
-    if (s.role === 'creative') return pathname === '/' || pathname.startsWith('/dashboard') || pathname.startsWith('/api/');
+    // Creative-team logins see the leaderboard only — the Creative Dashboard (with per-editor
+    // performance detail) is internal/admin-only.
+    if (s.role === 'creative') return pathname === '/' || pathname.startsWith('/api/');
     if (s.role === 'client') return pathname === '/' + s.scope || pathname.startsWith('/' + s.scope + '/') || pathname === '/' + s.scope + '-api/data';
     return false;
   }

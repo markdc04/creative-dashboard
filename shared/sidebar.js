@@ -46,7 +46,7 @@
     document.getElementById('side-user-name').textContent = me.name;
     document.getElementById('side-user').hidden = false;
     if (me.role === 'creative') {
-      ['sasooness', 'km', 'bryan'].forEach((slug) => {
+      ['dashboard', 'sasooness', 'km', 'bryan'].forEach((slug) => {
         const link = nav.querySelector('a[href="/' + slug + '/"]');
         if (link) link.remove();
       });

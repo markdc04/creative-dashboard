@@ -344,6 +344,9 @@ const LOGIN_HTML = fs.readFileSync(path.join(__dirname, 'login.html'), 'utf8');
 function clientIp(req) { return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || ''; }
 function esc(v) { return String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function safeNext(n) { return typeof n === 'string' && n.startsWith('/') && !n.startsWith('//') && !n.startsWith('/\\') ? n : '/dashboard/'; }
+// A client account's own dashboard. "leaderboard" is a virtual scope (the shared creative-team
+// login) whose page lives at the site root rather than under its own path.
+function scopeHome(scope) { return scope === 'leaderboard' ? '/' : '/' + scope + '/'; }
 function sessionCookie(req, value, maxAgeSec) {
   const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
   return `sid=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}${secure}`;
@@ -392,7 +395,7 @@ const server = http.createServer((req, res) => {
       recordVisit(user.name);
       // A client login ignores whatever `next` said (it may have been aimed at a page they can't
       // reach) and always lands on their own dashboard; everyone else keeps the page they asked for.
-      const dest = user.role === 'client' ? '/' + user.scope + '/' : next;
+      const dest = user.role === 'client' ? scopeHome(user.scope) : next;
       res.writeHead(302, { 'Set-Cookie': sessionCookie(req, auth.makeSession(user), Math.floor(auth.SESSION_MS / 1000)), Location: dest });
       res.end();
     });
@@ -421,14 +424,15 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  function roleHome(s) { return s.role === 'client' ? '/' + s.scope + '/' : '/'; }
+  function roleHome(s) { return s.role === 'client' ? scopeHome(s.scope) : '/'; }
   function pathAllowed(s, pathname) {
     if (s.role === 'admin') return true;
     if (pathname.startsWith('/shared/') || PUBLIC_ASSETS.has(pathname)) return true;
-    // Creative-team logins see the leaderboard only — the Creative Dashboard (with per-editor
-    // performance detail) is internal/admin-only.
-    if (s.role === 'creative') return pathname === '/' || pathname.startsWith('/api/');
-    if (s.role === 'client') return pathname === '/' + s.scope || pathname.startsWith('/' + s.scope + '/') || pathname === '/' + s.scope + '-api/data';
+    if (s.role === 'client') {
+      // The leaderboard scope's page is the site root, not a "/leaderboard/" path.
+      if (s.scope === 'leaderboard') return pathname === '/' || pathname.startsWith('/api/');
+      return pathname === '/' + s.scope || pathname.startsWith('/' + s.scope + '/') || pathname === '/' + s.scope + '-api/data';
+    }
     return false;
   }
   if (session && !pathAllowed(session, url.pathname)) {

@@ -33,18 +33,32 @@ function classifyStatus(note) {
   return note ? 'In Progress' : 'Awaiting Contact';
 }
 
+// One-time historical correction, not a recurring rule: of the 70 leads delivered Aug 3-5 (his
+// launch batch), the first 13 in the sheet were the tail end of a prior deal's balance, not new
+// leads Bryan owes for; the 6 leads Aug 17-19 were free replacements for bad leads within that
+// batch. Both still cost ad spend (they're real Walker deliveries) but carry no revenue.
+function isBillable(date, indexWithinAug3to5) {
+  if (date >= '2026-08-17' && date <= '2026-08-19') return false;
+  if (date >= '2026-08-03' && date <= '2026-08-05') return indexWithinAug3to5 >= 13;
+  return true;
+}
+
 function parseLeads(csv) {
+  let aug3to5Seen = 0;
   return parseCSV(csv)
     .map((r) => {
       const note = (r['Lead Status'] || '').trim();
+      const createdDate = toISODate(r['Date']);
+      const idx = createdDate >= '2026-08-03' && createdDate <= '2026-08-05' ? aug3to5Seen++ : -1;
       return {
         name: (r['Name'] || '').trim(),
         email: (r['Email'] || '').trim().toLowerCase(),
         phone: (r['Phone'] || '').trim(),
-        createdDate: toISODate(r['Date']),
+        createdDate,
         status: classifyStatus(note),
         note,
         reason: (r['Reason for Rejection'] || '').trim(),
+        billable: createdDate ? isBillable(createdDate, idx) : true,
       };
     })
     .filter((l) => l.createdDate && l.createdDate >= START_DATE && (l.name || l.email));

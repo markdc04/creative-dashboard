@@ -6,6 +6,7 @@
   const COLOR_LEADS = '#3987e5';
   const COLOR_SIGNED = '#199e70';
   const CAMPAIGN_COLORS = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181'];
+  const PRICE_PER_LEAD = 350; // Bryan is billed per lead delivered (PPL), regardless of status.
 
   const state = {
     leads: [], walker: { campaigns: [], leadsDaily: [], spendDaily: [] },
@@ -131,13 +132,20 @@
     const { total: spend } = dailyDeduction(leads);
     const cpl = total > 0 && spend > 0 ? spend / total : 0;
     const costPerCase = signed > 0 && spend > 0 ? spend / signed : 0;
+    const billable = leads.filter((l) => l.billable !== false).length;
+    const nonBillable = total - billable;
+    const revenue = billable * PRICE_PER_LEAD;
+    const profit = revenue - spend;
+    const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
     const dash = '—';
 
     const tiles = [
       ['Total Leads', total.toLocaleString('en-US'), rejected ? rejected.toLocaleString('en-US') + ' rejected' : ''],
       ['Signed', signed.toLocaleString('en-US'), 'of ' + total.toLocaleString('en-US') + ' leads'],
       ['Conversion Rate', pct(conversionRate), 'signed ÷ leads'],
+      ['Revenue', money(revenue), '$' + PRICE_PER_LEAD + ' × ' + billable.toLocaleString('en-US') + ' billable leads' + (nonBillable ? ' (' + nonBillable + ' not billed)' : '')],
       ['Ad Spend', money(spend), 'Bryan’s share of the shared campaigns'],
+      ['Profit', money(profit), pct(margin) + ' margin · revenue − ad spend'],
       ['Cost / Lead', cpl ? money(cpl) : dash, 'ad spend ÷ leads'],
       ['Cost / Signed', costPerCase ? money(costPerCase) : dash, signed ? 'ad spend ÷ signed leads' : 'no signed leads yet'],
     ];
@@ -415,7 +423,7 @@
       const o = l.origin;
       const cpl = o && o.campaignId ? cplByKey.get(o.campaignId + '|' + l.createdDate) : 0;
       return '<tr>' +
-        '<td><div class="name-cell">' + escapeHtml(l.name || '(no name)') + '</div><div class="email-cell">' + escapeHtml(l.email || l.phone || '') + '</div></td>' +
+        '<td><div class="name-cell">' + escapeHtml(l.name || '(no name)') + '</div><div class="email-cell">' + escapeHtml(l.email || l.phone || '') + (l.billable === false ? ' · not billed' : '') + '</div></td>' +
         '<td>' + escapeHtml(l.createdDate || dash) + '</td>' +
         '<td><span class="status-pill ' + statusClass(l.status) + '">' + escapeHtml(l.status) + '</span></td>' +
         '<td class="email-cell" title="' + escapeHtml(l.note) + '">' + escapeHtml(l.note ? (l.note.length > 60 ? l.note.slice(0, 60) + '…' : l.note) : dash) + '</td>' +

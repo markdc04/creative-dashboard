@@ -228,17 +228,43 @@ function parseDropped(csv) {
   return out;
 }
 
-// One entry per row of Walker's lead log, reduced to what the origin tables need.
+// One entry per row of Walker's lead log, reduced to what the origin tables need. Some rows have
+// a correct Contact Source (e.g. "Agency 11. (W1) - Walker (WA Google)") but a blank UTM Campaign
+// — left as-is, those rows silently vanish from every campaign's daily lead count, undercounting
+// it. Since each Contact Source maps to one campaign ID everywhere else it appears, a blank
+// campaign ID is backfilled from that source's most common ID, so every logged lead is counted.
 function parseWalkerLog(csv) {
-  return parseCSV(csv).map((r) => ({
-    date: toISODate(r['Date']),
-    email: normEmail(r['Email']),
-    phone: phone10(r['Phone']),
-    source: (r['Contact Source'] || '').trim(),
-    campaignId: (r['UTM Campaign'] || '').trim(),
-    adId: (r['UTM Term'] || '').trim(),
-    status: (r['Accurate Status'] || r['Status'] || '').trim(),
-  })).filter((r) => r.date && (r.email || r.phone));
+  const rows = parseCSV(csv);
+  const bySource = new Map(); // source -> Map(campaignId -> count)
+  for (const r of rows) {
+    const source = (r['Contact Source'] || '').trim();
+    const campaignId = (r['UTM Campaign'] || '').trim();
+    if (!source || !campaignId) continue;
+    if (!bySource.has(source)) bySource.set(source, new Map());
+    const m = bySource.get(source);
+    m.set(campaignId, (m.get(campaignId) || 0) + 1);
+  }
+  const modeCampaignFor = new Map(); // source -> its most common campaign ID
+  for (const [source, counts] of bySource) {
+    let best = null, bestN = 0;
+    for (const [id, n] of counts) if (n > bestN) { best = id; bestN = n; }
+    modeCampaignFor.set(source, best);
+  }
+
+  return rows.map((r) => {
+    const source = (r['Contact Source'] || '').trim();
+    let campaignId = (r['UTM Campaign'] || '').trim();
+    if (!campaignId && source && modeCampaignFor.has(source)) campaignId = modeCampaignFor.get(source);
+    return {
+      date: toISODate(r['Date']),
+      email: normEmail(r['Email']),
+      phone: phone10(r['Phone']),
+      source,
+      campaignId,
+      adId: (r['UTM Term'] || '').trim(),
+      status: (r['Accurate Status'] || r['Status'] || '').trim(),
+    };
+  }).filter((r) => r.date && (r.email || r.phone));
 }
 
 // Where an Agency/PPL lead came from, from Walker's log. A person can be logged more than once (a

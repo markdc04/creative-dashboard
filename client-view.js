@@ -10,8 +10,18 @@
 const SIGNED_VALUES = new Set(['signed', 'signed up', 'client']);
 function isSignedStatus(status) { return SIGNED_VALUES.has((status || '').trim().toLowerCase()); }
 
+// Sasooness runs leads through three channels internally (OG, Agency via Lead Prosper AZ, PPL via
+// Lead Prosper WA); the client only asked to switch between the Agency and PPL views specifically,
+// so those two carry through as `program` and everything else (OG, the bulk of their volume) is
+// left unset — the client page treats unset as "no program filter applies to this lead."
+function programOf(channel) {
+  if (channel === 'Lead Prosper AZ') return 'agency';
+  if (channel === 'Lead Prosper WA') return 'ppl';
+  return null;
+}
+
 function simplifyLeads(leads) {
-  const rows = (leads || []).map((l) => ({ name: l.name || '', date: l.createdDate || '', status: isSignedStatus(l.status) ? 'Signed' : (l.status || '') }));
+  const rows = (leads || []).map((l) => ({ name: l.name || '', date: l.createdDate || '', status: isSignedStatus(l.status) ? 'Signed' : (l.status || ''), program: programOf(l.channel) }));
   const total = rows.length;
   const signed = rows.filter((r) => r.status === 'Signed').length;
   return {

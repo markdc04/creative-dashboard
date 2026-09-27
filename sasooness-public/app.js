@@ -791,17 +791,18 @@
       '<tr><td>' + escapeHtml(d.date) + '</td><td class="name-cell">' + escapeHtml(d.name) + '</td>' +
       '<td class="td-num num">' + cents(d.spend) + '</td>' +
       '<td class="td-num num">' + d.walkerLeads.toLocaleString('en-US') + '</td>' +
-      '<td class="td-num num">' + (d.cpl ? cents(d.cpl) : dash) + '</td>' +
       '<td class="td-num num">' + d.n + '</td>' +
+      '<td class="td-num num">' + (d.walkerLeads - d.n).toLocaleString('en-US') + '</td>' +
+      '<td class="td-num num">' + (d.cpl ? cents(d.cpl) : dash) + '</td>' +
       '<td class="td-num num">' + (d.deduct ? cents(d.deduct) : dash) + '</td></tr>'
     )).join('') + (ded.days.length
-      ? '<tr class="row-total"><td>Total</td><td></td><td></td><td></td><td></td><td class="td-num num">' + sentTotal + '</td><td class="td-num num">' + cents(ded.total) + '</td></tr>'
-      : '<tr class="row-muted"><td colspan="7">No leads to show for this range.</td></tr>');
+      ? '<tr class="row-total"><td>Total</td><td></td><td></td><td></td><td class="td-num num">' + sentTotal + '</td><td></td><td></td><td class="td-num num">' + cents(ded.total) + '</td></tr>'
+      : '<tr class="row-muted"><td colspan="8">No leads to show for this range.</td></tr>');
 
     // The example is the biggest day, since today is only part of a day's spend.
     const first = ded.days.filter((d) => d.deduct > 0).reduce((a, b) => (!a || b.deduct > a.deduct ? b : a), null);
     $('#deduct-workings').innerHTML = first
-      ? '<strong>How it’s worked out.</strong> Take ' + escapeHtml(first.date) + ': the campaign spent <strong>' + cents(first.spend) + '</strong> and Walker logged <strong>' + first.walkerLeads + '</strong> leads, so each lead cost ' + cents(first.spend) + ' ÷ ' + first.walkerLeads + ' = <strong>' + cents(first.cpl) + '</strong>. ' + first.n + ' of those went to Sasooness, so its ad spend for the day is ' + cents(first.cpl) + ' × ' + first.n + ' = <strong>' + cents(first.deduct) + '</strong>.' +
+      ? '<strong>How it’s worked out.</strong> Take ' + escapeHtml(first.date) + ': Walker logged <strong>' + first.walkerLeads + '</strong> leads that day — <strong>' + first.n + '</strong> went to Sasooness, <strong>' + (first.walkerLeads - first.n) + '</strong> stayed with Walker. The campaign spent <strong>' + cents(first.spend) + '</strong>, so the average cost per lead is ' + cents(first.spend) + ' ÷ ' + first.walkerLeads + ' = <strong>' + cents(first.cpl) + '</strong>. Sasooness’s share is that average × its ' + first.n + ' leads = ' + cents(first.cpl) + ' × ' + first.n + ' = <strong>' + cents(first.deduct) + '</strong>.' +
         (ded.days.length > 1 ? '<br>Add up every day: ' + ded.days.map((d) => cents(d.deduct)).join(' + ') + ' = <strong>' + cents(ded.total) + '</strong> ad spend already used on Sasooness’s leads.' : '')
       : '';
   }

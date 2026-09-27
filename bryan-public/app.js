@@ -370,11 +370,19 @@
       byCampaign.get(o.campaignId).n++;
     }
     const campaignNames = [...byCampaign.values()].map((c) => c.name + ' · ' + c.n + ' lead' + (c.n === 1 ? '' : 's')).join(', ');
+    // A lead can be accounted for without costing ad spend: found in Walker's log but organic
+    // (no UTM campaign at all, so no dollar figure applies) rather than genuinely untraceable.
+    const traced = days.reduce((t, d) => t + d.n, 0);
+    const organic = leads.filter((l) => l.origin && !l.origin.campaignId).length;
+    const unmatched = leads.length - traced - organic;
+    const tracedSub = organic || unmatched
+      ? [organic ? organic + ' organic (no ad spend)' : '', unmatched ? unmatched + ' not found in Walker&rsquo;s log' : ''].filter(Boolean).join(' &middot; ')
+      : 'every lead accounted for';
 
     $('#deduct-facts').innerHTML =
       '<div class="fact fact--total"><div class="fact-label">Bryan ad spend</div><div class="fact-value">' + cents(total) + '</div><div class="fact-sub">already spent in Walker&rsquo;s campaigns &middot; sum of the days below</div></div>' +
       '<div class="fact"><div class="fact-label">Walker campaigns</div><div class="fact-value">' + (byCampaign.size || dash) + '</div><div class="fact-sub">' + escapeHtml(campaignNames || 'No Walker campaign found for the leads in this range.') + '</div></div>' +
-      '<div class="fact"><div class="fact-label">Leads with a traced day</div><div class="fact-value">' + days.reduce((t, d) => t + d.n, 0) + ' of ' + leads.length + '</div></div>';
+      '<div class="fact"><div class="fact-label">Leads with a dollar figure</div><div class="fact-value">' + traced + ' of ' + leads.length + '</div><div class="fact-sub">' + tracedSub + '</div></div>';
 
     const sentTotal = days.reduce((t, d) => t + d.n, 0);
     $('#deduct-days-body').innerHTML = days.map((d) => (

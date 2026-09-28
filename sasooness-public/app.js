@@ -127,6 +127,13 @@
     return 'status-pill--other';
   }
   function isSignedStatus(status) { return (status || '').trim() === 'Signed Up' || (status || '').trim() === 'Client'; }
+  // The CRM's raw status column has a dozen+ values (Referred, Lost, Hold, Chase, AZ Chase,
+  // Existing Client, blank, ...) that don't matter day to day — collapsed to the three that do.
+  function statusBucket(status) {
+    if (isSignedStatus(status)) return 'Signed';
+    if ((status || '').toLowerCase().includes('reject')) return 'Rejected';
+    return 'Reviewing';
+  }
 
   function matchesSearch(lead) {
     const q = state.search.trim().toLowerCase();
@@ -146,7 +153,8 @@
     return state.leads.filter((l) => {
       if (!ignoreDate && !inRange(l.createdDate)) return false;
       if (f.status && skip !== 'status') {
-        if (f.status === SIGNED) { if (!isSignedStatus(l.status)) return false; }
+        if (f.status === SIGNED || f.status === 'Signed') { if (!isSignedStatus(l.status)) return false; }
+        else if (f.status === 'Rejected' || f.status === 'Reviewing') { if (statusBucket(l.status) !== f.status) return false; }
         else if (f.status === OTHER_STATUSES) { if (state.topStatuses.includes(l.status || '(blank)')) return false; }
         else if ((l.status || '(blank)') !== f.status) return false;
       }
@@ -671,11 +679,12 @@
   // ================= lead details table (secondary) =================
   function renderChips() {
     const base = leadsFor('status');
-    const groups = statusGroups(base);
+    const counts = { Signed: 0, Rejected: 0, Reviewing: 0 };
+    for (const l of base) counts[statusBucket(l.status)]++;
     const sf = state.filters.status;
     const chips = ['<button class="chip' + (!sf ? ' is-active' : '') + '" data-status="">All<span class="n">' + base.length + '</span></button>']
-      .concat(groups.map(([status, count]) =>
-        '<button class="chip' + (sf === status ? ' is-active' : '') + '" data-status="' + escapeHtml(status) + '">' + escapeHtml(status) + '<span class="n">' + count + '</span></button>'
+      .concat(['Signed', 'Rejected', 'Reviewing'].map((b) =>
+        '<button class="chip' + (sf === b ? ' is-active' : '') + '" data-status="' + b + '">' + b + '<span class="n">' + counts[b] + '</span></button>'
       ));
     $('#status-chips').innerHTML = chips.join('');
   }

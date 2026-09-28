@@ -31,7 +31,9 @@ function normName(v) { return String(v || '').toLowerCase().replace(/[^a-z ]/g, 
 // signals only; anything else stays as free text for the lead-details table.
 function classifyStatus(note) {
   const s = (note || '').toLowerCase();
-  if (/\bsign/.test(s)) return 'Signed';
+  // Past tense only — "\bsign\b" also matched "pending signature" and "did not want to sign",
+  // both of which are the opposite of signed.
+  if (/\bsigned\b/.test(s)) return 'Signed';
   if (/reject|passed sol|represented by another attorney|already has an attorney/.test(s)) return 'Rejected';
   return note ? 'In Progress' : 'Awaiting Contact';
 }

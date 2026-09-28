@@ -137,6 +137,7 @@ tbody tr:hover{background:var(--surface-raised);}
 @media (max-width:900px){.kpi-row{grid-template-columns:repeat(2,1fr);}}
 
 .th-num,.td-num{text-align:right;}
+.td-nowrap{white-space:nowrap;}
 .table-scroll--short{max-height:none;}
 tr.row-total td{border-top:2px solid var(--border);font-weight:700;background:var(--surface-raised);}
 tr.row-muted td{color:var(--text-faint);}

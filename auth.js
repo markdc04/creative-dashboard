@@ -12,8 +12,8 @@ const USERS = {
   'jaypro': { name: 'Jay Pro', role: 'admin', hash: '4add571d11b758c13c23136d502e5bad$d604c825afab5ba004e1985ccd03a6461a1e88b9247d7cb917a69ac44fc04957' },
   'brandon': { name: 'Brandon', role: 'admin', hash: 'ca442f3d65cfae8ad3493575a0bb966a$6edc2982acbf3b48c6d5efa644a3aec78a28c62fa4cb275327a66d9704cf731b' },
   'nichole': { name: 'Nichole', role: 'admin', hash: '44cf15a4b6e85eb4654766dad9d959af$9c0d350e594b73e425ff4a26942abbb68b9aac3e95e46538a0197dde88635ada' },
-  'alexander': { name: 'Alexander', role: 'admin', hash: '505f58959f0d3075adec831e82150c6d$85ba5a11c7f68e54928cf666da58086f4b63d46f3ddab776fe9805cc9e832862' },
-  'christian': { name: 'Christian', role: 'admin', hash: '17372bb3a74d228eeb698dda3e8ba6c0$92754c3cc30fd2bc0e67a47b0c17f7eda0f15e09962d4f03da9954ad5063400a' },
+  'alexander': { name: 'Alexander', role: 'admin', hash: '6f9415e0f7dd2a783df509a870257027$b0feefaa49217367b239e85076ed5c17a3b5025a271acd3691d3a64f0f744b49' },
+  'christian': { name: 'Christian', role: 'admin', hash: '0ebfe91a293b09ada5904a329cf43dc8$c2b3b8827b852b645489c83d658b7aa3b8b0b007dd29f8d71906c6c55ad04945' },
   'zeke': { name: 'Zeke', role: 'admin', hash: 'fcd0dea93211b6b2eada65a8663efe81$f90cb52864ff800e70b35d0cb2fa3af2ef3c247083e9294ac41cf40cbe022294' },
   'rouise': { name: 'Rouise', role: 'admin', hash: '50a79d175085a7e48bf842aa4ec0f490$4b545ee6d806049dec66051142561ae281273a4eb90b36dee72cbdfb9a1171b8' },
   'dominic': { name: 'Dominic', role: 'admin', hash: '24e3e17289dc70a0688192725bbceb39$08ebe479d8ef83d52d4770a7d1e9f89295ada1de040e7e747fa60650a84be7db' },
@@ -30,7 +30,7 @@ const USERS = {
 };
 
 // Work emails log into the same accounts as the first names.
-const EMAILS = { 'brandon@loudrmedia.com': 'brandon', 'jaypro@loudrmedia.com': 'jaypro', 'mark@loudrmedia.com': 'mark', 'alexander@loudrmedia.com': 'alexander' };
+const EMAILS = { 'brandon@loudrmedia.com': 'brandon', 'jaypro@loudrmedia.com': 'jaypro', 'mark@loudrmedia.com': 'mark', 'alexander@loudrmedia.com': 'alexander', 'christian@loudrmedia.com': 'christian' };
 for (const [email, key] of Object.entries(EMAILS)) USERS[email] = USERS[key];
 
 // Nichole's work email has its own password (her first-name login keeps the PIN above).

@@ -7,6 +7,9 @@
   const COLOR_SIGNED = '#199e70';
   const CAMPAIGN_COLORS = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181'];
   const PRICE_PER_LEAD = 350; // Bryan is billed per lead delivered (PPL), regardless of status.
+  // Separate from the per-lead billing: a flat marketing-fee contract for this specific window.
+  // Prorated by day-overlap with whatever range is selected, same as Sasooness/KM's monthly fee.
+  const MARKETING_FEE = { start: '2026-09-01', end: '2026-10-08', amount: 10000 };
 
   const NO_CAMPAIGN = 'Not traced to a campaign';
   const STATUSES = ['Signed', 'Rejected', 'In Progress', 'Awaiting Contact'];
@@ -58,6 +61,7 @@
     if (end && dateStr > end) return false;
     return true;
   }
+
   function rangeLabel() {
     const { key, start, end } = state.range;
     const opt = document.querySelector(`#quick-range option[value="${key}"]`);
@@ -174,6 +178,17 @@
     const revenue = billable * PRICE_PER_LEAD;
     const profit = revenue - spend;
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+    // Fee is a contract-level number (a fixed window, not split by status/campaign), so it only
+    // applies when neither filter narrows the leads being looked at — same rule Sasooness/KM use.
+    // It's a separate retainer, not stacked onto the per-lead $350 revenue: its own profit is just
+    // what Bryan paid for the window minus what was actually spent on his ads in it.
+    const contractOk = !state.filters.status && !state.filters.campaign;
+    const feeLeads = state.leads.filter((l) => l.createdDate >= MARKETING_FEE.start && l.createdDate <= MARKETING_FEE.end);
+    const feeSigned = feeLeads.filter((l) => isSigned(l.status)).length;
+    const fee = contractOk ? MARKETING_FEE.amount : 0;
+    const feeSpend = fee ? dailyDeduction(feeLeads).total : 0;
+    const feeProfit = fee - feeSpend;
+    const cpcWithFee = fee && feeSigned > 0 ? (feeSpend + fee) / feeSigned : 0;
     const dash = '—';
 
     const hasFilter = state.filters.status || state.filters.campaign;
@@ -184,8 +199,11 @@
       ['Revenue', money(revenue), '$' + PRICE_PER_LEAD + ' × ' + billable.toLocaleString('en-US') + ' billable leads' + (nonBillable ? ' (' + nonBillable + ' not billed)' : '')],
       ['Ad Spend', money(spend), 'Bryan’s share of the shared campaigns'],
       ['Profit', money(profit), pct(margin) + ' margin · revenue − ad spend'],
+      ['Marketing Fee', fee ? money(fee) : dash, contractOk ? 'Sep 1 – Oct 8 retainer' : 'not split by filter'],
+      ['Fee Profit', fee ? money(feeProfit) : dash, fee ? 'fee − ' + money(feeSpend) + ' spent in the window' : ''],
       ['Cost / Lead', cpl ? money(cpl) : dash, 'ad spend ÷ leads'],
-      ['Cost / Signed', costPerCase ? money(costPerCase) : dash, signed ? 'ad spend ÷ signed leads' : 'no signed leads yet'],
+      ['Cost / Case', costPerCase ? money(costPerCase) : dash, signed ? 'ad spend ÷ signed leads' : 'no signed leads yet'],
+      ['Cost / Case + Fee', cpcWithFee ? money(cpcWithFee) : dash, fee ? (cpcWithFee ? 'window spend + fee ÷ signed in window' : 'no signed leads in the window yet') : ''],
     ];
     $('#kpi-row').innerHTML = tiles.map(([label, value, sub, key]) =>
       '<div class="kpi' + (key ? ' is-clickable' : '') + (key === 'signed' && state.filters.status === 'Signed' ? ' is-selected' : '') + '"' + (key ? ' data-tile="' + key + '"' : '') + '><div class="kpi-label">' + escapeHtml(label) + '</div>' +

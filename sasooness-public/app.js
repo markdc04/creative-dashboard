@@ -268,16 +268,20 @@
     let tiles;
 
     if (program === 'agency' || program === 'ppl') {
-      // No ad spend sits behind these leads, so this view is about what the leads turn into.
+      // These leads don't come from our own ad account, but Walker's shared campaign deduction
+      // (same day-by-day method as Bryan/PPL) still applies, so spend and CPL are real numbers.
       const open = leads.filter((l) => !(l.status || '').trim()).length;
       const adSpent = partnerDeduction(leads).total;
+      const cpl = total > 0 && adSpent > 0 ? adSpent / total : 0;
+      const dash = '—';
       tiles = [
         ['leads', 'Total Leads', total.toLocaleString('en-US'), programLabel(program) + ' program', 'Click to clear the filters'],
         ['signed', 'Signed Cases', signed.toLocaleString('en-US'), 'of ' + total.toLocaleString('en-US') + ' leads', 'Click to show only signed cases'],
         ['', 'Conversion Rate', pct(conversionRate), 'signed ÷ leads', ''],
         ['', 'Rejected', rejected.toLocaleString('en-US'), total ? pct((rejected / total) * 100) + ' of leads' : '', ''],
         ['', 'Awaiting Status', open.toLocaleString('en-US'), 'no status yet', ''],
-        ['', 'Ad Spent', adSpent ? money(adSpent) : '—', 'already spent in Walker’s campaign on these leads', ''],
+        ['', 'Ad Spent', adSpent ? money(adSpent) : dash, 'already spent in Walker’s campaign on these leads', ''],
+        ['', 'CPL (Cost / Lead)', cpl ? money(cpl) : dash, 'ad spend ÷ leads', ''],
       ];
     } else {
       const googleSpend = spendRows.filter((r) => r.platform === 'Google').reduce((a, r) => a + r.spend, 0);
@@ -659,8 +663,8 @@
     note.hidden = !noSpend;
     if (noSpend) {
       note.innerHTML = sel === 'agency'
-        ? '<strong>Agency</strong> means Lead Prosper leads from the Walker Agency AZ campaign; some of them go through to Sasooness. There is no ad spend on our side, so this view shows what those leads turn into.'
-        : '<strong>PPL</strong> means the Pay Per Lead model (Lead Prosper WA). There is no ad spend on our side, so this view shows the leads delivered and what they turn into.';
+        ? '<strong>Agency</strong> means Lead Prosper leads from the Walker Agency AZ campaign; some of them go through to Sasooness. Ad spend here is Sasooness’s share of Walker’s shared campaign, not our own ad account.'
+        : '<strong>PPL</strong> means the Pay Per Lead model (Lead Prosper WA). Ad spend here is Sasooness’s share of Walker’s shared campaign, not our own ad account.';
     }
   }
 

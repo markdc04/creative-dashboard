@@ -4,7 +4,8 @@
 // Walker's PPL delivery log has no email for most rows, so leads are joined to their source
 // campaign by name + phone, cross-checked against the date, rather than by email like the other
 // clients.
-const { csvUrl, fetchText, parseCSV, num, toISODate, phone10 } = require('./csv-utils');
+const { csvUrl, fetchText, parseCSV, parseCSVRows, num, toISODate, phone10 } = require('./csv-utils');
+const { readColumnColors } = require('./xlsx-lite');
 
 // Bryan's own lead CRM — Date, Name, Email, Phone, Lead Status (freeform notes), Reason for Rejection.
 const CRM_DOC_ID = '1MUmkf6RxSv_9SC_drPRbExezLiePGoORQb2lulJFLaE';
@@ -22,20 +23,22 @@ const ORGANIC_OVERRIDES = [{ name: 'Linda Parfait', createdDate: '2026-08-04' }]
 
 let cache = {
   leads: [], walkerLog: [], walkerLeadsDaily: [], spendDaily: [],
-  campaignNames: new Map(), usedCampaignIds: new Set(), updatedAt: null,
+  campaignNames: new Map(), usedCampaignIds: new Set(), statusColorByRow: new Map(), updatedAt: null,
 };
 
 function normName(v) { return String(v || '').toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim(); }
 
-// The CRM's "Lead Status" is call-log notes, not a clean status, so it's read for these two
-// signals only; anything else stays as free text for the lead-details table.
-function classifyStatus(note) {
-  const s = (note || '').toLowerCase();
-  // Past tense only — "\bsign\b" also matched "pending signature" and "did not want to sign",
-  // both of which are the opposite of signed.
-  if (/\bsigned\b/.test(s)) return 'Signed';
-  if (/reject|passed sol|represented by another attorney|already has an attorney/.test(s)) return 'Rejected';
-  return note ? 'In Progress' : 'Awaiting Contact';
+// The CRM's "Lead Status" is call-log notes, not a clean status column — but the team already
+// color-codes that cell by hand (green = signed, red = rejected, black/default = still being
+// worked), which the CSV/gviz exports Loudr otherwise reads from strip out entirely. Read from
+// the sheet's .xlsx export instead, which does carry cell formatting. Text-keyword matching was
+// tried first and undercounted real signings (a lead can say "PENDING CONTRACT" and be marked
+// green) and missed real rejections with no "reject"-shaped wording at all — color is what the
+// team actually means, text is not a reliable proxy for it.
+function classifyByColor(color) {
+  if (color === '34A853') return 'Signed';
+  if (color === 'FF0000') return 'Rejected';
+  return 'Reviewing';
 }
 
 // One-time historical correction, not a recurring rule: of the 70 leads delivered Aug 3-5 (his
@@ -48,22 +51,30 @@ function isBillable(date, indexWithinAug3to5) {
   return true;
 }
 
-function parseLeads(csv) {
+// parseCSVRows (not the header-keyed parseCSV) so blank rows stay in place — the color map is
+// keyed by actual sheet row number, and the header-keyed parser silently drops blank rows, which
+// would throw every row after one off by one.
+function parseLeads(csv, colorByRow) {
+  const rows = parseCSVRows(csv);
+  const headers = (rows[0] || []).map((h) => h.trim());
+  const col = (name) => headers.indexOf(name);
+  const iDate = col('Date'), iName = col('Name'), iEmail = col('Email'), iPhone = col('Phone'), iStatus = col('Lead Status'), iReason = col('Reason for Rejection');
   let aug3to5Seen = 0;
-  return parseCSV(csv)
-    .map((r) => {
-      const note = (r['Lead Status'] || '').trim();
-      const createdDate = toISODate(r['Date']);
-      const idx = createdDate >= '2026-08-03' && createdDate <= '2026-08-05' ? aug3to5Seen++ : -1;
+  return rows.slice(1)
+    .map((r, idx) => {
+      const sheetRow = idx + 2; // row 1 is the header
+      const note = (r[iStatus] || '').trim();
+      const createdDate = toISODate(r[iDate]);
+      const augIdx = createdDate >= '2026-08-03' && createdDate <= '2026-08-05' ? aug3to5Seen++ : -1;
       return {
-        name: (r['Name'] || '').trim(),
-        email: (r['Email'] || '').trim().toLowerCase(),
-        phone: (r['Phone'] || '').trim(),
+        name: (r[iName] || '').trim(),
+        email: (r[iEmail] || '').trim().toLowerCase(),
+        phone: (r[iPhone] || '').trim(),
         createdDate,
-        status: classifyStatus(note),
+        status: classifyByColor(colorByRow.get(sheetRow) || null),
         note,
-        reason: (r['Reason for Rejection'] || '').trim(),
-        billable: createdDate ? isBillable(createdDate, idx) : true,
+        reason: (r[iReason] || '').trim(),
+        billable: createdDate ? isBillable(createdDate, augIdx) : true,
       };
     })
     .filter((l) => l.createdDate && l.createdDate >= START_DATE && (l.name || l.email));
@@ -129,11 +140,16 @@ function updateGoogleSpend(rows) {
 
 async function pollAll() {
   try {
-    const [crmCsv, walkerCsv] = await Promise.all([
+    const [crmCsv, walkerCsv, colorByRow] = await Promise.all([
       fetchText(csvUrl(CRM_GID, CRM_DOC_ID)),
       fetchText(csvUrl(WALKER_GID, WALKER_DOC_ID)),
+      readColumnColors(CRM_DOC_ID, 'E').catch((err) => {
+        console.warn(`[${new Date().toISOString()}] Bryan status colors unreadable (${err.message}) — keeping last known-good statuses`);
+        return cache.statusColorByRow || new Map();
+      }),
     ]);
-    const leads = parseLeads(crmCsv);
+    cache.statusColorByRow = colorByRow;
+    const leads = parseLeads(crmCsv, colorByRow);
     if (leads.length < 20) { console.warn(`[${new Date().toISOString()}] Bryan CRM sheet looks broken (${leads.length} leads) — keeping last known-good`); return; }
     const walkerLog = parseWalkerLog(walkerCsv);
     if (walkerLog.length < 1000) { console.warn(`[${new Date().toISOString()}] Walker PPL log looks broken (${walkerLog.length} rows) — keeping last known-good`); return; }

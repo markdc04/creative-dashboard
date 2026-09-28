@@ -12,7 +12,7 @@
   const MARKETING_FEE = { start: '2026-09-01', end: '2026-10-08', amount: 10000 };
 
   const NO_CAMPAIGN = 'Not traced to a campaign';
-  const STATUSES = ['Signed', 'Rejected', 'In Progress', 'Awaiting Contact'];
+  const STATUSES = ['Signed', 'Rejected', 'Reviewing'];
 
   const state = {
     leads: [], walker: { campaigns: [], leadsDaily: [], spendDaily: [] },

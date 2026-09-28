@@ -202,3 +202,4 @@ button.platform-tag:hover,button.platform-tag.is-selected{background:var(--surfa
 .deduct-table td{vertical-align:middle;}
 .deduct-table td.num,.deduct-table th.th-num{text-align:right;white-space:nowrap;}
 .deduct-table th.th-num{white-space:normal;}
+.preview-link{text-decoration:none;display:inline-flex;align-items:center;}

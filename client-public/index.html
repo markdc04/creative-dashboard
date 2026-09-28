@@ -10,6 +10,11 @@
 <body>
 <div class="wrap">
 
+  <div id="preview-banner" class="preview-banner" hidden>
+    Previewing as this client &mdash; nothing here is visible to them until they log in themselves.
+    <a href="?view=exit" class="preview-exit">Exit preview</a>
+  </div>
+
   <div class="brandbar">
     <img src="/shared/logo-loudr.png" alt="Loudr Media" class="brandlogo">
     <div class="brandbar-right">
@@ -17,7 +22,7 @@
         <span class="live-dot"></span>
         <span id="live-text">Live &ndash; checked just now</span>
       </span>
-      <a href="/logout" class="logout-link">Log out</a>
+      <a href="/logout" id="logout-link" class="logout-link">Log out</a>
     </div>
   </div>
 

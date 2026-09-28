@@ -7,6 +7,15 @@
   const scope = location.pathname.split('/')[1];
   const TITLES = { sasooness: 'Sasooness', km: 'KM Law Firm PLLC', bryan: 'Bryan Rodriguez' };
 
+  // An admin previewing this page (the server tracks this per-scope in a "pv" cookie, since the
+  // ?view=client on the original link never reaches this script's own request) shouldn't see or
+  // click their own "Log out" — this isn't their session to log out of, it's a preview.
+  const previewing = new RegExp('(?:^|;\\s*)pv=' + scope + '(?:;|$)').test(document.cookie);
+  if (previewing) {
+    document.getElementById('preview-banner').hidden = false;
+    document.getElementById('logout-link').hidden = true;
+  }
+
   const state = { leads: [], search: '', range: { key: 'all', start: null, end: null }, program: null };
   const PROGRAMS = [
     { key: 'agency', label: 'Agency' },
@@ -77,7 +86,9 @@
 
   async function fetchData() {
     try {
-      const r = await fetch('/' + scope + '-api/data', { cache: 'no-store' });
+      // Carries ?view=client through so an admin previewing this page (via that flag) still gets
+      // the limited payload from the API too, not just the page shell.
+      const r = await fetch('/' + scope + '-api/data' + location.search, { cache: 'no-store' });
       if (!r.ok) throw new Error('bad status');
       const d = await r.json();
       state.leads = d.leads || [];

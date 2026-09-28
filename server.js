@@ -509,22 +509,43 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // An admin can preview exactly what a client sees — same limited payload and page a real client
+  // login gets — via ?view=client, with no separate credentials and without touching their own
+  // admin session. The flag itself only reaches this one page request (a relative <script src>
+  // or fetch() from the page never repeats the parent URL's query string), so it's recorded in a
+  // short-lived cookie on that request and read back on every asset/API request that follows,
+  // rather than relying on ?view=client being present every time. ?view=exit clears it.
+  const previewScope = (/(?:^|;\s*)pv=([a-z]+)/.exec(req.headers.cookie || '') || [])[1] || null;
+  const pathScope = /^\/(sasooness|km|bryan)(?:\/|-api\/data$|$)/.exec(url.pathname);
+  let effectivePreviewScope = previewScope;
+  if (!!session && session.role === 'admin' && pathScope) {
+    if (url.searchParams.get('view') === 'client') {
+      effectivePreviewScope = pathScope[1];
+      res.setHeader('Set-Cookie', `pv=${pathScope[1]}; Path=/; Max-Age=3600; SameSite=Lax`);
+    } else if (url.searchParams.get('view') === 'exit') {
+      effectivePreviewScope = null;
+      res.setHeader('Set-Cookie', 'pv=; Path=/; Max-Age=0');
+    }
+  }
+  const clientPreview = !!session && session.role === 'admin' && !!pathScope && effectivePreviewScope === pathScope[1];
+  const wantsClientView = !!session && (session.role === 'client' || clientPreview);
+
   if (url.pathname === '/sasooness-api/data') {
-    const data = session.role === 'client' ? clientView.simplifyLeads(sasooness.getData().leads) : sasooness.getData();
+    const data = wantsClientView ? clientView.simplifyLeads(sasooness.getData().leads) : sasooness.getData();
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(data));
     return;
   }
 
   if (url.pathname === '/km-api/data') {
-    const data = session.role === 'client' ? clientView.simplifyCases(km.getData().cases) : km.getData();
+    const data = wantsClientView ? clientView.simplifyCases(km.getData().cases) : km.getData();
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(data));
     return;
   }
 
   if (url.pathname === '/bryan-api/data') {
-    const data = session.role === 'client' ? clientView.simplifyLeads(bryan.getData().leads) : bryan.getData();
+    const data = wantsClientView ? clientView.simplifyLeads(bryan.getData().leads) : bryan.getData();
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(data));
     return;
@@ -543,7 +564,7 @@ const server = http.createServer((req, res) => {
   // A client-role session gets the shared, limited client-view app for any of the three client
   // dashboards instead of the internal one admins/creative see at the same URL — one small static
   // app that reads which client it's for from the URL path at runtime (see client-public/app.js).
-  else if (session.role === 'client' && (rel.startsWith('/sasooness/') || rel.startsWith('/km/') || rel.startsWith('/bryan/'))) {
+  else if (wantsClientView && (rel.startsWith('/sasooness/') || rel.startsWith('/km/') || rel.startsWith('/bryan/'))) {
     const scope = rel.split('/')[1];
     root = 'client-public'; rel = rel.slice(('/' + scope).length);
   }

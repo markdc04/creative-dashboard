@@ -12,6 +12,13 @@
     openCategoryKey: null, // "board::name" of whichever person/hook/team category is open
   };
 
+  // A client-role login (the shared creative-team account) has no sidebar and so no other way to
+  // log out — show a link for it here. Anyone else (admin/no sidebar-hidden role) already has the
+  // sidebar's own logout, so this stays hidden for them.
+  fetch('/api/me', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((me) => {
+    if (me && me.role === 'client') document.getElementById('logout-link').hidden = false;
+  }).catch(() => {});
+
   // fileName -> ads array (for opening a creative's top ad), and "board::name" -> creatives
   // array (for a person/hook/team category's top creative) — both populated once per render
   // from the full unfiltered per-board aggregation, not from whichever subset is on screen.

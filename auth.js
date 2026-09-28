@@ -9,17 +9,17 @@ const crypto = require('crypto');
 // Usernames are the person's name lowercased with spaces removed ("Jay Pro" -> "jaypro").
 // Passwords are stored only as salted scrypt hashes — never in plain text.
 const USERS = {
-  'jaypro': { name: 'Jay Pro', role: 'admin', hash: '4add571d11b758c13c23136d502e5bad$d604c825afab5ba004e1985ccd03a6461a1e88b9247d7cb917a69ac44fc04957' },
-  'brandon': { name: 'Brandon', role: 'admin', hash: 'ca442f3d65cfae8ad3493575a0bb966a$6edc2982acbf3b48c6d5efa644a3aec78a28c62fa4cb275327a66d9704cf731b' },
-  'nichole': { name: 'Nichole', role: 'admin', hash: '44cf15a4b6e85eb4654766dad9d959af$9c0d350e594b73e425ff4a26942abbb68b9aac3e95e46538a0197dde88635ada' },
+  'jaypro': { name: 'Jay Pro', role: 'admin', hash: 'cce4484dfe8323d4b36d123132afd9b4$2ac6b2ccc7b2974c691750b492f64d96d0348cbd4d7689515a90753b6d95359d' },
+  'brandon': { name: 'Brandon', role: 'admin', hash: '496d7429e6ff53512d4f5e662209290d$bb708f120d8c326800e98333086566e73ef981981a373b50e8c1141a94e1a900' },
+  'nichole': { name: 'Nichole', role: 'admin', hash: '46a15057753413aa8cc285c06863d06c$c58cfda8519131e07ba5ac16c895e8fbfa9204554d4c60ba28f0beb54782be47' },
   'alexander': { name: 'Alexander', role: 'admin', hash: 'bbd947259681161154dea49e4fdf12e2$8256b5ea6a5cf9fcd5db9c37e82b46e69e2f6a0cff1007eec1c82486cb09c94e' },
   'christian': { name: 'Christian', role: 'admin', hash: 'c340227add1d7c9fd296d086e04ff0be$43f6c271c90b0f9c8d9d00c09ea8b9d156a68b0c14ffab0ac63e924a3a4d7faf' },
-  'zeke': { name: 'Zeke', role: 'admin', hash: 'fcd0dea93211b6b2eada65a8663efe81$f90cb52864ff800e70b35d0cb2fa3af2ef3c247083e9294ac41cf40cbe022294' },
-  'rouise': { name: 'Rouise', role: 'admin', hash: '50a79d175085a7e48bf842aa4ec0f490$4b545ee6d806049dec66051142561ae281273a4eb90b36dee72cbdfb9a1171b8' },
-  'dominic': { name: 'Dominic', role: 'admin', hash: '24e3e17289dc70a0688192725bbceb39$08ebe479d8ef83d52d4770a7d1e9f89295ada1de040e7e747fa60650a84be7db' },
-  'jim': { name: 'Jim', role: 'admin', hash: '8e77818111729ef803e59eba2ccdc40e$7507ae49ccf9378ec69da02f68cd8667da547f992a50d02d0f242fe98f59ef41' },
-  'rommel': { name: 'Rommel', role: 'admin', hash: '7808e4830281b18a65598db255e0125a$f5d57fd59e65e13688c95bd78d7b2461c6401fa30277ac39edd26bb05e957f16' },
-  'mark': { name: 'Mark', role: 'admin', hash: '89073efa0abb669f9867255aca206b7d$44f95cadbd4269b3b35743ae59590c63bebe8f5298fda3824e9c3050efb94397' },
+  'zeke': { name: 'Zeke', role: 'admin', hash: '3af14ca169ff676e7d646ebbdc07f310$b78582bba88441fbecf409bdbafd0f1a1f6804695097a01e8536238652ad7540' },
+  'rouise': { name: 'Rouise', role: 'admin', hash: '4125cde80ff489c5bcd4ded6455618e2$a2ab0905a8ee7e529c611a03b466a68631150f41aaba061d3cfcceee18e5d930' },
+  'dominic': { name: 'Dominic', role: 'admin', hash: 'c955d9312abe66412196cb67442ab48c$a59abcdf9455ebeddc35b71b8545ddd4687cf8860aac4a664c321e8f4a55367d' },
+  'jim': { name: 'Jim', role: 'admin', hash: '15ca2aaaa725a74b3efbc044b4ac3307$fdfba4000599ee4f0a80217848e934eb5860460b3f92c32a028f4b5afbc77819' },
+  'rommel': { name: 'Rommel', role: 'admin', hash: '5b15e578ac6f9ab671cdbf3e22cffd7e$1265a2a2a5a80b9a31e24c729772091bc75a2b5bbb2db464558a8fcf3c6b8208' },
+  'mark': { name: 'Mark', role: 'admin', hash: '1f483202851fccc8279ad668b9ed4b99$fade2026cb6a41e7e0e70baf951c5ca7b6fe6655429b0e89f257e7f645e83cd7' },
   // Client logins — each scoped to exactly one dashboard. "leaderboard" is a virtual scope: the
   // creative team's shared login, treated the same as a client account but pointed at the
   // leaderboard (its own already-internal-safe page) instead of a client-public view.

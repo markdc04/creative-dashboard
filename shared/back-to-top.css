@@ -1,0 +1,6 @@
+.back-to-top{position:fixed;right:24px;bottom:24px;width:44px;height:44px;border-radius:50%;background:var(--accent);color:var(--accent-ink);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.35);transition:transform .15s ease,opacity .15s ease;z-index:40;}
+.back-to-top:hover{transform:translateY(-2px);}
+.back-to-top[hidden]{display:none;}
+@media (max-width:640px){
+  .back-to-top{right:14px;bottom:14px;width:40px;height:40px;}
+}

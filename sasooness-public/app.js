@@ -716,7 +716,10 @@
     $('#leads-empty').hidden = rows.length > 0;
     $('#leads-body').innerHTML = rows.map((l) => {
       const o = l.origin || {};
-      const partner = programOf(l) !== 'og';
+      // Whether this lead is actually Walker-sourced, not just which program tab it's in — OG
+      // leads inside the combined Agency bucket carry an origin object too, just with no
+      // campaignId (see ogOrigin in sasooness.js), so they must still price off their own campaign.
+      const partner = !!o.campaignId;
       const source = o.contactSource || (!partner && platformOf.get(l.campaign) ? platformOf.get(l.campaign) + ' ad' : '');
       const campaignName = o.campaignName || l.campaign;
       let cplHtml = dash;
@@ -747,7 +750,7 @@
 
     // Only leads actually sourced from Walker's shared campaign belong here — under the combined
     // Agency bucket that excludes the Main Landing Page's own leads, which were never joined to it.
-    const leads = leadsFor().filter((l) => l.origin).slice().sort((a, b) => (b.createdDate || '').localeCompare(a.createdDate || ''));
+    const leads = leadsFor().filter((l) => l.origin && l.origin.campaignId).slice().sort((a, b) => (b.createdDate || '').localeCompare(a.createdDate || ''));
     const dash = '—';
 
     // Each Walker campaign these leads came from: its spend and lead counts over the chosen dates

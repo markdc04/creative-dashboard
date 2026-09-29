@@ -7,18 +7,17 @@
   const COLOR_LEADS = '#3987e5';
   const COLOR_CASES = '#199e70';
   const STATUS_COLORS = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181'];
-  // The three ways a lead reaches Sasooness:
-  //   OG      the Main Landing Page (the ad campaigns send their traffic here)
-  //   Agency  Lead Prosper leads from the Walker Agency AZ campaign (the "Lead prosper AZ" tab)
-  //   PPL     the Pay Per Lead model (the "Lead prosper WA" tab)
-  // Only OG has campaign spend on our side. Anything not on the Agency/PPL tabs, including the few
-  // CRM leads with other marketing codes, counts as OG.
+  // Two buckets, not three: Agency is AZ (the Main Landing Page's own campaigns plus Lead Prosper
+  // leads from the Walker Agency AZ campaign, combined) and PPL is WA only (the "Lead prosper WA"
+  // tab). Agency carries both kinds of spend at once — its own Google/Meta campaigns (attributed by
+  // l.campaign, so only the Main-Landing-Page leads pick it up) and the Walker partner deduction
+  // (attributed by l.origin, so only the Lead Prosper AZ leads pick it up). PPL never has its own
+  // campaign spend, only the Walker deduction.
   const PROGRAMS = [
-    { key: 'og', label: 'OG (Main Landing Page)', short: 'OG' },
-    { key: 'agency', label: 'Agency (Lead Prosper)', short: 'Agency' },
-    { key: 'ppl', label: 'PPL (Pay Per Lead)', short: 'PPL' },
+    { key: 'agency', label: 'Agency (AZ)', short: 'Agency' },
+    { key: 'ppl', label: 'PPL (WA)', short: 'PPL' },
   ];
-  const programOf = (l) => (l.channel === 'Lead Prosper AZ' ? 'agency' : l.channel === 'Lead Prosper WA' ? 'ppl' : 'og');
+  const programOf = (l) => (l.channel === 'Lead Prosper WA' ? 'ppl' : 'agency');
   const programLabel = (key) => (PROGRAMS.find((p) => p.key === key) || PROGRAMS[0]).label;
 
   // Special filter values: leads that count as signed cases, statuses folded into the donut's
@@ -33,7 +32,7 @@
     range: { key: 'all', start: null, end: null },
     // Clicking any figure, row, slice, bar or point on the page sets one of these; every table,
     // tile and chart then re-computes from the leads and spend that match.
-    filters: { status: null, campaign: null, program: 'og', platform: null },
+    filters: { status: null, campaign: null, program: 'agency', platform: null },
     topStatuses: [],
   };
 
@@ -167,8 +166,9 @@
 
   function spendFor(skip) {
     const f = state.filters;
-    // Agency and PPL leads have no ad spend behind them.
-    if (f.program && f.program !== 'og' && skip !== 'program') return [];
+    // PPL leads have no ad spend on our side. Agency does (its Main Landing Page share) — those
+    // rows only ever attribute to leads with a campaign tag, so they don't bleed into PPL.
+    if (f.program === 'ppl' && skip !== 'program') return [];
     return state.campaignSpend.filter((r) => {
       if (!inRange(r.date)) return false;
       if (f.campaign && skip !== 'campaign' && r.campaign !== f.campaign) return false;
@@ -275,8 +275,8 @@
     const program = state.filters.program;
     let tiles;
 
-    if (program === 'agency' || program === 'ppl') {
-      // These leads don't come from our own ad account, but Walker's shared campaign deduction
+    if (program === 'ppl') {
+      // WA leads don't come from our own ad account, but Walker's shared campaign deduction
       // (same day-by-day method as Bryan/PPL) still applies, so spend and CPL are real numbers.
       const open = leads.filter((l) => !(l.status || '').trim()).length;
       const adSpent = partnerDeduction(leads).total;
@@ -292,16 +292,17 @@
         ['', 'CPL (Cost / Lead)', cpl ? money(cpl) : dash, 'ad spend ÷ leads', ''],
       ];
     } else {
+      // Agency (AZ) mixes two spend sources: the Main Landing Page's own Google/Meta campaigns
+      // (attributed by campaign tag) and Walker's shared partner deduction for the Lead Prosper AZ
+      // leads inside this same bucket (attributed by origin) — added together for one set of tiles.
       const googleSpend = spendRows.filter((r) => r.platform === 'Google').reduce((a, r) => a + r.spend, 0);
       const metaSpend = spendRows.filter((r) => r.platform === 'Meta').reduce((a, r) => a + r.spend, 0);
-      const totalSpend = googleSpend + metaSpend;
-      // Only paid (OG) leads can be produced by ad spend, so costs divide by those and not by
-      // Agency/PPL leads that arrived some other way. Spend also isn't split by status.
-      const paid = leads.filter((l) => programOf(l) === 'og');
-      const paidSigned = paid.filter((l) => isSignedStatus(l.status)).length;
+      const ownSpend = googleSpend + metaSpend;
+      const partnerSpend = partnerDeduction(leads).total;
+      const totalSpend = ownSpend + partnerSpend;
       const costsMeaningful = !state.filters.status;
-      const cpl = paid.length > 0 && costsMeaningful ? totalSpend / paid.length : 0;
-      const costPerCase = paidSigned > 0 && costsMeaningful ? totalSpend / paidSigned : 0;
+      const cpl = total > 0 && costsMeaningful ? totalSpend / total : 0;
+      const costPerCase = signed > 0 && costsMeaningful ? totalSpend / signed : 0;
       const noSplit = 'spend isn’t split by status';
       // Fee and budget belong to the contract as a whole, so they can't be narrowed to a campaign,
       // platform or status.
@@ -309,7 +310,7 @@
       const contractOk = !f.status && !f.campaign && !f.platform;
       const { budget, fee } = contractForRange();
       const totalCost = totalSpend + fee;
-      const cpcWithFee = paidSigned > 0 && costsMeaningful && contractOk ? totalCost / paidSigned : 0;
+      const cpcWithFee = signed > 0 && costsMeaningful && contractOk ? totalCost / signed : 0;
       const used = budget > 0 ? (totalSpend / budget) * 100 : 0;
       const budgetSub = !contractOk ? 'contract-level, not split by filter'
         : budget <= 0 ? '' : totalSpend <= budget ? pct(used) + ' used · ' + money(budget - totalSpend) + ' left' : money(totalSpend - budget) + ' over budget';
@@ -318,13 +319,13 @@
         ['leads', 'Total Leads', total.toLocaleString('en-US'), rejected ? rejected.toLocaleString('en-US') + ' rejected' : '', 'Click to clear the filters'],
         ['signed', 'Signed Cases', signed.toLocaleString('en-US'), 'of ' + total.toLocaleString('en-US') + ' leads', 'Click to show only signed cases'],
         ['', 'Conversion Rate', pct(conversionRate), 'signed ÷ leads', ''],
-        ['', 'Cost / Lead', cpl ? money(cpl) : dash, costsMeaningful ? 'ad spend ÷ OG leads' : noSplit, ''],
-        ['', 'Ad Spend', money(totalSpend), money(googleSpend) + ' Google + ' + money(metaSpend) + ' Meta', ''],
+        ['', 'Cost / Lead', cpl ? money(cpl) : dash, costsMeaningful ? 'ad spend ÷ leads' : noSplit, ''],
+        ['', 'Ad Spend', money(totalSpend), money(ownSpend) + ' own ads + ' + money(partnerSpend) + ' Lead Prosper', ''],
         ['', 'Marketing Fee', contractOk ? money(fee) : dash, contractOk ? 'monthly fee from the contract' : 'contract-level, not split by filter', ''],
         ['', 'Ad Budget', contractOk ? money(budget) : dash, budgetSub, ''],
         ['', 'Total Cost', contractOk ? money(totalCost) : dash, contractOk ? 'ad spend + marketing fee' : 'contract-level, not split by filter', ''],
-        ['', 'CPC (Cost / Case)', costPerCase ? money(costPerCase) : dash, !costsMeaningful ? noSplit : paidSigned ? 'ad spend ÷ signed cases' : 'no signed cases yet', ''],
-        ['', 'CPC + Marketing Fee', cpcWithFee ? money(cpcWithFee) : dash, !costsMeaningful || !contractOk ? 'not split by filter' : paidSigned ? 'total cost ÷ signed cases' : 'no signed cases yet', ''],
+        ['', 'CPC (Cost / Case)', costPerCase ? money(costPerCase) : dash, !costsMeaningful ? noSplit : signed ? 'ad spend ÷ signed cases' : 'no signed cases yet', ''],
+        ['', 'CPC + Marketing Fee', cpcWithFee ? money(cpcWithFee) : dash, !costsMeaningful || !contractOk ? 'not split by filter' : signed ? 'total cost ÷ signed cases' : 'no signed cases yet', ''],
       ];
     }
     $('#kpi-row').className = 'kpi-row' + (tiles.length === 10 ? ' kpi-row--10' : '');
@@ -663,17 +664,16 @@
     const tab = (key, label, n) => '<button class="segment-tab' + (sel === key ? ' is-active' : '') + '" data-segment="' + key + '">' + escapeHtml(label) + '<span class="n">' + n.toLocaleString('en-US') + '</span></button>';
     $('#segment-tabs').innerHTML = PROGRAMS.map((p) => tab(p.key, p.label, counts[p.key])).join('');
 
-    // Agency and PPL leads have no ad spend, so the spend chart and campaign table don't apply.
-    const noSpend = sel === 'agency' || sel === 'ppl';
+    // PPL has no ad spend or campaigns of its own, so the spend chart and campaign table don't
+    // apply there. Agency does (the Main Landing Page's own Google/Meta campaigns), so it keeps them.
+    const noSpend = sel === 'ppl';
     $('#spend-panel').hidden = noSpend;
     $('#campaign-panel').hidden = noSpend;
     const note = $('#program-note');
-    note.hidden = !noSpend;
-    if (noSpend) {
-      note.innerHTML = sel === 'agency'
-        ? '<strong>Agency</strong> means Lead Prosper leads from the Walker Agency AZ campaign; some of them go through to Sasooness. Ad spend here is Sasooness’s share of Walker’s shared campaign, not our own ad account.'
-        : '<strong>PPL</strong> means the Pay Per Lead model (Lead Prosper WA). Ad spend here is Sasooness’s share of Walker’s shared campaign, not our own ad account.';
-    }
+    note.hidden = false;
+    note.innerHTML = sel === 'agency'
+      ? '<strong>Agency</strong> combines the Main Landing Page&rsquo;s own campaigns with Lead Prosper leads from the Walker Agency AZ campaign &mdash; both are the AZ side of the business. The spend chart and campaign table below cover the Main Landing Page only; Lead Prosper AZ leads have no campaign of their own, only Sasooness&rsquo;s share of Walker&rsquo;s shared spend (see below).'
+      : '<strong>PPL</strong> means the Pay Per Lead model (Lead Prosper WA). Ad spend here is Sasooness’s share of Walker’s shared campaign, not our own ad account.';
   }
 
   // ================= lead details table (secondary) =================
@@ -745,7 +745,9 @@
     $('#origin-panel').hidden = true;
     if (!partner) return;
 
-    const leads = leadsFor().slice().sort((a, b) => (b.createdDate || '').localeCompare(a.createdDate || ''));
+    // Only leads actually sourced from Walker's shared campaign belong here — under the combined
+    // Agency bucket that excludes the Main Landing Page's own leads, which were never joined to it.
+    const leads = leadsFor().filter((l) => l.origin).slice().sort((a, b) => (b.createdDate || '').localeCompare(a.createdDate || ''));
     const dash = '—';
 
     // Each Walker campaign these leads came from: its spend and lead counts over the chosen dates

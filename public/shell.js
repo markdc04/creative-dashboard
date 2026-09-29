@@ -29,7 +29,10 @@
     $('#visitors-list').innerHTML = '<div class="visitors-empty">Loading&hellip;</div>';
     fetch('/api/visits').then((r) => r.json()).then((d) => {
       const visits = d.visits || [];
-      const dashboardLabel = (v) => v.role === 'client' ? (v.scope === 'leaderboard' ? 'Creative Team' : v.scope ? v.scope[0].toUpperCase() + v.scope.slice(1) : 'Client') : 'Admin';
+      // `page` is what every visit now carries (one row per page load, not just per login).
+      // A couple of old entries from before this may still have the earlier role/scope shape
+      // on disk — fall back to that so they don't render blank.
+      const dashboardLabel = (v) => v.page || (v.role === 'client' ? (v.scope === 'leaderboard' ? 'Creative Team' : v.scope ? v.scope[0].toUpperCase() + v.scope.slice(1) : 'Client') : 'Admin');
       $('#visitors-list').innerHTML = !visits.length
         ? '<div class="visitors-empty">No visits recorded yet.</div>'
         : visits.map((v) => (

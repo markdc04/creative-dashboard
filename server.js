@@ -53,8 +53,18 @@ let cache = { rows: [], updatedAt: null, hash: null };
 const VISIT_LOG_PATH = path.join(__dirname, 'visit-log.json');
 let visitLog = [];
 try { visitLog = JSON.parse(fs.readFileSync(VISIT_LOG_PATH, 'utf8')); } catch (err) { visitLog = []; }
-function recordVisit(name, role, scope) {
-  visitLog.push({ name, role, scope: scope || null, at: Date.now() });
+// A human label for which page was visited — independent of who visited it (a client's own
+// scope always resolves to their one page anyway, so this one mapping covers everyone).
+function pageLabel(pathname) {
+  if (pathname === '/') return 'Leaderboard';
+  if (pathname.startsWith('/dashboard')) return 'Creative Dashboard';
+  if (pathname.startsWith('/sasooness')) return 'Sasooness';
+  if (pathname.startsWith('/km')) return 'KM';
+  if (pathname.startsWith('/bryan')) return 'Bryan';
+  return pathname;
+}
+function recordVisit(name, page) {
+  visitLog.push({ name, page, at: Date.now() });
   if (visitLog.length > 5000) visitLog = visitLog.slice(-5000);
   fs.writeFile(VISIT_LOG_PATH, JSON.stringify(visitLog), () => {});
 }
@@ -392,7 +402,8 @@ const server = http.createServer((req, res) => {
         return;
       }
       auth.clearFailures(ip);
-      recordVisit(user.name, user.role, user.scope);
+      // Not logged here — the redirect below lands on an actual page, which the page-load
+      // logger further down records, so a login and a page visit are never counted twice.
       // A client login ignores whatever `next` said (it may have been aimed at a page they can't
       // reach) and always lands on their own dashboard; everyone else keeps the page they asked for.
       const dest = user.role === 'client' ? scopeHome(user.scope) : next;
@@ -582,6 +593,11 @@ const server = http.createServer((req, res) => {
   const rootDir = path.join(__dirname, root);
   let filePath = path.join(rootDir, rel === '/' ? 'index.html' : rel);
   if (!filePath.startsWith(rootDir + path.sep)) { res.writeHead(403); res.end('Forbidden'); return; }
+  // `rel === '/'` is exactly a page document load (index.html for whichever root was picked
+  // above) — never a JS/CSS/image asset or a data poll (those are handled by their own routes
+  // earlier and already returned), so this logs every dashboard page visit without flooding
+  // the log with every asset request.
+  if (session && rel === '/') recordVisit(session.name, pageLabel(url.pathname));
   fs.readFile(filePath, (err, data) => {
     if (err) { res.writeHead(404); res.end('Not found'); return; }
     const ext = path.extname(filePath);

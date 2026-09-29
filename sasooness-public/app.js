@@ -242,27 +242,38 @@
     return { days, total: days.reduce((a, d) => a + d.deduct, 0) };
   }
 
-  // The contract's ad budget and marketing fee are monthly amounts from the Sasooness tab. With no
-  // dates chosen the full schedule counts (each month whole, as the sheet totals them); with a
-  // range each day carries its month's amount divided by that month's days, so a full month gives
-  // exactly one month's figure. A month past the end of the schedule repeats the last one.
+  // The contract's ad budget and marketing fee are monthly amounts from the Sasooness tab, one
+  // row per month normally — but a month can have a second row for a mid-month rate change (e.g.
+  // a budget bump effective the 21st), sorted by (month, day) from the server. Every day prorates
+  // by its own calendar month's day count, so a full month still totals to exactly its row's
+  // figure when there's one row, and blends two rows' daily shares when there are two. With no
+  // dates chosen the full schedule counts (through the end of its last month, whole, as the sheet
+  // totals it); with a range, each day carries its own share. A month past the end of the
+  // schedule repeats its last row.
   function contractForRange() {
     const sched = state.schedule;
     if (!sched.length) return { budget: 0, fee: 0 };
     const { start, end } = state.range;
-    if (!start && !end) return { budget: sched.reduce((a, m) => a + m.budget, 0), fee: sched.reduce((a, m) => a + m.fee, 0) };
-    const byMonth = new Map(sched.map((m) => [m.month, m]));
-    const first = sched[0].month, last = sched[sched.length - 1];
+    const first = sched[0].month;
+    const lastEntry = sched[sched.length - 1];
+    const noFilter = !start && !end;
     const from = start || first + '-01';
-    const to = end || toISO(pacificToday());
+    // True "all time" counts the whole last scheduled month even if it isn't over yet (the
+    // contract's full planned total); an open-ended range instead stops at today.
+    const to = end || (noFilter ? toISO(endOfMonth(Number(lastEntry.month.slice(0, 4)), Number(lastEntry.month.slice(5, 7)))) : toISO(pacificToday()));
     let budget = 0, fee = 0;
     for (let d = new Date(from + 'T00:00:00'), stop = new Date(to + 'T00:00:00'); d <= stop; d.setDate(d.getDate() + 1)) {
       const key = d.getFullYear() + '-' + pad(d.getMonth() + 1);
-      const m = key < first ? null : byMonth.get(key) || last;
-      if (!m) continue;
+      if (key < first) continue;
+      let row = null;
+      for (const r of sched) {
+        if (r.month > key || (r.month === key && r.day > d.getDate())) break;
+        row = r;
+      }
+      if (!row) continue;
       const days = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-      budget += m.budget / days;
-      fee += m.fee / days;
+      budget += row.budget / days;
+      fee += row.fee / days;
     }
     return { budget, fee };
   }

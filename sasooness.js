@@ -200,20 +200,36 @@ function parseCampaignTags(csv) {
 // twice) counts once, first entry wins. The sheet doesn't state a year; months run in order from
 // the contract's start, so the year advances whenever the month number steps back.
 const MONTHS = { jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3, apr: 4, april: 4, may: 5, jun: 6, june: 6, jul: 7, july: 7, aug: 8, august: 8, sep: 9, sept: 9, september: 9, oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12 };
+// A month cell can also carry a day ("Sep 21") to mark a rate change partway through that month
+// (e.g. a budget bump effective the 21st) rather than a new flat figure for the whole month — a
+// second row for the same month with a day is a segment, not a duplicate ("month typed twice"
+// still only applies to two rows with the same month AND no day, or the same day).
 function parseSchedule(csv) {
-  const seen = new Map(); // month number -> { budget, fee }
+  const seen = new Map(); // "month.day" -> { budget, fee }
   const order = [];
   for (const row of parseCSVRows(csv)) {
     for (let c = 0; c < row.length - 2; c++) {
-      const m = MONTHS[(row[c] || '').trim().toLowerCase()];
+      const cell = (row[c] || '').trim();
+      const dayMatch = /^([A-Za-z]+)\s+(\d{1,2})$/.exec(cell);
+      const m = MONTHS[(dayMatch ? dayMatch[1] : cell).toLowerCase()];
       if (!m || !/\$/.test(row[c + 1] || '') || !/\$/.test(row[c + 2] || '')) continue;
+      const day = dayMatch ? Number(dayMatch[2]) : 1;
+      const key = m + '.' + day;
       const budget = num(row[c + 1]), fee = num(row[c + 2]);
-      if (budget > 0 && fee >= 0 && !seen.has(m)) { seen.set(m, { budget, fee }); order.push(m); }
+      if (budget > 0 && fee >= 0 && !seen.has(key)) { seen.set(key, { budget, fee }); order.push({ m, day }); }
       break;
     }
   }
   let year = 2026, prev = 0;
-  return order.map((m) => { if (m < prev) year++; prev = m; return { month: year + '-' + String(m).padStart(2, '0'), ...seen.get(m) }; });
+  const withYear = order.map(({ m, day }) => {
+    if (m < prev) year++;
+    prev = m;
+    return { month: year + '-' + String(m).padStart(2, '0'), day, ...seen.get(m + '.' + day) };
+  });
+  // Chronological by (month, day) — a mid-month segment row can sit anywhere near its month's
+  // main row in the sheet, so encounter order alone (used only to detect a year rollover above)
+  // isn't reliable for the order contractForRange needs to walk them in.
+  return withYear.sort((a, b) => (a.month === b.month ? a.day - b.day : a.month < b.month ? -1 : 1));
 }
 
 // Signed cases that later dropped are marked DROPPED where the conversion date would be. The

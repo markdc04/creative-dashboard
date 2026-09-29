@@ -53,8 +53,8 @@ let cache = { rows: [], updatedAt: null, hash: null };
 const VISIT_LOG_PATH = path.join(__dirname, 'visit-log.json');
 let visitLog = [];
 try { visitLog = JSON.parse(fs.readFileSync(VISIT_LOG_PATH, 'utf8')); } catch (err) { visitLog = []; }
-function recordVisit(name) {
-  visitLog.push({ name, at: Date.now() });
+function recordVisit(name, role, scope) {
+  visitLog.push({ name, role, scope: scope || null, at: Date.now() });
   if (visitLog.length > 5000) visitLog = visitLog.slice(-5000);
   fs.writeFile(VISIT_LOG_PATH, JSON.stringify(visitLog), () => {});
 }
@@ -392,7 +392,7 @@ const server = http.createServer((req, res) => {
         return;
       }
       auth.clearFailures(ip);
-      recordVisit(user.name);
+      recordVisit(user.name, user.role, user.scope);
       // A client login ignores whatever `next` said (it may have been aimed at a page they can't
       // reach) and always lands on their own dashboard; everyone else keeps the page they asked for.
       const dest = user.role === 'client' ? scopeHome(user.scope) : next;
@@ -458,6 +458,13 @@ const server = http.createServer((req, res) => {
   }
 
   if (url.pathname === '/api/visits') {
+    // Login history is Mark's own view only — every other account gets a flat 403, not just a
+    // hidden button, so the data itself can't be read by guessing the endpoint.
+    if (!session || session.name !== 'Mark') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'forbidden' }));
+      return;
+    }
     res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
     res.end(JSON.stringify({ visits: [...visitLog].reverse() }));
     return;

@@ -7,6 +7,8 @@
   }).then((me) => {
     if (!me) return;
     $('#logged-in-name').textContent = me.name;
+    // The visitor/login history is Mark's own view only — nobody else's session even shows the button.
+    if (me.name === 'Mark') $('#visitors-btn').hidden = false;
     startDashboardApp();
   }).catch(() => { location.href = '/login'; });
 
@@ -27,10 +29,12 @@
     $('#visitors-list').innerHTML = '<div class="visitors-empty">Loading&hellip;</div>';
     fetch('/api/visits').then((r) => r.json()).then((d) => {
       const visits = d.visits || [];
+      const dashboardLabel = (v) => v.role === 'client' ? (v.scope === 'leaderboard' ? 'Creative Team' : v.scope ? v.scope[0].toUpperCase() + v.scope.slice(1) : 'Client') : 'Admin';
       $('#visitors-list').innerHTML = !visits.length
         ? '<div class="visitors-empty">No visits recorded yet.</div>'
         : visits.map((v) => (
             '<div class="visitors-row"><strong>' + v.name.replace(/[<>&]/g, '') + '</strong>' +
+            '<span class="visitors-dash">' + dashboardLabel(v) + '</span>' +
             '<span>' + visitTimestamp(v.at) + '</span></div>'
           )).join('');
     }).catch(() => {

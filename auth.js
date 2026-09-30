@@ -17,7 +17,7 @@ const USERS = {
   'zeke': { name: 'Zeke', role: 'admin', hash: '3af14ca169ff676e7d646ebbdc07f310$b78582bba88441fbecf409bdbafd0f1a1f6804695097a01e8536238652ad7540' },
   'rouise': { name: 'Rouise', role: 'admin', hash: '4125cde80ff489c5bcd4ded6455618e2$a2ab0905a8ee7e529c611a03b466a68631150f41aaba061d3cfcceee18e5d930' },
   'dominic': { name: 'Dominic', role: 'admin', hash: 'c955d9312abe66412196cb67442ab48c$a59abcdf9455ebeddc35b71b8545ddd4687cf8860aac4a664c321e8f4a55367d' },
-  'jim': { name: 'Jim', role: 'admin', hash: '15ca2aaaa725a74b3efbc044b4ac3307$fdfba4000599ee4f0a80217848e934eb5860460b3f92c32a028f4b5afbc77819' },
+  'jim': { name: 'Jim', role: 'admin', hash: '794ace95fd6d55cf8e34d480b0c99032$dbc1d8d3407114bda103a8e69fd61030c2e7ad90cb6053ece36f1a784603c8f6' },
   'rommel': { name: 'Rommel', role: 'admin', hash: '5b15e578ac6f9ab671cdbf3e22cffd7e$1265a2a2a5a80b9a31e24c729772091bc75a2b5bbb2db464558a8fcf3c6b8208' },
   'mark': { name: 'Mark', role: 'admin', hash: '1f483202851fccc8279ad668b9ed4b99$fade2026cb6a41e7e0e70baf951c5ca7b6fe6655429b0e89f257e7f645e83cd7' },
   // Client logins — each scoped to exactly one dashboard. "leaderboard" is a virtual scope: the
@@ -30,7 +30,7 @@ const USERS = {
 };
 
 // Work emails log into the same accounts as the first names.
-const EMAILS = { 'brandon@loudrmedia.com': 'brandon', 'jaypro@loudrmedia.com': 'jaypro', 'mark@loudrmedia.com': 'mark', 'alexander@loudrmedia.com': 'alexander', 'christian@loudrmedia.com': 'christian' };
+const EMAILS = { 'brandon@loudrmedia.com': 'brandon', 'jaypro@loudrmedia.com': 'jaypro', 'mark@loudrmedia.com': 'mark', 'alexander@loudrmedia.com': 'alexander', 'christian@loudrmedia.com': 'christian', 'jimboy@loudrmedia.com': 'jim' };
 for (const [email, key] of Object.entries(EMAILS)) USERS[email] = USERS[key];
 
 // Nichole's work email has its own password (her first-name login keeps the PIN above).

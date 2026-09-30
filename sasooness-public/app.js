@@ -860,7 +860,11 @@
     const azSpendByDay = new Map();
     for (const d of partnerDeduction(leads).days) azSpendByDay.set(d.date, (azSpendByDay.get(d.date) || 0) + d.deduct);
 
-    const dates = [...byDay.keys()].sort((a, b) => b.localeCompare(a));
+    // "All time" has no natural end to a day-by-day table, so cap it to the most recent 7 days
+    // with a lead — any other picked range (a week, a month, a custom span) is already bounded by
+    // that range and shows every day within it.
+    let dates = [...byDay.keys()].sort((a, b) => b.localeCompare(a));
+    if (state.range.key === 'all') dates = dates.slice(0, 7);
     const dash = '—';
     $('#daily-leads-body').innerHTML = dates.length ? dates.map((date) => {
       const { og, az } = byDay.get(date);

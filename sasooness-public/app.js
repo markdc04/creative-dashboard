@@ -125,12 +125,18 @@
     if (s.includes('reject')) return 'status-pill--rejected';
     return 'status-pill--other';
   }
+  // Matches a raw status VALUE (used for the donut/legend, which groups strictly by the literal
+  // CRM status text) — not "is this lead a signed case" (see isSignedCase below for that).
   function isSignedStatus(status) { return (status || '').trim() === 'Signed Up' || (status || '').trim() === 'Client'; }
+  // A lead counts as a signed case if its own Status says so, OR if it was referred out but its
+  // SubStatus says "Signed Up"/"Client" — confirmed against the live sheet: 41 Status="Signed Up"
+  // + 9 Status="Referred"/SubStatus="Signed Up" = 50 real signed cases, not 41.
+  function isSignedCase(l) { return isSignedStatus(l.status) || isSignedStatus(l.subStatus); }
   // The CRM's raw status column has a dozen+ values (Referred, Lost, Hold, Chase, AZ Chase,
   // Existing Client, blank, ...) that don't matter day to day — collapsed to the three that do.
-  function statusBucket(status) {
-    if (isSignedStatus(status)) return 'Signed';
-    if ((status || '').toLowerCase().includes('reject')) return 'Rejected';
+  function statusBucket(l) {
+    if (isSignedCase(l)) return 'Signed';
+    if ((l.status || '').toLowerCase().includes('reject')) return 'Rejected';
     return 'Reviewing';
   }
 
@@ -152,8 +158,8 @@
     return state.leads.filter((l) => {
       if (!ignoreDate && !inRange(l.createdDate)) return false;
       if (f.status && skip !== 'status') {
-        if (f.status === SIGNED || f.status === 'Signed') { if (!isSignedStatus(l.status)) return false; }
-        else if (f.status === 'Rejected' || f.status === 'Reviewing') { if (statusBucket(l.status) !== f.status) return false; }
+        if (f.status === SIGNED || f.status === 'Signed') { if (!isSignedCase(l)) return false; }
+        else if (f.status === 'Rejected' || f.status === 'Reviewing') { if (statusBucket(l) !== f.status) return false; }
         else if (f.status === OTHER_STATUSES) { if (state.topStatuses.includes(l.status || '(blank)')) return false; }
         else if ((l.status || '(blank)') !== f.status) return false;
       }
@@ -280,7 +286,7 @@
 
   function renderKpis(leads, spendRows) {
     const total = leads.length;
-    const signed = leads.filter((l) => isSignedStatus(l.status)).length;
+    const signed = leads.filter((l) => isSignedCase(l)).length;
     const rejected = leads.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
     const conversionRate = total > 0 ? (signed / total) * 100 : 0;
     const program = state.filters.program;
@@ -464,7 +470,7 @@
       const key = l.createdDate.slice(0, 7);
       if (!byMonth.has(key)) byMonth.set(key, { leads: 0, cases: 0 });
       byMonth.get(key).leads++;
-      if (isSignedStatus(l.status)) byMonth.get(key).cases++;
+      if (isSignedCase(l)) byMonth.get(key).cases++;
     }
     const months = [...byMonth.keys()].sort();
     if (!months.length) { container.innerHTML = '<div class="empty-msg">No leads for this selection.</div>'; return; }
@@ -650,7 +656,7 @@
     for (const l of leads) groups.get(programOf(l)).push(l);
     const cls = (key, empty) => 'is-clickable' + (empty ? ' row-muted' : '') + (selected === key ? ' is-selected' : selected ? ' is-dim' : '');
     const line = (key, list) => {
-      const signed = list.filter((l) => isSignedStatus(l.status)).length;
+      const signed = list.filter((l) => isSignedCase(l)).length;
       const rejected = list.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
       return '<tr class="' + cls(key, list.length === 0) + '" data-program="' + key + '"><td class="name-cell">' + escapeHtml(programLabel(key)) + '</td>' +
         '<td class="td-num num">' + list.length.toLocaleString('en-US') + '</td>' +
@@ -660,7 +666,7 @@
     };
     let html = '';
     for (const [key, list] of groups) html += line(key, list);
-    const signedAll = leads.filter((l) => isSignedStatus(l.status)).length;
+    const signedAll = leads.filter((l) => isSignedCase(l)).length;
     const rejectedAll = leads.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
     html += '<tr class="row-total"><td>Total</td><td class="td-num num">' + leads.length.toLocaleString('en-US') + '</td><td class="td-num num">' + signedAll.toLocaleString('en-US') + '</td><td class="td-num num">' + (leads.length ? pct((signedAll / leads.length) * 100) : '—') + '</td><td class="td-num num">' + rejectedAll.toLocaleString('en-US') + '</td></tr>';
     $('#source-body').innerHTML = html;
@@ -691,7 +697,7 @@
   function renderChips() {
     const base = leadsFor('status');
     const counts = { Signed: 0, Rejected: 0, Reviewing: 0 };
-    for (const l of base) counts[statusBucket(l.status)]++;
+    for (const l of base) counts[statusBucket(l)]++;
     const sf = state.filters.status;
     const chips = ['<button class="chip' + (!sf ? ' is-active' : '') + '" data-status="">All<span class="n">' + base.length + '</span></button>']
       .concat(['Signed', 'Rejected', 'Reviewing'].map((b) =>

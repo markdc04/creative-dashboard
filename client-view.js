@@ -18,8 +18,14 @@ function programOf(channel) {
   return channel === 'Lead Prosper WA' ? 'ppl' : 'agency';
 }
 
+// A lead referred out can still be a real signed case if its SubStatus says so (Sasooness: 41
+// with Status "Signed Up" + 9 with Status "Referred"/SubStatus "Signed Up" = 50 real signed
+// cases) — checked here too so the client's own view doesn't undercount what the admin view now
+// correctly counts.
+function isSignedCase(l) { return isSignedStatus(l.status) || isSignedStatus(l.subStatus); }
+
 function simplifyLeads(leads) {
-  const rows = (leads || []).map((l) => ({ name: l.name || '', date: l.createdDate || '', status: isSignedStatus(l.status) ? 'Signed' : (l.status || ''), program: programOf(l.channel) }));
+  const rows = (leads || []).map((l) => ({ name: l.name || '', date: l.createdDate || '', status: isSignedCase(l) ? 'Signed' : (l.status || ''), program: programOf(l.channel) }));
   const total = rows.length;
   const signed = rows.filter((r) => r.status === 'Signed').length;
   return {

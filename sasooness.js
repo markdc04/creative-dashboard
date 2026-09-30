@@ -46,7 +46,14 @@ let cache = {
   campaignTags: { byEmail: new Map(), byPhone: new Map() }, schedule: [], droppedEmails: new Set(), walkerLog: [], agencySpend: [], adNames: new Map(), campaignNames: new Map(), updatedAt: null,
 };
 
-function isSigned(status) { const s = (status || '').trim(); return s === 'Signed Up' || s === 'Client'; }
+// A lead's own Status says "Signed Up"/"Client" most of the time, but a case that was referred
+// out can carry Status "Referred" with SubStatus "Signed Up" instead — it's still a real signed
+// case (confirmed against the live sheet: 41 "Signed Up" + 9 "Referred"/"Signed Up" = 50), so
+// both fields count.
+function statusIs(v, target) { return (v || '').trim() === target; }
+function isSigned(l) {
+  return statusIs(l.status, 'Signed Up') || statusIs(l.status, 'Client') || statusIs(l.subStatus, 'Signed Up') || statusIs(l.subStatus, 'Client');
+}
 function normEmail(v) { return String(v || '').trim().toLowerCase(); }
 
 // The same person often turns up under two emails (a work and a personal one) with one phone
@@ -57,7 +64,7 @@ function mergeLeads(intakeSets, rowsB) {
   const people = [];
   const byEmail = new Map();
   const byPhone = new Map();
-  const rank = (l) => (isSigned(l.status) ? 2 : l.source === 'crm' ? 1 : 0);
+  const rank = (l) => (isSigned(l) ? 2 : l.source === 'crm' ? 1 : 0);
 
   function place(lead) {
     const phone = phone10(lead.phone);
@@ -380,7 +387,7 @@ function getData() {
     if (w.phone) (wByPhone.get(w.phone) || wByPhone.set(w.phone, []).get(w.phone)).push(w);
   }
   const leads = cache.leads.map(({ emails, ...l }) => {
-    const dropped = isSigned(l.status) && (emails || [l.email]).some((e) => cache.droppedEmails.has(e));
+    const dropped = isSigned(l) && (emails || [l.email]).some((e) => cache.droppedEmails.has(e));
     const partner = l.channel === 'Lead Prosper AZ' || l.channel === 'Lead Prosper WA';
     const tags = tagsFor({ emails, email: l.email, phone: l.phone });
     const campaign = resolve(tags ? tags.utm : '');

@@ -828,6 +828,46 @@
       : '<tr class="row-muted"><td colspan="7">No leads to show for this range.</td></tr>');
   }
 
+  // ================= leads per day (Main Landing Page + Lead Prosper AZ combined) =================
+  // Where each day's Agency leads came from and what that day cost, at the day level rather than
+  // the month-level bar chart above. A day's spend is the Main Landing Page's own campaign spend
+  // that day (from spendFor, so it's naturally $0 for a day with only Lead Prosper AZ leads) plus
+  // Sasooness's share of Walker's shared spend that day (the same day-by-day deduction used below,
+  // summed across whichever Walker campaigns sent a lead that day).
+  function renderDailyLeads() {
+    const show = state.filters.program === 'agency';
+    $('#daily-leads-panel').hidden = !show;
+    if (!show) return;
+    const leads = leadsFor();
+    const byDay = new Map(); // date -> { og, az }
+    for (const l of leads) {
+      if (!l.createdDate) continue;
+      const isAZ = !!(l.origin && l.origin.campaignId);
+      const cur = byDay.get(l.createdDate) || { og: 0, az: 0 };
+      if (isAZ) cur.az++; else cur.og++;
+      byDay.set(l.createdDate, cur);
+    }
+    const ownSpendByDay = new Map();
+    for (const r of spendFor('campaign')) ownSpendByDay.set(r.date, (ownSpendByDay.get(r.date) || 0) + r.spend);
+    const azSpendByDay = new Map();
+    for (const d of partnerDeduction(leads).days) azSpendByDay.set(d.date, (azSpendByDay.get(d.date) || 0) + d.deduct);
+
+    const dates = [...byDay.keys()].sort((a, b) => b.localeCompare(a));
+    const dash = '—';
+    $('#daily-leads-body').innerHTML = dates.length ? dates.map((date) => {
+      const { og, az } = byDay.get(date);
+      const total = og + az;
+      const spend = (ownSpendByDay.get(date) || 0) + (azSpendByDay.get(date) || 0);
+      const cpl = total > 0 && spend > 0 ? spend / total : 0;
+      return '<tr><td>' + escapeHtml(date) + '</td>' +
+        '<td class="td-num num">' + total.toLocaleString('en-US') + '</td>' +
+        '<td class="td-num num">' + og.toLocaleString('en-US') + '</td>' +
+        '<td class="td-num num">' + az.toLocaleString('en-US') + '</td>' +
+        '<td class="td-num num">' + (spend ? money(spend) : dash) + '</td>' +
+        '<td class="td-num num">' + (cpl ? money(cpl) : dash) + '</td></tr>';
+    }).join('') : '<tr class="row-muted"><td colspan="6">No leads to show for this range.</td></tr>';
+  }
+
   function render() {
     // Which statuses the donut shows individually (the rest fold into "Other") — computed first
     // because an "Other statuses" filter is defined in terms of it.
@@ -841,6 +881,7 @@
     renderCampaigns();
     renderPrograms();
     renderSegmentTabs();
+    renderDailyLeads();
     renderOrigins();
     renderChips();
     renderLeadsTable(leads);

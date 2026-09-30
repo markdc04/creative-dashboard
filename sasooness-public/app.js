@@ -829,33 +829,44 @@
   }
 
   // ================= leads per day (Main Landing Page + Lead Prosper AZ combined) =================
-  // Where each day's Agency leads came from and what that day cost, at the day level rather than
-  // the month-level bar chart above. A day's spend is the Main Landing Page's own campaign spend
-  // that day (from spendFor, so it's naturally $0 for a day with only Lead Prosper AZ leads) plus
-  // Sasooness's share of Walker's shared spend that day (the same day-by-day deduction used below,
-  // summed across whichever Walker campaigns sent a lead that day).
+  // Always this calendar week (Monday through today, Pacific) regardless of whatever date range
+  // is picked at the top of the page — a short, live snapshot that rolls over on its own every
+  // Monday, not a filtered view of a longer history. A day's spend is the Main Landing Page's own
+  // campaign spend that day (so it's naturally $0 for a day with only Lead Prosper AZ leads) plus
+  // Sasooness's share of Walker's shared spend that day, the same day-by-day deduction used below.
   function renderDailyLeads() {
     const show = state.filters.program === 'agency';
     $('#daily-leads-panel').hidden = !show;
     if (!show) return;
-    const leads = leadsFor();
+    const start = toISO(mondayOf(pacificToday()));
+    const end = toISO(pacificToday());
+    const leads = state.leads.filter((l) => programOf(l) === 'agency' && l.createdDate >= start && l.createdDate <= end);
     const byDay = new Map(); // date -> { og, az }
     for (const l of leads) {
-      if (!l.createdDate) continue;
       const isAZ = !!(l.origin && l.origin.campaignId);
       const cur = byDay.get(l.createdDate) || { og: 0, az: 0 };
       if (isAZ) cur.az++; else cur.og++;
       byDay.set(l.createdDate, cur);
     }
     const ownSpendByDay = new Map();
-    for (const r of spendFor('campaign')) ownSpendByDay.set(r.date, (ownSpendByDay.get(r.date) || 0) + r.spend);
+    for (const r of state.campaignSpend) {
+      if (r.date < start || r.date > end) continue;
+      ownSpendByDay.set(r.date, (ownSpendByDay.get(r.date) || 0) + r.spend);
+    }
     const azSpendByDay = new Map();
-    for (const d of partnerDeduction(leads).days) azSpendByDay.set(d.date, (azSpendByDay.get(d.date) || 0) + d.deduct);
+    for (const d of partnerDeduction(leads).days) {
+      if (d.date < start || d.date > end) continue;
+      azSpendByDay.set(d.date, (azSpendByDay.get(d.date) || 0) + d.deduct);
+    }
 
-    const dates = [...byDay.keys()].sort((a, b) => b.localeCompare(a));
+    // Every day of the week so far shows a row, even a zero-lead day, so the "this week" framing
+    // is visible at a glance rather than just however many days happened to have leads.
+    const dates = [];
+    for (let d = new Date(start + 'T00:00:00'), stop = new Date(end + 'T00:00:00'); d <= stop; d.setDate(d.getDate() + 1)) dates.push(toISO(d));
+    dates.reverse();
     const dash = '—';
-    $('#daily-leads-body').innerHTML = dates.length ? dates.map((date) => {
-      const { og, az } = byDay.get(date);
+    $('#daily-leads-body').innerHTML = dates.map((date) => {
+      const { og, az } = byDay.get(date) || { og: 0, az: 0 };
       const total = og + az;
       const spend = (ownSpendByDay.get(date) || 0) + (azSpendByDay.get(date) || 0);
       const cpl = total > 0 && spend > 0 ? spend / total : 0;
@@ -865,7 +876,7 @@
         '<td class="td-num num">' + az.toLocaleString('en-US') + '</td>' +
         '<td class="td-num num">' + (spend ? money(spend) : dash) + '</td>' +
         '<td class="td-num num">' + (cpl ? money(cpl) : dash) + '</td></tr>';
-    }).join('') : '<tr class="row-muted"><td colspan="6">No leads to show for this range.</td></tr>';
+    }).join('');
   }
 
   function render() {

@@ -19,7 +19,7 @@ const USERS = {
   'dominic': { name: 'Dominic', role: 'admin', hash: 'c955d9312abe66412196cb67442ab48c$a59abcdf9455ebeddc35b71b8545ddd4687cf8860aac4a664c321e8f4a55367d' },
   'jim': { name: 'Jim', role: 'admin', hash: '794ace95fd6d55cf8e34d480b0c99032$dbc1d8d3407114bda103a8e69fd61030c2e7ad90cb6053ece36f1a784603c8f6' },
   'rommel': { name: 'Rommel', role: 'admin', hash: '5b15e578ac6f9ab671cdbf3e22cffd7e$1265a2a2a5a80b9a31e24c729772091bc75a2b5bbb2db464558a8fcf3c6b8208' },
-  'mark': { name: 'Mark', role: 'admin', hash: '1f483202851fccc8279ad668b9ed4b99$fade2026cb6a41e7e0e70baf951c5ca7b6fe6655429b0e89f257e7f645e83cd7' },
+  'mark': { name: 'Mark', role: 'admin', hash: '9061b79503ebb6b600343e654bc3721b$e9e54d9bc992ae6d5ea7605d97d0f47f41434b3636535ffeb5b9c2ec43988823' },
   // Client logins — each scoped to exactly one dashboard. "leaderboard" is a virtual scope: the
   // creative team's shared login, treated the same as a client account but pointed at the
   // leaderboard (its own already-internal-safe page) instead of a client-public view.

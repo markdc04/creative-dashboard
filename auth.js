@@ -23,7 +23,7 @@ const USERS = {
   // Client logins — each scoped to exactly one dashboard. "leaderboard" is a virtual scope: the
   // creative team's shared login, treated the same as a client account but pointed at the
   // leaderboard (its own already-internal-safe page) instead of a client-public view.
-  'creatives@loudrmedia.com': { name: 'Creative Team', role: 'client', scope: 'leaderboard', hash: '7cb210e0adc0d170a11bf5a744819547$362ce966696ebc68503e4f7f93ee9a3c2c1d94ac029d6cf9efe3ed36c0d30924' },
+  'creatives@loudrmedia.com': { name: 'Creative Team', role: 'client', scope: 'leaderboard', hash: '37d6ca2ee27b7e4a2105f7eebdeb1ae6$000a6c8e9eb3c082f3a3b6461282dfa4bd1bbdfc99bf12ab692c630b50083c04' },
   'sasooness@loudrmedia.com': { name: 'Sasooness', role: 'client', scope: 'sasooness', hash: 'ee940c626b8990a04239f13734c61651$039b9f1d5733b123d0653b66a0752a63dbfa0cb77be21cf1d0b4f0f07cfede3a' },
   'km@loudrmedia.com': { name: 'KM Law', role: 'client', scope: 'km', hash: '1a38deddffac52aa1c302dd5349ed235$99c97d54f375428d57af3c77a2f27bfcc4ba1d130e5de2465eb75e74ecc234f4' },
   'bryan@loudrmedia.com': { name: 'Bryan Rodriguez', role: 'client', scope: 'bryan', hash: '3e545fd7e677ed179c4e550a80422354$646f64e3f0467a4525356aec6c1f0b0b034e4d589674adba366d6cbe82bf0283' },

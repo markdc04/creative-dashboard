@@ -3,7 +3,7 @@
 // of the main tracker's already-fetched spend; Meta, from the shared export) and per-campaign
 // lead counts (from the UTM tags on the ALL LEADS tab).
 const { csvUrl, fetchText, parseCSV, parseCSVRows, num, toISODate, phone10 } = require('./csv-utils');
-const { metaDailyFor, metaCampaignDailyFor } = require('./meta-spend');
+const { metaDailyFor, metaCampaignDailyFor, metaAdCampaignsFor } = require('./meta-spend');
 
 // Intake workbook — one tab per lead source:
 //   OG              leads from the main landing page (the paid-ad campaigns)
@@ -43,7 +43,7 @@ const SOURCE_CODES = { LS004: 'OG' };
 
 let cache = {
   leads: [], googleDaily: [], metaDaily: [], googleCampaignDaily: [], metaCampaignDaily: [],
-  campaignTags: { byEmail: new Map(), byPhone: new Map() }, schedule: [], droppedEmails: new Set(), walkerLog: [], agencySpend: [], adNames: new Map(), campaignNames: new Map(), updatedAt: null,
+  campaignTags: { byEmail: new Map(), byPhone: new Map() }, schedule: [], droppedEmails: new Set(), walkerLog: [], agencySpend: [], adNames: new Map(), campaignNames: new Map(), adCampaign: new Map(), metaAdCampaigns: new Map(), updatedAt: null,
 };
 
 // A lead's own Status says "Signed Up"/"Client" most of the time, but a case that was referred
@@ -163,11 +163,14 @@ function updateGoogleSpend(rows) {
   }
   const round = (n) => Math.round(n * 100) / 100;
   // Names for the IDs Walker's log carries, and Walker's own agency campaigns' daily spend.
-  const adNames = new Map(), campaignNames = new Map(), agency = new Map();
+  const adNames = new Map(), campaignNames = new Map(), adCampaign = new Map(), agency = new Map();
   for (const r of rows) {
     if (r.platform !== 'GOOGLE') continue;
     if (r.adId && r.adName) adNames.set(String(r.adId), r.adName);
     if (r.campaignId && r.campaignName) campaignNames.set(String(r.campaignId), r.campaignName);
+    // Some ALL LEADS rows carry the ad (UTM Term) but not its campaign (UTM Campaign blank) —
+    // recoverable since every ad belongs to exactly one campaign, same source as adNames above.
+    if (r.adId && r.campaignName) adCampaign.set(String(r.adId), r.campaignName);
     if (/agency/i.test(r.campaignName || '') && r.campaignId) {
       const key = r.campaignId + '|' + r.date;
       agency.set(key, { campaignId: String(r.campaignId), date: r.date, spend: (agency.get(key)?.spend || 0) + r.spend });
@@ -175,6 +178,7 @@ function updateGoogleSpend(rows) {
   }
   cache.adNames = adNames;
   cache.campaignNames = campaignNames;
+  cache.adCampaign = adCampaign;
   cache.agencySpend = [...agency.values()].map((r) => ({ ...r, spend: round(r.spend) }));
   cache.googleDaily = [...byDate.entries()].map(([date, spend]) => ({ date, spend: round(spend) })).sort((a, b) => (a.date < b.date ? -1 : 1));
   cache.googleCampaignDaily = [...byCampaign.values()].map((r) => ({ ...r, spend: round(r.spend) }));
@@ -328,7 +332,7 @@ function campaignResolver() {
 
 async function pollAll() {
   try {
-    const [intakeCsvs, csvB, allLeadsCsv, tabCsv, casesCsv, walkerCsv, metaDaily, metaCampaignDaily] = await Promise.all([
+    const [intakeCsvs, csvB, allLeadsCsv, tabCsv, casesCsv, walkerCsv, metaDaily, metaCampaignDaily, metaAdCampaigns] = await Promise.all([
       Promise.all(INTAKE_TABS.map((t) => fetchText(csvUrl(t.gid, INTAKE_DOC_ID)))),
       fetchText(csvUrl(LEADS_B_GID, LEADS_B_DOC_ID)),
       fetchText(csvUrl(ALL_LEADS_GID, WORKBOOK_ID)),
@@ -337,6 +341,7 @@ async function pollAll() {
       fetchText('https://docs.google.com/spreadsheets/d/' + WALKER_DOC_ID + '/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent(WALKER_LOG_TAB)),
       metaDailyFor(CAMPAIGN_PATTERN),
       metaCampaignDailyFor(CAMPAIGN_PATTERN),
+      metaAdCampaignsFor(CAMPAIGN_PATTERN),
     ]);
     const intakeSets = INTAKE_TABS.map((t, i) => ({ channel: t.channel, rows: parseCSV(intakeCsvs[i]) }));
     const rowsB = parseCSV(csvB);
@@ -355,6 +360,7 @@ async function pollAll() {
     if (walkerLog.length >= 100) cache.walkerLog = walkerLog; else console.warn(`[${new Date().toISOString()}] Walker lead log looks broken (${walkerLog.length} rows) — keeping last known-good`);
     cache.metaDaily = metaDaily;
     cache.metaCampaignDaily = metaCampaignDaily;
+    cache.metaAdCampaigns = metaAdCampaigns;
     cache.updatedAt = Date.now();
   } catch (err) {
     console.error('Sasooness poll error:', err.message);
@@ -390,7 +396,24 @@ function getData() {
     const dropped = isSigned(l) && (emails || [l.email]).some((e) => cache.droppedEmails.has(e));
     const partner = l.channel === 'Lead Prosper AZ' || l.channel === 'Lead Prosper WA';
     const tags = tagsFor({ emails, email: l.email, phone: l.phone });
-    const campaign = resolve(tags ? tags.utm : '');
+    // The ALL LEADS tab sometimes records the ad but leaves UTM Campaign blank for that row —
+    // recover the campaign from the ad itself rather than leaving it unattributed. A Google ad's
+    // UTM Term is a numeric ID (cache.adCampaign, keyed by that ID); a Meta ad's UTM Term is
+    // literally the ad's name instead, and that same creative commonly runs under several
+    // different clients' campaigns — so a name lookup is scoped to Sasooness's own campaigns
+    // (metaAdCampaignsFor(CAMPAIGN_PATTERN) already filtered that) and picks whichever of those
+    // campaigns ran closest to the lead's own date, rather than just the first match.
+    const term = tags ? tags.term : '';
+    const adId = /^\d{6,}$/.test(term) ? term : '';
+    let campaign = resolve(tags ? tags.utm : '') || (adId ? cache.adCampaign.get(adId) || '' : '');
+    if (!campaign && !adId && term) {
+      const candidates = cache.metaAdCampaigns.get(term);
+      if (candidates && candidates.length) {
+        const leadDate = l.createdDate;
+        const best = candidates.reduce((a, b) => (Math.abs(new Date(b.date) - new Date(leadDate)) < Math.abs(new Date(a.date) - new Date(leadDate)) ? b : a));
+        campaign = best.campaign;
+      }
+    }
     return {
       ...l, status: dropped ? 'Dropped' : l.status, campaign,
       origin: partner ? walkerOrigin({ emails, email: l.email, phone: l.phone, createdDate: l.createdDate }, wByEmail, wByPhone) : ogOrigin(tags, campaign),

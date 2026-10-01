@@ -14,7 +14,7 @@ let cached = null; // { at, promise }
 async function getMetaRows() {
   if (cached && Date.now() - cached.at < TTL_MS) return cached.promise;
   const promise = fetchText(csvUrl(META_GID, META_DOC_ID)).then((csv) =>
-    parseCSVRows(csv).slice(2).map((row) => ({ date: toISODate(row[0]), campaign: row[2] || '', campaignId: (row[1] || '').trim(), spend: num(row[5]) }))
+    parseCSVRows(csv).slice(2).map((row) => ({ date: toISODate(row[0]), campaign: row[2] || '', campaignId: (row[1] || '').trim(), adName: (row[4] || '').trim(), spend: num(row[5]) }))
   );
   cached = { at: Date.now(), promise };
   promise.catch(() => { cached = null; });
@@ -44,4 +44,19 @@ async function metaCampaignDailyFor(pattern) {
   return [...byKey.values()].map((r) => ({ ...r, spend: Math.round(r.spend * 100) / 100 }));
 }
 
-module.exports = { metaDailyFor, metaCampaignDailyFor };
+// A lead's UTM Term can be the ad's NAME rather than a numeric ID — and the same ad creative
+// commonly runs under several different clients' campaigns, so a bare name lookup risks
+// attributing a lead to the wrong client. Scoped here to `pattern`-matching campaigns only, and
+// kept as every (campaign, date) the ad ran under so the caller can pick the one closest to the
+// lead's own date rather than guessing.
+async function metaAdCampaignsFor(pattern) {
+  const byAdName = new Map();
+  for (const r of await getMetaRows()) {
+    if (!r.adName || !r.campaign || !pattern.test(r.campaign) || !r.date) continue;
+    if (!byAdName.has(r.adName)) byAdName.set(r.adName, []);
+    byAdName.get(r.adName).push({ campaign: r.campaign, date: r.date });
+  }
+  return byAdName;
+}
+
+module.exports = { metaDailyFor, metaCampaignDailyFor, metaAdCampaignsFor };

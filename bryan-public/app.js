@@ -200,7 +200,6 @@
       ['Ad Spend', money(spend), 'Bryan’s share of the shared campaigns'],
       ['Profit', money(profit), pct(margin) + ' margin · revenue − ad spend'],
       ['Marketing Fee', fee ? money(fee) : dash, contractOk ? 'Sep 1 – Oct 8 retainer' : 'not split by filter'],
-      ['Fee Profit', fee ? money(feeProfit) : dash, fee ? 'fee − ' + money(feeSpend) + ' spent in the window' : ''],
       ['Cost / Lead', cpl ? money(cpl) : dash, 'ad spend ÷ leads'],
       ['Cost / Case', costPerCase ? money(costPerCase) : dash, signed ? 'ad spend ÷ signed leads' : 'no signed leads yet'],
       ['Cost / Case + Fee', cpcWithFee ? money(cpcWithFee) : dash, fee ? (cpcWithFee ? 'total cost (ad spend + fee) ÷ signed cases' : 'no signed cases yet') : ''],

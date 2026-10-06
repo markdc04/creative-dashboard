@@ -9,7 +9,7 @@ const crypto = require('crypto');
 // Usernames are the person's name lowercased with spaces removed ("Jay Pro" -> "jaypro").
 // Passwords are stored only as salted scrypt hashes — never in plain text.
 const USERS = {
-  'jaypro': { name: 'Jay Pro', role: 'admin', hash: 'cce4484dfe8323d4b36d123132afd9b4$2ac6b2ccc7b2974c691750b492f64d96d0348cbd4d7689515a90753b6d95359d' },
+  'jaypro': { name: 'Jay Pro', role: 'admin', hash: 'a26ee6f3598c9d9f5244d5c2cdd6ff13$5706e650a71d3a80b569dca990e0c011996931e64ec28d3fd5ad56e506721bc5' },
   'brandon': { name: 'Brandon', role: 'admin', hash: '496d7429e6ff53512d4f5e662209290d$bb708f120d8c326800e98333086566e73ef981981a373b50e8c1141a94e1a900' },
   'nichole': { name: 'Nichole', role: 'admin', hash: '46a15057753413aa8cc285c06863d06c$c58cfda8519131e07ba5ac16c895e8fbfa9204554d4c60ba28f0beb54782be47' },
   'alexander': { name: 'Alexander', role: 'admin', hash: 'bbd947259681161154dea49e4fdf12e2$8256b5ea6a5cf9fcd5db9c37e82b46e69e2f6a0cff1007eec1c82486cb09c94e' },

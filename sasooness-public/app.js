@@ -327,11 +327,9 @@
       // platform or status.
       const f = state.filters;
       const contractOk = !f.status && !f.campaign && !f.platform;
-      const { budget, fee } = contractForRange();
+      const { fee } = contractForRange();
       const totalCost = totalSpend + fee;
       const cpcWithFee = signed > 0 && costsMeaningful && contractOk ? totalCost / signed : 0;
-      const used = budget > 0 ? (totalSpend / budget) * 100 : 0;
-      const budgetSub = !contractOk ? 'contract-level, not split by filter' : '';
       // The new AZ budget ($75k/mo from 9/21): 35% of it is marketing fee, so 65% is what can go to ads.
       const newFrom = '2026-09-21';
       const adBudgetNew = AZ_NEW_BUDGET * (1 - MARKETING_FEE_SHARE);
@@ -346,8 +344,7 @@
         ['', 'Cost / Lead', cpl ? money(cpl) : dash, costsMeaningful ? 'ad spend ÷ leads' : noSplit, ''],
         ['', 'Ad Spend', money(totalSpend), money(ownSpend) + ' own ads + ' + money(partnerSpend) + ' Lead Prosper', ''],
         ['', 'Marketing Fee', contractOk ? money(fee) : dash, contractOk ? 'monthly fee from the contract' : 'contract-level, not split by filter', ''],
-        ['', 'Ad Budget', contractOk ? money(budget) : dash, budgetSub, ''],
-        ['', 'Ad Budget Left', contractOk ? money(adBudgetLeft) : dash, contractOk ? 'from $75k since 9/21, after 35% marketing fee' : 'contract-level, not split by filter', ''],
+        ['', 'Ad Budget Left', contractOk ? money(adBudgetLeft) : dash, '', ''],
         ['', 'Total Cost', contractOk ? money(totalCost) : dash, contractOk ? 'ad spend + marketing fee' : 'contract-level, not split by filter', ''],
         ['', 'CPC (Cost / Case)', costPerCase ? money(costPerCase) : dash, !costsMeaningful ? noSplit : signed ? 'ad spend ÷ signed cases' : 'no signed cases yet', ''],
         ['', 'CPC + Marketing Fee', cpcWithFee ? money(cpcWithFee) : dash, !costsMeaningful || !contractOk ? 'not split by filter' : signed ? 'total cost ÷ signed cases' : 'no signed cases yet', ''],

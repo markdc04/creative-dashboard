@@ -890,6 +890,26 @@
     }).join('') : '<tr class="row-muted"><td colspan="6">No leads to show for this range.</td></tr>';
   }
 
+  // ================= top rejection reasons =================
+  // Why leads were rejected, from each rejected lead's SubStatus (the sheet's reason column),
+  // most common first, over whatever the page's filters currently select.
+  function renderReasons(leads) {
+    const rejected = leads.filter((l) => (l.status || '').toLowerCase().includes('reject'));
+    const counts = new Map();
+    for (const l of rejected) {
+      const reason = (l.subStatus || '').trim() || '(no reason given)';
+      counts.set(reason, (counts.get(reason) || 0) + 1);
+    }
+    const rows = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+    $('#reasons-sub').textContent = rejected.length ? rejected.length.toLocaleString('en-US') + ' rejected leads' : '';
+    $('#reasons-empty').hidden = rows.length > 0;
+    $('#reasons-body').innerHTML = rows.map(([reason, n]) =>
+      '<tr><td class="name-cell">' + escapeHtml(reason) + '</td>' +
+      '<td class="td-num num">' + n.toLocaleString('en-US') + '</td>' +
+      '<td class="td-num num">' + pct((n / rejected.length) * 100) + '</td></tr>'
+    ).join('');
+  }
+
   function render() {
     // Which statuses the donut shows individually (the rest fold into "Other") — computed first
     // because an "Other statuses" filter is defined in terms of it.
@@ -907,6 +927,7 @@
     renderOrigins();
     renderChips();
     renderLeadsTable(leads);
+    renderReasons(leads);
   }
 
   // ---- click handling: everything clickable is wired here by data attribute ----

@@ -205,6 +205,20 @@
     <div id="leads-empty" class="empty-msg" hidden>No leads match this filter.</div>
   </div>
 
+  <div class="panel">
+    <div class="panel-head">
+      <h2 class="panel-title">Top Reasons Leads Were Rejected</h2>
+      <span class="panel-sub" id="reasons-sub"></span>
+    </div>
+    <div class="table-scroll table-scroll--short">
+      <table>
+        <thead><tr><th>Reason</th><th class="th-num">Rejected Leads</th><th class="th-num">% of Rejected</th></tr></thead>
+        <tbody id="reasons-body"></tbody>
+      </table>
+    </div>
+    <div id="reasons-empty" class="empty-msg" hidden>No rejected leads in this range.</div>
+  </div>
+
 </div>
 <script src="app.js"></script>
 <script src="/shared/sidebar.js" data-active="sasooness"></script>

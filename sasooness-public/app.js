@@ -996,12 +996,8 @@
     fetchData().finally(() => setTimeout(() => $('#refresh-btn').classList.remove('is-spinning'), 400));
   });
 
-  // Opens on the current calendar month (1st through its last day, Pacific time). The contract's
-  // budget and fee are monthly, so a full calendar month matches the schedule exactly.
-  {
-    const today = pacificToday();
-    setRange('custom', toISO(startOfMonth(today.getFullYear(), today.getMonth() + 1)), toISO(endOfMonth(today.getFullYear(), today.getMonth() + 1)));
-  }
+  // Opens on the new AZ budget's start (9/21) through yesterday (Pacific), not all time.
+  setRange('custom', '2026-09-21', toISO(addDays(pacificToday(), -1)));
   fetchData();
   setInterval(fetchData, 30000);
 })();

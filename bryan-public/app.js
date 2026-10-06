@@ -184,11 +184,10 @@
     // what Bryan paid for the window minus what was actually spent on his ads in it.
     const contractOk = !state.filters.status && !state.filters.campaign;
     const feeLeads = state.leads.filter((l) => l.createdDate >= MARKETING_FEE.start && l.createdDate <= MARKETING_FEE.end);
-    const feeSigned = feeLeads.filter((l) => isSigned(l.status)).length;
     const fee = contractOk ? MARKETING_FEE.amount : 0;
     const feeSpend = fee ? dailyDeduction(feeLeads).total : 0;
     const feeProfit = fee - feeSpend;
-    const cpcWithFee = fee && feeSigned > 0 ? (feeSpend + fee) / feeSigned : 0;
+    const cpcWithFee = fee && signed > 0 ? fee / signed : 0;
     const dash = '—';
 
     const hasFilter = state.filters.status || state.filters.campaign;
@@ -203,7 +202,7 @@
       ['Fee Profit', fee ? money(feeProfit) : dash, fee ? 'fee − ' + money(feeSpend) + ' spent in the window' : ''],
       ['Cost / Lead', cpl ? money(cpl) : dash, 'ad spend ÷ leads'],
       ['Cost / Case', costPerCase ? money(costPerCase) : dash, signed ? 'ad spend ÷ signed leads' : 'no signed leads yet'],
-      ['Cost / Case + Fee', cpcWithFee ? money(cpcWithFee) : dash, fee ? (cpcWithFee ? 'window spend + fee ÷ signed in window' : 'no signed leads in the window yet') : ''],
+      ['Cost / Case + Fee', cpcWithFee ? money(cpcWithFee) : dash, fee ? (cpcWithFee ? 'marketing fee ÷ signed cases' : 'no signed cases yet') : ''],
     ];
     $('#kpi-row').innerHTML = tiles.map(([label, value, sub, key]) =>
       '<div class="kpi' + (key ? ' is-clickable' : '') + (key === 'signed' && state.filters.status === 'Signed' ? ' is-selected' : '') + '"' + (key ? ' data-tile="' + key + '"' : '') + '><div class="kpi-label">' + escapeHtml(label) + '</div>' +

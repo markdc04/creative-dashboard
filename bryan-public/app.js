@@ -150,7 +150,7 @@
     for (const l of leads) {
       const o = l.origin;
       if (!o || !o.campaignId || !l.createdDate) continue;
-      if (l.replacement) continue;
+      if (l.billable === false) continue;
       const key = o.campaignId + '|' + l.createdDate;
       sent.set(key, (sent.get(key) || 0) + 1);
     }

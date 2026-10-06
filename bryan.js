@@ -48,8 +48,13 @@ function classifyByColor(color) {
 // launch batch), the first 13 in the sheet were the tail end of a prior deal's balance, not new
 // leads Bryan owes for; the 6 leads Aug 17-19 were free replacements for bad leads within that
 // batch. Both still cost ad spend (they're real Walker deliveries) but carry no revenue.
+// Free replacements for bad leads: not billed, and not charged ad spend either.
+function isReplacement(date) {
+  return (date >= '2026-08-17' && date <= '2026-08-19') || (date >= '2026-09-28' && date <= '2026-09-30');
+}
+
 function isBillable(date, indexWithinAug3to5) {
-  if (date >= '2026-08-17' && date <= '2026-08-19') return false;
+  if (isReplacement(date)) return false;
   if (date >= '2026-08-03' && date <= '2026-08-05') return indexWithinAug3to5 >= 13;
   return true;
 }
@@ -78,6 +83,7 @@ function parseLeads(csv, colorByRow) {
         note,
         reason: (r[iReason] || '').trim(),
         billable: createdDate ? isBillable(createdDate, augIdx) : true,
+        replacement: isReplacement(createdDate),
       };
     })
     .filter((l) => l.createdDate && l.createdDate >= START_DATE && (l.name || l.email));

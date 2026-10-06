@@ -150,7 +150,7 @@
     for (const l of leads) {
       const o = l.origin;
       if (!o || !o.campaignId || !l.createdDate) continue;
-      if (l.createdDate >= '2026-08-17' && l.createdDate <= '2026-08-19') continue;
+      if (l.replacement) continue;
       const key = o.campaignId + '|' + l.createdDate;
       sent.set(key, (sent.get(key) || 0) + 1);
     }
@@ -482,7 +482,7 @@
       const o = l.origin;
       const cpl = o && o.campaignId ? cplByKey.get(o.campaignId + '|' + l.createdDate) : 0;
       return '<tr>' +
-        '<td><div class="name-cell">' + escapeHtml(l.name || '(no name)') + '</div><div class="email-cell">' + escapeHtml(l.email || l.phone || '') + (l.billable === false ? (l.createdDate >= '2026-08-17' && l.createdDate <= '2026-08-19' ? ' · replacement · not billed' : ' · not billed') : '') + '</div></td>' +
+        '<td><div class="name-cell">' + escapeHtml(l.name || '(no name)') + '</div><div class="email-cell">' + escapeHtml(l.email || l.phone || '') + (l.replacement ? ' · replacement · not billed' : (l.billable === false ? ' · not billed' : '')) + '</div></td>' +
         '<td class="td-nowrap">' + escapeHtml(l.createdDate || dash) + '</td>' +
         '<td><span class="status-pill ' + statusClass(l.status) + '">' + escapeHtml(l.status) + '</span></td>' +
         '<td class="email-cell" title="' + escapeHtml(l.note) + '">' + escapeHtml(l.note ? (l.note.length > 60 ? l.note.slice(0, 60) + '…' : l.note) : dash) + '</td>' +

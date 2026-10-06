@@ -561,6 +561,11 @@
     fetchData().finally(() => setTimeout(() => $('#refresh-btn').classList.remove('is-spinning'), 400));
   });
 
+  // Opens on the current calendar month (1st through its last day, Pacific time).
+  {
+    const today = pacificToday();
+    setRange('custom', toISO(startOfMonth(today.getFullYear(), today.getMonth() + 1)), toISO(endOfMonth(today.getFullYear(), today.getMonth() + 1)));
+  }
   fetchData();
   setInterval(fetchData, 30000);
 })();

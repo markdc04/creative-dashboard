@@ -34,7 +34,7 @@
     range: { key: 'all', start: null, end: null },
     // Clicking any figure, row, slice, bar or point on the page sets one of these; every table,
     // tile and chart then re-computes from the leads and spend that match.
-    filters: { status: null, campaign: null, program: 'agency', platform: null },
+    filters: { status: null, campaign: null, program: 'agency', platform: null, reason: null },
     topStatuses: [],
   };
 
@@ -167,6 +167,7 @@
       }
       if (f.campaign && skip !== 'campaign' && (l.campaign || NO_CAMPAIGN) !== f.campaign) return false;
       if (f.program && skip !== 'program' && programOf(l) !== f.program) return false;
+      if (f.reason && skip !== 'reason' && reasonOf(l) !== f.reason) return false;
       if (platformOf && platformOf.get(l.campaign) !== f.platform) return false;
       return true;
     });
@@ -196,7 +197,7 @@
 
   // The program tabs are the view you're in, not a filter, so clearing filters keeps the program.
   function resetFilters() {
-    state.filters = { status: null, campaign: null, program: state.filters.program, platform: null };
+    state.filters = { status: null, campaign: null, program: state.filters.program, platform: null, reason: null };
   }
 
   function toggleFilter(name, value) {
@@ -209,6 +210,7 @@
     if (name === 'status') return 'Status: ' + (value === SIGNED ? 'Signed cases' : value === OTHER_STATUSES ? 'Other statuses' : value);
     if (name === 'campaign') return 'Campaign: ' + (value === NO_CAMPAIGN ? 'No campaign tag' : value);
     if (name === 'program') return 'Program: ' + programLabel(value);
+    if (name === 'reason') return 'Rejected: ' + value;
     return 'Platform: ' + value;
   }
   function renderFilterBar() {
@@ -893,18 +895,21 @@
   // ================= top rejection reasons =================
   // Why leads were rejected, from each rejected lead's SubStatus (the sheet's reason column),
   // most common first, over whatever the page's filters currently select.
-  function renderReasons(leads) {
-    const rejected = leads.filter((l) => (l.status || '').toLowerCase().includes('reject'));
+  function reasonOf(l) { return (l.subStatus || '').trim() || '(no reason given)'; }
+
+  function renderReasons() {
+    const rejected = leadsFor('reason').filter((l) => (l.status || '').toLowerCase().includes('reject'));
     const counts = new Map();
     for (const l of rejected) {
-      const reason = (l.subStatus || '').trim() || '(no reason given)';
+      const reason = reasonOf(l);
       counts.set(reason, (counts.get(reason) || 0) + 1);
     }
+    const sel = state.filters.reason;
     const rows = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
     $('#reasons-sub').textContent = rejected.length ? rejected.length.toLocaleString('en-US') + ' rejected leads' : '';
     $('#reasons-empty').hidden = rows.length > 0;
     $('#reasons-body').innerHTML = rows.map(([reason, n]) =>
-      '<tr><td class="name-cell">' + escapeHtml(reason) + '</td>' +
+      '<tr class="is-clickable' + (sel === reason ? ' is-selected' : sel ? ' is-dim' : '') + '" data-reason="' + escapeHtml(reason) + '"><td class="name-cell">' + escapeHtml(reason) + '</td>' +
       '<td class="td-num num">' + n.toLocaleString('en-US') + '</td>' +
       '<td class="td-num num">' + pct((n / rejected.length) * 100) + '</td></tr>'
     ).join('');
@@ -927,7 +932,7 @@
     renderOrigins();
     renderChips();
     renderLeadsTable(leads);
-    renderReasons(leads);
+    renderReasons();
   }
 
   // ---- click handling: everything clickable is wired here by data attribute ----
@@ -953,6 +958,8 @@
     if (chip) { state.filters.status = chip.dataset.status || null; render(); return; }
     const legend = e.target.closest('.legend-btn[data-status]');
     if (legend) { toggleFilter('status', legend.dataset.status); return; }
+    const reasonRow = e.target.closest('tr[data-reason]');
+    if (reasonRow) { toggleFilter('reason', reasonRow.dataset.reason); return; }
     const campaignRow = e.target.closest('tr[data-campaign]');
     if (campaignRow) { toggleFilter('campaign', campaignRow.dataset.campaign); return; }
     const programRow = e.target.closest('tr[data-program]');

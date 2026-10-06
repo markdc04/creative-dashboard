@@ -150,6 +150,7 @@
     for (const l of leads) {
       const o = l.origin;
       if (!o || !o.campaignId || !l.createdDate) continue;
+      if (l.createdDate >= '2026-08-17' && l.createdDate <= '2026-08-19') continue;
       const key = o.campaignId + '|' + l.createdDate;
       sent.set(key, (sent.get(key) || 0) + 1);
     }

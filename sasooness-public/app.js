@@ -339,24 +339,29 @@
       const dash = '—';
       tiles = [
         ['leads', 'Total Leads', total.toLocaleString('en-US'), rejected ? rejected.toLocaleString('en-US') + ' rejected' : '', 'Click to clear the filters'],
-        ['signed', 'Signed Cases', signed.toLocaleString('en-US'), 'of ' + total.toLocaleString('en-US') + ' leads', 'Click to show only signed cases'],
-        ['', 'Conversion Rate', pct(conversionRate), 'signed ÷ leads', ''],
         ['', 'Cost / Lead', cpl ? money(cpl) : dash, costsMeaningful ? 'ad spend ÷ leads' : noSplit, ''],
-        ['', 'Ad Spend', money(totalSpend), money(ownSpend) + ' own ads + ' + money(partnerSpend) + ' Lead Prosper', ''],
-        ['', 'Marketing Fee', contractOk ? money(fee) : dash, contractOk ? 'monthly fee from the contract' : 'contract-level, not split by filter', ''],
-        ['', 'Ad Budget Left', contractOk ? money(adBudgetLeft) : dash, '', ''],
-        ['', 'Total Cost', contractOk ? money(totalCost) : dash, contractOk ? 'ad spend + marketing fee' : 'contract-level, not split by filter', ''],
+        ['signed', 'Signed Cases', signed.toLocaleString('en-US'), 'of ' + total.toLocaleString('en-US') + ' leads', 'Click to show only signed cases'],
         ['', 'CPC (Cost / Case)', costPerCase ? money(costPerCase) : dash, !costsMeaningful ? noSplit : signed ? 'ad spend ÷ signed cases' : 'no signed cases yet', ''],
+        ['__break__'],
+        ['', 'Ad Spend', money(totalSpend), money(ownSpend) + ' own ads + ' + money(partnerSpend) + ' Lead Prosper', ''],
+        ['', 'Ad Budget Left', contractOk ? money(adBudgetLeft) : dash, '', ''],
+        ['', 'Marketing Fee', contractOk ? money(fee) : dash, contractOk ? 'monthly fee from the contract' : 'contract-level, not split by filter', ''],
+        ['', 'Total Cost', contractOk ? money(totalCost) : dash, contractOk ? 'ad spend + marketing fee' : 'contract-level, not split by filter', ''],
         ['', 'CPC + Marketing Fee', cpcWithFee ? money(cpcWithFee) : dash, !costsMeaningful || !contractOk ? 'not split by filter' : signed ? 'total cost ÷ signed cases' : 'no signed cases yet', ''],
       ];
     }
-    $('#kpi-row').className = 'kpi-row' + (tiles.length === 10 ? ' kpi-row--10' : '');
-    $('#kpi-row').innerHTML = tiles.map(([key, label, value, sub, hint]) =>
-      '<div class="kpi' + (key ? ' is-clickable' : '') + (key === 'signed' && state.filters.status === SIGNED ? ' is-selected' : '') + '"' + (key ? ' data-tile="' + key + '" title="' + hint + '"' : '') + '>' +
+    const groups = [[]];
+    for (const t of tiles) { if (t[0] === '__break__') groups.push([]); else groups[groups.length - 1].push(t); }
+    const tileHtml = ([key, label, value, sub, hint]) =>
+      '<div class="kpi' + (key ? ' is-clickable' : '') + (key === 'signed' ? ' kpi--highlight' : '') + (key === 'signed' && state.filters.status === SIGNED ? ' is-selected' : '') + '"' + (key ? ' data-tile="' + key + '" title="' + hint + '"' : '') + '>' +
       '<div class="kpi-label">' + escapeHtml(label) + '</div>' +
       '<div class="kpi-value num">' + value + '</div>' +
-      (sub ? '<div class="kpi-sub">' + escapeHtml(sub) + '</div>' : '') + '</div>'
-    ).join('');
+      (sub ? '<div class="kpi-sub">' + escapeHtml(sub) + '</div>' : '') + '</div>';
+    $('#kpi-row').className = 'kpi-row' + (groups[0].length === 4 || groups[0].length === 5 ? ' kpi-row--' + groups[0].length : '');
+    $('#kpi-row').innerHTML = groups[0].map(tileHtml).join('');
+    $('#kpi-row-2').hidden = groups.length < 2;
+    $('#kpi-row-2').className = 'kpi-row' + (groups.length > 1 && groups[1].length === 5 ? ' kpi-row--5' : '');
+    $('#kpi-row-2').innerHTML = groups.length > 1 ? groups[1].map(tileHtml).join('') : '';
   }
 
   // ================= shared SVG/tooltip helpers =================

@@ -966,6 +966,8 @@
     fetchData().finally(() => setTimeout(() => $('#refresh-btn').classList.remove('is-spinning'), 400));
   });
 
+  // Opens on the new AZ budget's start (9/21) through yesterday (Pacific), not all time.
+  setRange('custom', '2026-09-21', toISO(addDays(pacificToday(), -1)));
   fetchData();
   setInterval(fetchData, 30000);
 })();

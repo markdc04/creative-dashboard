@@ -109,14 +109,14 @@ function findOrigin(lead, byName, byPhone) {
   if (candidates.length) {
     const exactPhone = phone && candidates.find((w) => w.phone === phone);
     const w = exactPhone || candidates.reduce((a, b) => (b.date < a.date ? b : a));
-    return { campaignId: w.campaignId, campaignName: cache.campaignNames.get(w.campaignId) || '', contactSource: w.source, walkerDate: w.date };
+    return { campaignId: w.campaignId, campaignName: cache.campaignNames.get(w.campaignId) || '', adId: w.adId, contactSource: w.source, walkerDate: w.date };
   }
   const phoneMatches = (phone && byPhone.get(phone) || []).filter(
     (w) => Math.abs((new Date(w.date) - new Date(lead.createdDate)) / 86400000) <= 3
   );
   if (!phoneMatches.length) return null;
   const w = phoneMatches.reduce((a, b) => (b.date < a.date ? b : a));
-  return { campaignId: w.campaignId, campaignName: cache.campaignNames.get(w.campaignId) || '', contactSource: w.source, walkerDate: w.date };
+  return { campaignId: w.campaignId, campaignName: cache.campaignNames.get(w.campaignId) || '', adId: w.adId, contactSource: w.source, walkerDate: w.date };
 }
 
 // Called by the main server's own poll with its already-fetched, already-joined per-day-per-ad

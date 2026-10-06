@@ -9,7 +9,7 @@
   const PRICE_PER_LEAD = 350; // Bryan is billed per lead delivered (PPL), regardless of status.
   // Separate from the per-lead billing: a flat marketing-fee contract for this specific window.
   // Prorated by day-overlap with whatever range is selected, same as Sasooness/KM's monthly fee.
-  const MARKETING_FEE = { start: '2026-09-01', end: '2026-10-08', amount: 10000 };
+  const MARKETING_FEE = { start: '2026-09-01', end: '2026-10-08', amount: 1250 };
 
   const NO_CAMPAIGN = 'Not traced to a campaign';
   const STATUSES = ['Signed', 'Rejected', 'Reviewing'];

@@ -134,7 +134,14 @@ tbody tr:hover{background:var(--surface-raised);}
 .chart-slot--pie .legend-item{margin-right:14px;}
 
 .kpi-row{grid-template-columns:repeat(4,1fr);}
-@media (max-width:900px){.kpi-row{grid-template-columns:repeat(2,1fr);}}
+#kpi-row{display:block;}
+#kpi-row .kpi-row{margin-bottom:12px;}
+#kpi-row .kpi-row:last-child{margin-bottom:24px;}
+#kpi-row .kpi-row.kpi-row--5{grid-template-columns:repeat(5,1fr);}
+#kpi-row .kpi-row.kpi-row--3{grid-template-columns:repeat(3,1fr);}
+#kpi-row .kpi-row.kpi-row--2{grid-template-columns:repeat(2,1fr);}
+.kpi.kpi--highlight{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:rgba(240,180,41,.06);}
+@media (max-width:900px){.kpi-row{grid-template-columns:repeat(2,1fr);} #kpi-row .kpi-row.kpi-row--5,#kpi-row .kpi-row.kpi-row--3{grid-template-columns:repeat(2,1fr);}}
 
 .th-num,.td-num{text-align:right;}
 .td-nowrap{white-space:nowrap;}

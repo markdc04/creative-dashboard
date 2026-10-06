@@ -187,28 +187,33 @@
     const feeLeads = state.leads.filter((l) => l.createdDate >= MARKETING_FEE.start && l.createdDate <= MARKETING_FEE.end);
     const fee = contractOk ? MARKETING_FEE.amount : 0;
     const feeSpend = fee ? dailyDeduction(feeLeads).total : 0;
-    const feeProfit = fee - feeSpend;
     const cpcWithFee = fee && signed > 0 ? (spend + fee) / signed : 0;
     const dash = '—';
 
     const hasFilter = state.filters.status || state.filters.campaign;
-    const tiles = [
+    const tileRows = [
+      [
       ['Total Leads', total.toLocaleString('en-US'), hasFilter ? 'click to clear filters' : (rejected ? rejected.toLocaleString('en-US') + ' rejected' : ''), 'clear'],
-      ['Signed', signed.toLocaleString('en-US'), 'of ' + total.toLocaleString('en-US') + ' leads · click to filter', 'signed'],
-      ['Conversion Rate', pct(conversionRate), 'signed ÷ leads'],
-      ['Revenue', money(revenue), '$' + PRICE_PER_LEAD + ' × ' + billable.toLocaleString('en-US') + ' billable leads' + (nonBillable ? ' (' + nonBillable + ' not billed)' : '')],
-      ['Ad Spend', money(spend), 'Bryan’s share of the shared campaigns'],
-      ['Profit', money(profit), pct(margin) + ' margin · revenue − ad spend'],
-      ['Marketing Fee', fee ? money(fee) : dash, contractOk ? 'Sep 1 – Oct 8 retainer' : 'not split by filter'],
       ['Cost / Lead', cpl ? money(cpl) : dash, 'ad spend ÷ leads'],
+      ['Signed', signed.toLocaleString('en-US'), 'of ' + total.toLocaleString('en-US') + ' leads · click to filter', 'signed'],
       ['Cost / Case', costPerCase ? money(costPerCase) : dash, signed ? 'ad spend ÷ signed leads' : 'no signed leads yet'],
+      ['Conversion Rate', pct(conversionRate), 'signed ÷ leads'],
+      ],
+      [
+      ['Ad Spend', money(spend), 'Bryan’s share of the shared campaigns'],
+      ['Revenue', money(revenue), '$' + PRICE_PER_LEAD + ' × ' + billable.toLocaleString('en-US') + ' billable leads' + (nonBillable ? ' (' + nonBillable + ' not billed)' : '')],
+      ['Profit', money(profit), pct(margin) + ' margin · revenue − ad spend'],
+      ],
+      [
+      ['Marketing Fee', fee ? money(fee) : dash, contractOk ? 'Sep 1 – Oct 8 retainer' : 'not split by filter'],
       ['Cost / Case + Fee', cpcWithFee ? money(cpcWithFee) : dash, fee ? (cpcWithFee ? 'total cost (ad spend + fee) ÷ signed cases' : 'no signed cases yet') : ''],
+      ],
     ];
-    $('#kpi-row').innerHTML = tiles.map(([label, value, sub, key]) =>
-      '<div class="kpi' + (key ? ' is-clickable' : '') + (key === 'signed' && state.filters.status === 'Signed' ? ' is-selected' : '') + '"' + (key ? ' data-tile="' + key + '"' : '') + '><div class="kpi-label">' + escapeHtml(label) + '</div>' +
+    const tileHtml = ([label, value, sub, key]) =>
+      '<div class="kpi' + (key ? ' is-clickable' : '') + (key === 'signed' ? ' kpi--highlight' : '') + (key === 'signed' && state.filters.status === 'Signed' ? ' is-selected' : '') + '"' + (key ? ' data-tile="' + key + '"' : '') + '><div class="kpi-label">' + escapeHtml(label) + '</div>' +
       '<div class="kpi-value num">' + value + '</div>' +
-      (sub ? '<div class="kpi-sub">' + escapeHtml(sub) + '</div>' : '') + '</div>'
-    ).join('');
+      (sub ? '<div class="kpi-sub">' + escapeHtml(sub) + '</div>' : '') + '</div>';
+    $('#kpi-row').innerHTML = tileRows.map((row) => '<div class="kpi-row kpi-row--' + row.length + '">' + row.map(tileHtml).join('') + '</div>').join('');
   }
 
   // ================= status chip row =================

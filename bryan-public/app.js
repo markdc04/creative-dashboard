@@ -205,7 +205,7 @@
       ['Profit', money(profit), pct(margin) + ' margin · revenue − ad spend'],
       ],
       [
-      ['Marketing Fee', fee ? money(fee) : dash, contractOk ? 'Sep 1 – Oct 8 retainer' : 'not split by filter'],
+      ['Marketing Fee', fee ? money(fee) : dash, contractOk ? '' : 'not split by filter'],
       ['Cost / Case + Fee', cpcWithFee ? money(cpcWithFee) : dash, fee ? (cpcWithFee ? 'total cost (ad spend + fee) ÷ signed cases' : 'no signed cases yet') : ''],
       ],
     ];
@@ -561,11 +561,6 @@
     fetchData().finally(() => setTimeout(() => $('#refresh-btn').classList.remove('is-spinning'), 400));
   });
 
-  // Opens on the current calendar month (1st through its last day, Pacific time).
-  {
-    const today = pacificToday();
-    setRange('custom', toISO(startOfMonth(today.getFullYear(), today.getMonth() + 1)), toISO(endOfMonth(today.getFullYear(), today.getMonth() + 1)));
-  }
   fetchData();
   setInterval(fetchData, 30000);
 })();

@@ -482,7 +482,7 @@
       const o = l.origin;
       const cpl = o && o.campaignId ? cplByKey.get(o.campaignId + '|' + l.createdDate) : 0;
       return '<tr>' +
-        '<td><div class="name-cell">' + escapeHtml(l.name || '(no name)') + '</div><div class="email-cell">' + escapeHtml(l.email || l.phone || '') + (l.billable === false ? ' · not billed' : '') + '</div></td>' +
+        '<td><div class="name-cell">' + escapeHtml(l.name || '(no name)') + '</div><div class="email-cell">' + escapeHtml(l.email || l.phone || '') + (l.billable === false ? (l.createdDate >= '2026-08-17' && l.createdDate <= '2026-08-19' ? ' · replacement · not billed' : ' · not billed') : '') + '</div></td>' +
         '<td class="td-nowrap">' + escapeHtml(l.createdDate || dash) + '</td>' +
         '<td><span class="status-pill ' + statusClass(l.status) + '">' + escapeHtml(l.status) + '</span></td>' +
         '<td class="email-cell" title="' + escapeHtml(l.note) + '">' + escapeHtml(l.note ? (l.note.length > 60 ? l.note.slice(0, 60) + '…' : l.note) : dash) + '</td>' +

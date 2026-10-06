@@ -16,6 +16,9 @@ const CRM_GID = '0';
 const WALKER_DOC_ID = '1gjJLZH8O_xZ7AlIX0UXWMazZxF-qsk8aK-yYvwm_hJw';
 const WALKER_GID = '1067474187';
 
+// Google Ads export with ad names, keyed by the same Ad ID the Walker log's UTM Term carries.
+const AD_NAMES_DOC_ID = '1u0jJNfvnWZQsBaC6lmn0vhabtNuwI1yS0WchV2WYnAs';
+
 const START_DATE = '2026-08-03'; // Bryan started on this date.
 
 // Leads confirmed by hand (in GoHighLevel) to be genuinely organic — see the note in pollAll.
@@ -23,7 +26,7 @@ const ORGANIC_OVERRIDES = [{ name: 'Linda Parfait', createdDate: '2026-08-04' }]
 
 let cache = {
   leads: [], walkerLog: [], walkerLeadsDaily: [], spendDaily: [],
-  campaignNames: new Map(), usedCampaignIds: new Set(), statusColorByRow: new Map(), updatedAt: null,
+  campaignNames: new Map(), adNames: new Map(), usedCampaignIds: new Set(), statusColorByRow: new Map(), updatedAt: null,
 };
 
 function normName(v) { return String(v || '').toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim(); }
@@ -89,7 +92,7 @@ function parseWalkerLog(csv) {
       phone: phone10(r['Phone']),
       source: (r['Contact Source'] || '').trim(),
       campaignId: (r['UTM Campaign'] || '').trim(),
-      adId: (r['UTM Content'] || '').trim(),
+      adId: (r['UTM Term'] || '').trim(),
       qualified: /^qualified$/i.test((r['Qualified'] || r['Formulated Status'] || '').trim()),
     }))
     .filter((r) => r.date && r.name);
@@ -109,14 +112,14 @@ function findOrigin(lead, byName, byPhone) {
   if (candidates.length) {
     const exactPhone = phone && candidates.find((w) => w.phone === phone);
     const w = exactPhone || candidates.reduce((a, b) => (b.date < a.date ? b : a));
-    return { campaignId: w.campaignId, campaignName: cache.campaignNames.get(w.campaignId) || '', adId: w.adId, contactSource: w.source, walkerDate: w.date };
+    return { campaignId: w.campaignId, campaignName: cache.campaignNames.get(w.campaignId) || '', adId: w.adId, adName: cache.adNames.get(w.adId) || '', contactSource: w.source, walkerDate: w.date };
   }
   const phoneMatches = (phone && byPhone.get(phone) || []).filter(
     (w) => Math.abs((new Date(w.date) - new Date(lead.createdDate)) / 86400000) <= 3
   );
   if (!phoneMatches.length) return null;
   const w = phoneMatches.reduce((a, b) => (b.date < a.date ? b : a));
-  return { campaignId: w.campaignId, campaignName: cache.campaignNames.get(w.campaignId) || '', adId: w.adId, contactSource: w.source, walkerDate: w.date };
+  return { campaignId: w.campaignId, campaignName: cache.campaignNames.get(w.campaignId) || '', adId: w.adId, adName: cache.adNames.get(w.adId) || '', contactSource: w.source, walkerDate: w.date };
 }
 
 // Called by the main server's own poll with its already-fetched, already-joined per-day-per-ad
@@ -140,15 +143,21 @@ function updateGoogleSpend(rows) {
 
 async function pollAll() {
   try {
-    const [crmCsv, walkerCsv, colorByRow] = await Promise.all([
+    const [crmCsv, walkerCsv, colorByRow, adNamesCsv] = await Promise.all([
       fetchText(csvUrl(CRM_GID, CRM_DOC_ID)),
       fetchText(csvUrl(WALKER_GID, WALKER_DOC_ID)),
       readColumnColors(CRM_DOC_ID, 'E').catch((err) => {
         console.warn(`[${new Date().toISOString()}] Bryan status colors unreadable (${err.message}) — keeping last known-good statuses`);
         return cache.statusColorByRow || new Map();
       }),
+      fetchText(csvUrl('0', AD_NAMES_DOC_ID)).catch(() => null),
     ]);
     cache.statusColorByRow = colorByRow;
+    if (adNamesCsv) {
+      const adNames = new Map();
+      for (const r of parseCSV(adNamesCsv)) { const id = (r['Ad ID'] || '').trim(); if (id && r['Ad Name']) adNames.set(id, r['Ad Name']); }
+      cache.adNames = adNames;
+    }
     const leads = parseLeads(crmCsv, colorByRow);
     if (leads.length < 20) { console.warn(`[${new Date().toISOString()}] Bryan CRM sheet looks broken (${leads.length} leads) — keeping last known-good`); return; }
     const walkerLog = parseWalkerLog(walkerCsv);

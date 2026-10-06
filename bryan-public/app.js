@@ -488,7 +488,7 @@
         '<td class="email-cell" title="' + escapeHtml(l.note) + '">' + escapeHtml(l.note ? (l.note.length > 60 ? l.note.slice(0, 60) + '…' : l.note) : dash) + '</td>' +
         '<td>' + escapeHtml((o && o.contactSource) || dash) + '</td>' +
         '<td>' + escapeHtml((o && o.campaignName) || dash) + '</td>' +
-        '<td class="email-cell">' + escapeHtml((o && o.adId) || dash) + '</td>' +
+        '<td><div class="name-cell">' + escapeHtml((o && o.adName) || (o && o.adId) || dash) + '</div>' + (o && o.adId ? '<div class="email-cell">ID ' + escapeHtml(o.adId) + '</div>' : '') + '</td>' +
         '<td class="td-num num">' + (cpl ? money(cpl) : dash) + '</td>' +
       '</tr>';
     }).join('');

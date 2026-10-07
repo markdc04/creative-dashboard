@@ -563,6 +563,20 @@
     fetchData().finally(() => setTimeout(() => $('#refresh-btn').classList.remove('is-spinning'), 400));
   });
 
+  // Month options run from Bryan's first month (August) up to the current month, newest first,
+  // so a new month shows up on its own when it starts.
+  {
+    const sel = $('#quick-range');
+    const custom = sel.querySelector('option[value="custom"]');
+    const today = pacificToday();
+    const names = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    for (let y = today.getFullYear(), m = today.getMonth() + 1; y > 2026 || (y === 2026 && m >= 8); m === 1 ? (y--, m = 12) : m--) {
+      const opt = document.createElement('option');
+      opt.value = y + '-' + pad(m);
+      opt.textContent = names[m - 1] + ' ' + y;
+      sel.insertBefore(opt, custom);
+    }
+  }
   fetchData();
   setInterval(fetchData, 30000);
 })();

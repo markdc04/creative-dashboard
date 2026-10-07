@@ -9,7 +9,9 @@
   const PRICE_PER_LEAD = 350; // Bryan is billed per lead delivered (PPL), regardless of status.
   // Separate from the per-lead billing: a flat marketing-fee contract for this specific window.
   // Prorated by day-overlap with whatever range is selected, same as Sasooness/KM's monthly fee.
-  const MARKETING_FEE = { start: '2026-09-01', end: '2026-10-08', amount: 1250 };
+  // $10,000 invoice per 25-lead month, of which $350 × 25 = $8,750 is revenue; the rest is the
+  // marketing fee, so it accrues per calendar month from September, prorated by day.
+  const MARKETING_FEE = { start: '2026-09-01', monthly: 1250 };
 
   const NO_CAMPAIGN = 'Not traced to a campaign';
   const STATUSES = ['Signed', 'Rejected', 'Reviewing'];
@@ -184,9 +186,15 @@
     // It's a separate retainer, not stacked onto the per-lead $350 revenue: its own profit is just
     // what Bryan paid for the window minus what was actually spent on his ads in it.
     const contractOk = !state.filters.status && !state.filters.campaign;
-    const feeLeads = state.leads.filter((l) => l.createdDate >= MARKETING_FEE.start && l.createdDate <= MARKETING_FEE.end);
-    const fee = contractOk ? MARKETING_FEE.amount : 0;
-    const feeSpend = fee ? dailyDeduction(feeLeads).total : 0;
+    const { start: rStart, end: rEnd } = state.range;
+    const feeFrom = rStart && rStart > MARKETING_FEE.start ? rStart : MARKETING_FEE.start;
+    const feeTo = rEnd || toISO(pacificToday());
+    let fee = 0;
+    for (let d = new Date(feeFrom + 'T00:00:00'), stop = new Date(feeTo + 'T00:00:00'); d <= stop; d.setDate(d.getDate() + 1)) {
+      if (toISO(d) < MARKETING_FEE.start) continue;
+      fee += MARKETING_FEE.monthly / new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    }
+    fee = contractOk ? Math.round(fee * 100) / 100 : 0;
     const cpcWithFee = fee && signed > 0 ? (spend + fee) / signed : 0;
     const dash = '—';
 

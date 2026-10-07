@@ -19,7 +19,8 @@ const WALKER_GID = '1067474187';
 // Google Ads export with ad names, keyed by the same Ad ID the Walker log's UTM Term carries.
 const AD_NAMES_DOC_ID = '1u0jJNfvnWZQsBaC6lmn0vhabtNuwI1yS0WchV2WYnAs';
 
-const START_DATE = '2026-08-03'; // Bryan started on this date.
+const START_DATE = '2026-08-03';
+const MONTHLY_BILLED_CAP = 25; // Bryan started on this date.
 
 // Leads confirmed by hand (in GoHighLevel) to be genuinely organic — see the note in pollAll.
 const ORGANIC_OVERRIDES = [{ name: 'Linda Parfait', createdDate: '2026-08-04' }];
@@ -66,14 +67,15 @@ function parseLeads(csv, colorByRow) {
   const rows = parseCSVRows(csv);
   const headers = (rows[0] || []).map((h) => h.trim());
   const col = (name) => headers.indexOf(name);
-  const iDate = col('Date'), iName = col('Name'), iEmail = col('Email'), iPhone = col('Phone'), iStatus = col('Lead Status'), iReason = col('Reason for Rejection');
+  const iDate = col('Date'), iName = col('Name'), iEmail = col('Email'), iPhone = col('Phone'), iStatus = col('Lead Status'), iReason = col('Reason for Rejection'), iReplacement = col('Replacement');
   let aug3to5Seen = 0;
-  return rows.slice(1)
+  const leads = rows.slice(1)
     .map((r, idx) => {
       const sheetRow = idx + 2; // row 1 is the header
       const note = (r[iStatus] || '').trim();
       const createdDate = toISODate(r[iDate]);
       const augIdx = createdDate >= '2026-08-03' && createdDate <= '2026-08-05' ? aug3to5Seen++ : -1;
+      const flagged = iReplacement >= 0 && /^(yes|y|true|x|1)$/i.test((r[iReplacement] || '').trim());
       return {
         name: (r[iName] || '').trim(),
         email: (r[iEmail] || '').trim().toLowerCase(),
@@ -83,10 +85,11 @@ function parseLeads(csv, colorByRow) {
         note,
         reason: (r[iReason] || '').trim(),
         billable: createdDate ? isBillable(createdDate, augIdx) : true,
-        replacement: isReplacement(createdDate),
+        replacement: flagged || isReplacement(createdDate),
       };
     })
     .filter((l) => l.createdDate && l.createdDate >= START_DATE && (l.name || l.email));
+  return leads;
 }
 
 // One entry per Walker PPL log row, reduced to what the join and the daily counts need.

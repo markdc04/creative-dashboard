@@ -10,8 +10,8 @@
   // Separate from the per-lead billing: a flat marketing-fee contract for this specific window.
   // Prorated by day-overlap with whatever range is selected, same as Sasooness/KM's monthly fee.
   // $10,000 invoice per 25-lead month, of which $350 × 25 = $8,750 is revenue; the rest is the
-  // marketing fee, so each calendar month from September with leads carries the full amount.
-  const MARKETING_FEE = { start: '2026-09-01', monthly: 1250 };
+  // marketing fee, so each calendar month from August with leads carries the full amount.
+  const MARKETING_FEE = { start: '2026-08-01', monthly: 1250 };
 
   const NO_CAMPAIGN = 'Not traced to a campaign';
   const STATUSES = ['Signed', 'Rejected', 'Reviewing'];

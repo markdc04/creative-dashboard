@@ -212,7 +212,7 @@
       ],
     ];
     const tileHtml = ([label, value, sub, key]) =>
-      '<div class="kpi' + (key ? ' is-clickable' : '') + (key === 'signed' ? ' kpi--highlight' : '') + (key === 'signed' && state.filters.status === 'Signed' ? ' is-selected' : '') + '"' + (key ? ' data-tile="' + key + '"' : '') + '><div class="kpi-label">' + escapeHtml(label) + '</div>' +
+      '<div class="kpi' + (key ? ' is-clickable' : '') + (key === 'signed' || label === 'Profit' ? ' kpi--highlight' : '') + (key === 'signed' && state.filters.status === 'Signed' ? ' is-selected' : '') + '"' + (key ? ' data-tile="' + key + '"' : '') + '><div class="kpi-label">' + escapeHtml(label) + '</div>' +
       '<div class="kpi-value num">' + value + '</div>' +
       (sub ? '<div class="kpi-sub">' + escapeHtml(sub) + '</div>' : '') + '</div>';
     $('#kpi-row').innerHTML = tileRows.map((row) => '<div class="kpi-row kpi-row--' + row.length + '">' + row.map(tileHtml).join('') + '</div>').join('');

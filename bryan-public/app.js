@@ -153,6 +153,7 @@
       const o = l.origin;
       if (!o || !o.campaignId || !l.createdDate) continue;
       if (l.billable === false) continue;
+      if (l.createdDate === '2026-10-07') continue;
       const key = o.campaignId + '|' + l.createdDate;
       sent.set(key, (sent.get(key) || 0) + 1);
     }

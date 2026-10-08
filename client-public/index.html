@@ -67,7 +67,12 @@
 
   <div class="kpi-row" id="kpi-row"></div>
 
-  <div class="panel">
+  <div class="view-tabs" id="view-tabs" hidden>
+    <button class="view-tab is-active" data-view="leads">Leads</button>
+    <button class="view-tab" data-view="rejected">Rejected Summary</button>
+  </div>
+
+  <div class="panel" id="leads-panel">
     <div class="panel-head">
       <h2 class="panel-title">Leads</h2>
       <div class="search-box">
@@ -82,6 +87,20 @@
       </table>
     </div>
     <div id="leads-empty" class="empty-msg" hidden>No leads yet.</div>
+  </div>
+
+  <div class="panel" id="rejected-panel" hidden>
+    <div class="panel-head">
+      <h2 class="panel-title">Rejected Summary</h2>
+      <span class="panel-sub" id="rejected-sub"></span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Reason</th><th class="th-num">Rejected Leads</th><th class="th-num">% of Rejected</th></tr></thead>
+        <tbody id="rejected-body"></tbody>
+      </table>
+    </div>
+    <div id="rejected-empty" class="empty-msg" hidden>No rejected leads in this range.</div>
   </div>
 
   <p class="footnote">Updated automatically as new leads come in. For questions about this data, contact your Loudr Media account manager.</p>

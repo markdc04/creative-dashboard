@@ -24,14 +24,47 @@ function programOf(channel) {
 // correctly counts.
 function isSignedCase(l) { return isSignedStatus(l.status) || isSignedStatus(l.subStatus); }
 
-function simplifyLeads(leads) {
-  const rows = (leads || []).map((l) => ({ name: l.name || '', date: l.createdDate || '', status: isSignedCase(l) ? 'Signed' : (l.status || ''), program: programOf(l.channel) }));
+function simplifyLeads(leads, financials) {
+  const rows = (leads || []).map((l) => ({
+    name: l.name || '', date: l.createdDate || '', status: isSignedCase(l) ? 'Signed' : (l.status || ''),
+    program: programOf(l.channel),
+    reason: (l.status || '').toLowerCase().includes('reject') ? ((l.subStatus || '').trim() || '(no reason given)') : '',
+  }));
   const total = rows.length;
   const signed = rows.filter((r) => r.status === 'Signed').length;
   return {
     leads: rows,
     totals: { total, signed, conversionRate: total ? Math.round((signed / total) * 1000) / 10 : 0 },
+    financials: financials || null,
     updatedAt: Date.now(),
+  };
+}
+
+// Sasooness's Agency ad-spend + marketing fee, for the client's own "Total Cost" / "Cost Per
+// Case" tiles — the contract's own numbers, nothing about vendors or campaigns. A day's combined
+// spend is the Main Landing Page's own campaign spend that day plus Sasooness's share of Walker's
+// shared Lead Prosper AZ spend that day (same day-by-day deduction the admin view uses); the fee
+// schedule itself is exposed as-is since it's the client's own contract terms.
+function sasoonessFinancials(data) {
+  const dailySpend = new Map();
+  for (const r of data.campaignSpend || []) dailySpend.set(r.date, (dailySpend.get(r.date) || 0) + r.spend);
+  const sent = new Map(); // campaignId|date -> count of AZ leads sent that day
+  for (const l of data.leads || []) {
+    const o = l.origin;
+    if (!o || !o.campaignId || !l.createdDate) continue;
+    const key = o.campaignId + '|' + l.createdDate;
+    sent.set(key, (sent.get(key) || 0) + 1);
+  }
+  const walker = data.walker || {};
+  for (const [key, n] of sent) {
+    const [campaignId, date] = key.split('|');
+    const spend = (walker.spendDaily || []).filter((r) => r.campaignId === campaignId && r.date === date).reduce((a, r) => a + r.spend, 0);
+    const walkerLeads = (walker.leadsDaily || []).filter((r) => r.campaignId === campaignId && r.date === date).reduce((a, r) => a + r.leads, 0);
+    if (walkerLeads > 0) dailySpend.set(date, (dailySpend.get(date) || 0) + (spend / walkerLeads) * n);
+  }
+  return {
+    dailySpend: [...dailySpend.entries()].map(([date, spend]) => ({ date, spend: Math.round(spend * 100) / 100 })),
+    schedule: (data.settings && data.settings.schedule) || [],
   };
 }
 
@@ -47,4 +80,4 @@ function simplifyCases(cases) {
   };
 }
 
-module.exports = { simplifyLeads, simplifyCases };
+module.exports = { simplifyLeads, simplifyCases, sasoonessFinancials };

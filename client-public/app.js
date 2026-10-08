@@ -16,7 +16,7 @@
     document.getElementById('logout-link').hidden = true;
   }
 
-  const state = { leads: [], search: '', range: { key: 'all', start: null, end: null }, program: null };
+  const state = { leads: [], financials: null, search: '', range: { key: 'all', start: null, end: null }, program: null, view: 'leads' };
   const PROGRAMS = [
     { key: 'agency', label: 'Agency' },
     { key: 'ppl', label: 'Pay Per Lead' },
@@ -92,6 +92,7 @@
       if (!r.ok) throw new Error('bad status');
       const d = await r.json();
       state.leads = d.leads || [];
+      state.financials = d.financials || null;
       setLive(true);
     } catch (err) {
       setLive(false);
@@ -118,6 +119,36 @@
     ).join('');
   }
 
+  // Sasooness only: the contract's own ad spend + marketing fee for the Agency program, the
+  // same day-by-day math the admin Agency view uses, rebuilt here from the per-day figures the
+  // server already computed (no campaign/vendor names, just totals).
+  const toISODay = toISO;
+  function money(n) { return '$' + Math.round(n).toLocaleString('en-US'); }
+  function feeForRange(schedule) {
+    if (!schedule || !schedule.length) return 0;
+    const first = schedule[0].month;
+    const lastEntry = schedule[schedule.length - 1];
+    const { start, end } = state.range;
+    const noFilter = !start && !end;
+    const from = start || first + '-01';
+    const to = end || (noFilter ? toISODay(endOfMonth(Number(lastEntry.month.slice(0, 4)), Number(lastEntry.month.slice(5, 7)))) : toISODay(pacificToday()));
+    let fee = 0;
+    for (let d = new Date(from + 'T00:00:00'), stop = new Date(to + 'T00:00:00'); d <= stop; d.setDate(d.getDate() + 1)) {
+      const key = d.getFullYear() + '-' + pad(d.getMonth() + 1);
+      if (key < first) continue;
+      let row = null;
+      for (const r of schedule) { if (r.month > key || (r.month === key && r.day > d.getDate())) break; row = r; }
+      if (!row) continue;
+      const days = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      fee += row.fee / days;
+    }
+    return fee;
+  }
+  function agencySpendForRange() {
+    if (!state.financials) return 0;
+    return state.financials.dailySpend.filter((r) => inRange(r.date)).reduce((a, r) => a + r.spend, 0);
+  }
+
   function render() {
     $('#client-title').textContent = TITLES[scope] || 'Your Dashboard';
     $('#range-label').textContent = rangeLabel();
@@ -129,15 +160,46 @@
     const total = inDateRange.length;
     const signed = inDateRange.filter((l) => l.status === 'Signed').length;
     const conversionRate = total ? Math.round((signed / total) * 1000) / 10 : 0;
-    $('#kpi-row').innerHTML = [
+    const tiles = [
       ['Total Leads', total.toLocaleString('en-US'), ''],
       ['Signed', signed.toLocaleString('en-US'), 'of ' + total.toLocaleString('en-US') + ' leads'],
       ['Conversion Rate', pct(conversionRate), 'signed ÷ leads'],
-    ].map(([label, value, sub]) =>
+    ];
+    // Ad spend + marketing fee only mean something for the Agency program (the contract's own
+    // terms), so these only show up on that tab, same as the admin view.
+    if (state.financials && state.program === 'agency') {
+      const adSpend = agencySpendForRange();
+      const fee = feeForRange(state.financials.schedule);
+      const totalCost = adSpend + fee;
+      tiles.push(['Total Cost', money(totalCost), 'ad spend + marketing fee']);
+      tiles.push(['Cost Per Case', signed > 0 ? money(totalCost / signed) : '—', signed > 0 ? 'total cost ÷ signed cases' : 'no signed cases yet']);
+    }
+    $('#kpi-row').innerHTML = tiles.map(([label, value, sub]) =>
       '<div class="kpi"><div class="kpi-label">' + escapeHtml(label) + '</div>' +
       '<div class="kpi-value num">' + value + '</div>' +
       (sub ? '<div class="kpi-sub">' + escapeHtml(sub) + '</div>' : '') + '</div>'
     ).join('');
+
+    // Rejected Summary view toggle — only shown when there's a reason to show (Sasooness has
+    // per-lead rejection reasons; the other clients don't, so the tab stays hidden for them).
+    const hasReasons = state.leads.some((l) => l.reason);
+    $('#view-tabs').hidden = !hasReasons;
+    $('#leads-panel').hidden = hasReasons && state.view === 'rejected';
+    $('#rejected-panel').hidden = !hasReasons || state.view !== 'rejected';
+    if (hasReasons && state.view === 'rejected') {
+      const rejected = inDateRange.filter((l) => l.reason);
+      const counts = new Map();
+      for (const l of rejected) counts.set(l.reason, (counts.get(l.reason) || 0) + 1);
+      const rows = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+      $('#rejected-sub').textContent = rejected.length ? rejected.length.toLocaleString('en-US') + ' rejected leads' : '';
+      $('#rejected-empty').hidden = rows.length > 0;
+      $('#rejected-body').innerHTML = rows.map(([reason, n]) =>
+        '<tr><td class="name-cell">' + escapeHtml(reason) + '</td>' +
+        '<td class="td-num num">' + n.toLocaleString('en-US') + '</td>' +
+        '<td class="td-num num">' + pct((n / rejected.length) * 100) + '</td></tr>'
+      ).join('');
+      return;
+    }
 
     const q = state.search.trim().toLowerCase();
     const rows = inDateRange
@@ -151,6 +213,13 @@
     )).join('');
   }
 
+  $('#view-tabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.view-tab');
+    if (!btn) return;
+    state.view = btn.dataset.view;
+    $('#view-tabs').querySelectorAll('.view-tab').forEach((b) => b.classList.toggle('is-active', b === btn));
+    render();
+  });
   $('#search').addEventListener('input', (e) => { state.search = e.target.value; render(); });
   $('#segment-tabs').addEventListener('click', (e) => {
     const btn = e.target.closest('.segment-tab');

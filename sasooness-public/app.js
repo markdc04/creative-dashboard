@@ -340,14 +340,17 @@
       const f = state.filters;
       const contractOk = !f.status && !f.campaign && !f.platform;
       const { fee } = contractForRange();
-      const totalCost = totalSpend + fee;
-      const cpcWithFee = signed > 0 && costsMeaningful && contractOk ? totalCost / signed : 0;
       // The new AZ budget ($75k/mo from 9/21): 35% of it is marketing fee, so 65% is what can go to ads.
       const newFrom = '2026-09-21';
       const adBudgetNew = AZ_NEW_BUDGET * (1 - MARKETING_FEE_SHARE);
       const ownSinceNew = state.campaignSpend.filter((r) => r.date >= newFrom).reduce((a, r) => a + r.spend, 0);
       const partnerSinceNew = partnerDeduction(state.leads.filter((l) => programOf(l) === 'agency' && l.createdDate >= newFrom)).total;
       const adBudgetLeft = adBudgetNew - ownSinceNew - partnerSinceNew;
+      // The marketing fee only settles as ours once the ad budget is fully spent — until then it
+      // isn't counted as earned, so Total Cost and CPC + Fee don't include it yet either.
+      const feeSettled = adBudgetLeft <= 0 ? fee : 0;
+      const totalCost = totalSpend + feeSettled;
+      const cpcWithFee = signed > 0 && costsMeaningful && contractOk ? totalCost / signed : 0;
       const dash = '—';
       tiles = [
         ['leads', 'Total Leads', total.toLocaleString('en-US'), rejected ? rejected.toLocaleString('en-US') + ' rejected' : '', 'Click to clear the filters'],
@@ -357,8 +360,8 @@
         ['__break__'],
         ['', 'Ad Spend', money(totalSpend), money(ownSpend) + ' own ads + ' + money(partnerSpend) + ' Lead Prosper', ''],
         ['', 'Ad Budget Left', contractOk ? money(adBudgetLeft) : dash, '', ''],
-        ['', 'Marketing Fee', contractOk ? money(fee) : dash, contractOk ? 'monthly fee from the contract' : 'contract-level, not split by filter', ''],
-        ['', 'Total Cost', contractOk ? money(totalCost) : dash, contractOk ? 'ad spend + marketing fee' : 'contract-level, not split by filter', ''],
+        ['', 'Marketing Fee', contractOk ? money(feeSettled) : dash, contractOk ? (adBudgetLeft <= 0 ? 'ad budget exhausted — settled' : money(adBudgetLeft) + ' ad budget left before this settles') : 'contract-level, not split by filter', ''],
+        ['', 'Total Cost', contractOk ? money(totalCost) : dash, contractOk ? 'ad spend + settled marketing fee' : 'contract-level, not split by filter', ''],
         ['', 'CPC + Marketing Fee', cpcWithFee ? money(cpcWithFee) : dash, !costsMeaningful || !contractOk ? 'not split by filter' : signed ? 'total cost ÷ signed cases' : 'no signed cases yet', ''],
       ];
     }

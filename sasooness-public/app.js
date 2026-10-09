@@ -343,12 +343,13 @@
       // The new AZ budget ($75k/mo from 9/21): 35% of it is marketing fee, so 65% is what can go to ads.
       const newFrom = '2026-09-21';
       const adBudgetNew = AZ_NEW_BUDGET * (1 - MARKETING_FEE_SHARE);
-      // Follows the picked date range, never going earlier than 9/21 (the budget's own start) and
-      // never later than today when no end is picked.
-      const budgetFrom = state.range.start && state.range.start > newFrom ? state.range.start : newFrom;
+      // A running pool, always accumulating from 9/21 regardless of the picked range's start —
+      // only the range's end matters (how much is left as of that date), defaulting to today when
+      // no end is picked. The range's start is irrelevant here: picking "October" shouldn't hide
+      // the spend that already happened between 9/21 and October.
       const budgetTo = state.range.end || toISO(pacificToday());
-      const ownSinceNew = state.campaignSpend.filter((r) => r.date >= budgetFrom && r.date <= budgetTo).reduce((a, r) => a + r.spend, 0);
-      const partnerSinceNew = partnerDeduction(state.leads.filter((l) => programOf(l) === 'agency' && l.createdDate >= budgetFrom && l.createdDate <= budgetTo)).total;
+      const ownSinceNew = state.campaignSpend.filter((r) => r.date >= newFrom && r.date <= budgetTo).reduce((a, r) => a + r.spend, 0);
+      const partnerSinceNew = partnerDeduction(state.leads.filter((l) => programOf(l) === 'agency' && l.createdDate >= newFrom && l.createdDate <= budgetTo)).total;
       const adBudgetLeft = adBudgetNew - ownSinceNew - partnerSinceNew;
       // The marketing fee only settles as ours once the ad budget is fully spent — until then it
       // isn't counted as earned, so Total Cost and CPC + Fee don't include it yet either.

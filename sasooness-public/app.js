@@ -4,6 +4,9 @@
   const pct = (n) => (isFinite(n) ? n.toLocaleString('en-US', { maximumFractionDigits: 1 }) : '0') + '%';
   const AZ_NEW_BUDGET = 75000;
   const MARKETING_FEE_SHARE = 0.35;
+  const PPL_PRICE_PER_LEAD = 425;
+  const PPL_BUDGET = 20000;
+  const PPL_BUDGET_FROM = '2026-09-21';
   const COLOR_GOOGLE = '#3987e5';
   const COLOR_META = '#d95926';
   const COLOR_LEADS = '#3987e5';
@@ -302,6 +305,11 @@
       const open = leads.filter((l) => !(l.status || '').trim()).length;
       const adSpent = partnerDeduction(leads).total;
       const cpl = total > 0 && adSpent > 0 ? adSpent / total : 0;
+      const revenue = PPL_PRICE_PER_LEAD * total;
+      // $20k ad budget sent 9/21 — a pool to exhaust, not a monthly allowance, so this is spend
+      // since 9/21 across all of PPL's history, independent of whatever range is picked above.
+      const pplSpentSinceBudget = partnerDeduction(state.leads.filter((l) => programOf(l) === 'ppl' && l.createdDate >= PPL_BUDGET_FROM)).total;
+      const pplBudgetLeft = PPL_BUDGET - pplSpentSinceBudget;
       const dash = '—';
       tiles = [
         ['leads', 'Total Leads', total.toLocaleString('en-US'), programLabel(program) + ' program', 'Click to clear the filters'],
@@ -309,8 +317,10 @@
         ['', 'Conversion Rate', pct(conversionRate), 'signed ÷ leads', ''],
         ['', 'Rejected', rejected.toLocaleString('en-US'), total ? pct((rejected / total) * 100) + ' of leads' : '', ''],
         ['', 'Awaiting Status', open.toLocaleString('en-US'), 'no status yet', ''],
+        ['', 'Revenue', money(revenue), '$' + PPL_PRICE_PER_LEAD + ' × ' + total.toLocaleString('en-US') + ' leads', ''],
         ['', 'Ad Spent', adSpent ? money(adSpent) : dash, 'already spent in Walker’s campaign on these leads', ''],
         ['', 'CPL (Cost / Lead)', cpl ? money(cpl) : dash, 'ad spend ÷ leads', ''],
+        ['', 'Ad Budget Left', money(pplBudgetLeft), '', ''],
       ];
     } else {
       // Agency (AZ) mixes two spend sources: the Main Landing Page's own Google/Meta campaigns

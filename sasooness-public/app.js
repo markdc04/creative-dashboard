@@ -343,8 +343,12 @@
       // The new AZ budget ($75k/mo from 9/21): 35% of it is marketing fee, so 65% is what can go to ads.
       const newFrom = '2026-09-21';
       const adBudgetNew = AZ_NEW_BUDGET * (1 - MARKETING_FEE_SHARE);
-      const ownSinceNew = state.campaignSpend.filter((r) => r.date >= newFrom).reduce((a, r) => a + r.spend, 0);
-      const partnerSinceNew = partnerDeduction(state.leads.filter((l) => programOf(l) === 'agency' && l.createdDate >= newFrom)).total;
+      // Follows the picked date range, never going earlier than 9/21 (the budget's own start) and
+      // never later than today when no end is picked.
+      const budgetFrom = state.range.start && state.range.start > newFrom ? state.range.start : newFrom;
+      const budgetTo = state.range.end || toISO(pacificToday());
+      const ownSinceNew = state.campaignSpend.filter((r) => r.date >= budgetFrom && r.date <= budgetTo).reduce((a, r) => a + r.spend, 0);
+      const partnerSinceNew = partnerDeduction(state.leads.filter((l) => programOf(l) === 'agency' && l.createdDate >= budgetFrom && l.createdDate <= budgetTo)).total;
       const adBudgetLeft = adBudgetNew - ownSinceNew - partnerSinceNew;
       // The marketing fee only settles as ours once the ad budget is fully spent — until then it
       // isn't counted as earned, so Total Cost and CPC + Fee don't include it yet either.

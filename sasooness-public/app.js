@@ -269,12 +269,9 @@
   // schedule repeats its last row.
   //
   // September itself is handled differently: it's not a calendar month with a flat monthly rate
-  // like Jan-Aug, it's two invoiced tranches — $12,000 (9/9, covering through 10/8) and $26,250
-  // (9/21) — each a fixed amount already earned in full once invoiced, not something to divide by
-  // how many September calendar days happen to fall in the selected range. So the schedule's own
-  // Sep rows are excluded from this day-by-day proration (capped at the end of August), and
-  // SEPT_TRANCHES_FEE is added separately in renderKpis.
-  const SEPT_TRANCHES_FEE = 12000 + 26250;
+  // like Jan-Aug, it's two invoiced tranches whose fee scales with actual ad spend at each
+  // tranche's own rate (37.5% for 9/9-9/20, 35% for 9/21 onward) — see renderKpis. So the
+  // schedule's own Sep rows are excluded from this day-by-day proration, capped at end of August.
   function contractForRange() {
     const sched = state.schedule;
     if (!sched.length) return { budget: 0, fee: 0 };
@@ -352,12 +349,6 @@
       const f = state.filters;
       const contractOk = !f.status && !f.campaign && !f.platform;
       const { fee: feeBeforeSept } = contractForRange();
-      // The flat September tranches count once they've actually started and unless the whole
-      // selected range ends before they began (so picking, say, "May 2026" doesn't pull in a fee
-      // from four months later) — otherwise they're in regardless of range start, same as Ad
-      // Budget Left, since each is a fixed amount already earned in full once invoiced.
-      const sepFeeApplies = !state.range.end || state.range.end >= '2026-09-09';
-      const fee = feeBeforeSept + (sepFeeApplies ? SEPT_TRANCHES_FEE : 0);
       // Two invoiced tranches make up one combined ad-budget pool: $20,000 (9/9) + $48,750
       // (9/21, 65% of $75k) = $68,750. Tracked from 9/9, the first tranche's own start, not 9/21.
       // A running pool, always accumulating from 9/9 regardless of the picked range's start —
@@ -365,9 +356,19 @@
       // no end is picked. The range's start is irrelevant here: picking "October" shouldn't hide
       // the spend that already happened between 9/9 and October.
       const budgetTo = state.range.end || toISO(pacificToday());
-      const ownSinceNew = state.campaignSpend.filter((r) => r.date >= AD_BUDGET_FROM && r.date <= budgetTo).reduce((a, r) => a + r.spend, 0);
-      const partnerSinceNew = partnerDeduction(state.leads.filter((l) => programOf(l) === 'agency' && l.createdDate >= AD_BUDGET_FROM && l.createdDate <= budgetTo)).total;
-      const adBudgetLeft = AD_BUDGET_TOTAL - ownSinceNew - partnerSinceNew;
+      const combinedAgencySpend = (from, to) => {
+        const own = state.campaignSpend.filter((r) => r.date >= from && r.date <= to).reduce((a, r) => a + r.spend, 0);
+        const partner = partnerDeduction(state.leads.filter((l) => programOf(l) === 'agency' && l.createdDate >= from && l.createdDate <= to)).total;
+        return own + partner;
+      };
+      const spendSinceSept = combinedAgencySpend(AD_BUDGET_FROM, budgetTo);
+      const adBudgetLeft = AD_BUDGET_TOTAL - spendSinceSept;
+      // September's fee isn't a flat earned amount — it's each tranche's own rate (fee ÷ that
+      // invoice's total) applied to the actual ad spend in its window: 37.5% ($12,000 ÷ $32,000)
+      // for spend 9/9-9/20, then 35% ($26,250 ÷ $75,000) for spend 9/21 onward.
+      const spendSinceNew = combinedAgencySpend(AZ_BUDGET_FROM, budgetTo);
+      const spend0920 = spendSinceSept - spendSinceNew;
+      const fee = feeBeforeSept + spend0920 * 0.375 + spendSinceNew * 0.35;
       const totalCost = totalSpend + fee;
       const cpcWithFee = signed > 0 && costsMeaningful && contractOk ? totalCost / signed : 0;
       const dash = '—';

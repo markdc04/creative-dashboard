@@ -267,6 +267,14 @@
   // dates chosen the full schedule counts (through the end of its last month, whole, as the sheet
   // totals it); with a range, each day carries its own share. A month past the end of the
   // schedule repeats its last row.
+  //
+  // September itself is handled differently: it's not a calendar month with a flat monthly rate
+  // like Jan-Aug, it's two invoiced tranches — $12,000 (9/9, covering through 10/8) and $26,250
+  // (9/21) — each a fixed amount already earned in full once invoiced, not something to divide by
+  // how many September calendar days happen to fall in the selected range. So the schedule's own
+  // Sep rows are excluded from this day-by-day proration (capped at the end of August), and
+  // SEPT_TRANCHES_FEE is added separately in renderKpis.
+  const SEPT_TRANCHES_FEE = 12000 + 26250;
   function contractForRange() {
     const sched = state.schedule;
     if (!sched.length) return { budget: 0, fee: 0 };
@@ -278,10 +286,10 @@
     // True "all time" counts the whole last scheduled month even if it isn't over yet (the
     // contract's full planned total); an open-ended range instead stops at today.
     const to = end || (noFilter ? toISO(endOfMonth(Number(lastEntry.month.slice(0, 4)), Number(lastEntry.month.slice(5, 7)))) : toISO(pacificToday()));
-    let budget = 0, fee = 0, feeSinceNew = 0;
+    let budget = 0, fee = 0;
     for (let d = new Date(from + 'T00:00:00'), stop = new Date(to + 'T00:00:00'); d <= stop; d.setDate(d.getDate() + 1)) {
       const key = d.getFullYear() + '-' + pad(d.getMonth() + 1);
-      if (key < first) continue;
+      if (key < first || key >= '2026-09') continue;
       let row = null;
       for (const r of sched) {
         if (r.month > key || (r.month === key && r.day > d.getDate())) break;
@@ -291,12 +299,8 @@
       const days = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
       budget += row.budget / days;
       fee += row.fee / days;
-      // The fee-settlement rule (only counted once the AZ ad budget is exhausted) only applies to
-      // the 9/21 tranche's own fee — fee from before that (the old monthly schedule) was already
-      // earned unconditionally and shouldn't get zeroed out just because the new budget isn't spent.
-      if (key + '-' + pad(d.getDate()) >= AZ_BUDGET_FROM) feeSinceNew += row.fee / days;
     }
-    return { budget, fee, feeSinceNew };
+    return { budget, fee };
   }
 
   function renderKpis(leads, spendRows) {
@@ -347,7 +351,13 @@
       // platform or status.
       const f = state.filters;
       const contractOk = !f.status && !f.campaign && !f.platform;
-      const { fee } = contractForRange();
+      const { fee: feeBeforeSept } = contractForRange();
+      // The flat September tranches count once they've actually started and unless the whole
+      // selected range ends before they began (so picking, say, "May 2026" doesn't pull in a fee
+      // from four months later) — otherwise they're in regardless of range start, same as Ad
+      // Budget Left, since each is a fixed amount already earned in full once invoiced.
+      const sepFeeApplies = !state.range.end || state.range.end >= '2026-09-09';
+      const fee = feeBeforeSept + (sepFeeApplies ? SEPT_TRANCHES_FEE : 0);
       // Two invoiced tranches make up one combined ad-budget pool: $20,000 (9/9) + $48,750
       // (9/21, 65% of $75k) = $68,750. Tracked from 9/9, the first tranche's own start, not 9/21.
       // A running pool, always accumulating from 9/9 regardless of the picked range's start —

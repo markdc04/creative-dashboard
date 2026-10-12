@@ -356,7 +356,7 @@ function esc(v) { return String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 function safeNext(n) { return typeof n === 'string' && n.startsWith('/') && !n.startsWith('//') && !n.startsWith('/\\') ? n : '/dashboard/'; }
 // A client account's own dashboard. "leaderboard" is a virtual scope (the shared creative-team
 // login) whose page lives at the site root rather than under its own path.
-function scopeHome(scope) { return scope === 'leaderboard' ? '/' : '/' + scope + '/'; }
+function scopeHome(scope) { return scope === 'leaderboard' || scope === 'creative' ? '/' : '/' + scope + '/'; }
 function sessionCookie(req, value, maxAgeSec) {
   const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
   return `sid=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}${secure}`;
@@ -443,8 +443,10 @@ const server = http.createServer((req, res) => {
       // The leaderboard scope's page (and its own static assets — style.css, app.js, the logo,
       // the favicon) all live at the site root rather than under their own path, so it's allowed
       // everything except the other dashboards' paths, rather than an exact-path allowlist.
-      if (s.scope === 'leaderboard') {
-        const others = ['/dashboard', '/sasooness', '/km', '/bryan'];
+      if (s.scope === 'leaderboard' || s.scope === 'creative') {
+        // "creative" also gets /dashboard (the internal Creative Dashboard) on top of the
+        // leaderboard; "leaderboard" alone (the shared creatives@ login) doesn't.
+        const others = s.scope === 'creative' ? ['/sasooness', '/km', '/bryan'] : ['/dashboard', '/sasooness', '/km', '/bryan'];
         return !others.some((p) => pathname === p || pathname.startsWith(p + '/') || pathname === p + '-api/data');
       }
       return pathname === '/' + s.scope || pathname.startsWith('/' + s.scope + '/') || pathname === '/' + s.scope + '-api/data';

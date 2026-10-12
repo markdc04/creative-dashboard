@@ -38,15 +38,20 @@
   });
 
   // Logged in -> show who you are (and drop the lock); logged out -> the Dashboard item shows a
-  // lock. A client login only ever owns one page (the leaderboard, for the shared creative-team
-  // login, or their own dashboard for the others) so it gets no sidebar at all, same as the
-  // other client-facing pages — there's nothing for it to navigate between.
+  // lock. A client login normally only ever owns one page (the leaderboard, for the shared
+  // creative-team login, or their own dashboard for the others) so it gets no sidebar at all,
+  // same as the other client-facing pages — there's nothing for it to navigate between. The
+  // "creative" scope is the exception: it owns two pages (Leaderboard + Creative Dashboard), so
+  // it keeps a sidebar, just trimmed down to only those two.
   fetch('/api/me', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((me) => {
     if (!me) return;
-    if (me.role === 'client') {
+    if (me.role === 'client' && me.scope !== 'creative') {
       nav.remove();
       document.body.classList.remove('has-sidebar', 'side-collapsed');
       return;
+    }
+    if (me.role === 'client' && me.scope === 'creative') {
+      ['sasooness', 'km', 'bryan'].forEach((s) => { const el = nav.querySelector('.side-item[href="/' + s + '/"]'); if (el) el.remove(); });
     }
     document.querySelectorAll('.side-lock-slot').forEach((el) => { el.hidden = true; });
     document.getElementById('side-user-name').textContent = me.name;

@@ -363,17 +363,21 @@
       };
       const spendSinceSept = combinedAgencySpend(AD_BUDGET_FROM, budgetTo);
       const adBudgetLeft = AD_BUDGET_TOTAL - spendSinceSept;
-      // September's fee isn't a flat earned amount — it's each tranche's own rate (fee ÷ that
-      // invoice's total) applied to the actual ad spend in its window: 37.5% ($12,000 ÷ $32,000)
-      // for spend 9/9-9/20, then 35% ($26,250 ÷ $75,000) for spend 9/21 onward.
-      // Tranche 1 (9/9-10/8) is still running through its whole window, so its 37.5% applies to
-      // all spend in that window, not just the days before the second tranche started — and
-      // tranche 2's 35% stacks on top of that same spend from 9/21 on, since both are active then.
+      // September's fee is each tranche's own rate (fee ÷ that invoice's total) applied to actual
+      // ad spend in its window, intersected with whatever date range is picked above (unlike Ad
+      // Budget Left, which deliberately ignores the range's start) — so spend outside the visible
+      // range never contributes fee that isn't actually shown anywhere else on the page:
+      //   9/9-9/20: 37.5% only. 9/21-10/8: both tranches are active, so 37.5% + 35%. 10/9 on
+      //   (tranche 1 has ended): 35% only.
       const AD_TRANCHE1_END = '2026-10-08';
-      const tranche1To = budgetTo < AD_TRANCHE1_END ? budgetTo : AD_TRANCHE1_END;
-      const spendTranche1 = combinedAgencySpend(AD_BUDGET_FROM, tranche1To);
-      const spendSinceNew = combinedAgencySpend(AZ_BUDGET_FROM, budgetTo);
-      const fee = feeBeforeSept + spendTranche1 * 0.375 + spendSinceNew * 0.35;
+      const windowSpend = (winFrom, winTo) => {
+        const from = state.range.start && state.range.start > winFrom ? state.range.start : winFrom;
+        const to = winTo < budgetTo ? winTo : budgetTo;
+        return from > to ? 0 : combinedAgencySpend(from, to);
+      };
+      const spendTranche1 = windowSpend(AD_BUDGET_FROM, AD_TRANCHE1_END);
+      const spendTranche2 = windowSpend(AZ_BUDGET_FROM, '9999-12-31');
+      const fee = feeBeforeSept + spendTranche1 * 0.375 + spendTranche2 * 0.35;
       const totalCost = totalSpend + fee;
       const cpcWithFee = signed > 0 && costsMeaningful && contractOk ? totalCost / signed : 0;
       const dash = '—';

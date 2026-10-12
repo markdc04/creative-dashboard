@@ -7,6 +7,7 @@
     search: '',
     board: 'fileName', // 'fileName' | 'hookType' | 'actor' | 'writer' | 'editor' | 'team' | 'new'
     sortBy: 'profit', // 'profit' | 'revenue' | 'spend' — used only to rank; values are never shown
+    statusFilter: '', // '' | 'active' | 'inactive'
     viewMode: 'cards', // 'cards' | 'table'
     openGroupKey: null, // fileName of whichever creative's video panel is currently open
     openCategoryKey: null, // "board::name" of whichever person/hook/team category is open
@@ -388,6 +389,14 @@
     return '<div style="padding:24px 0;color:var(--text-faint);font-size:12.5px;">' + text + '</div>';
   }
 
+  // '' (All) always matches; otherwise the creative/category's own active-dot state
+  // (any underlying ad still spending as of the most recent day with data) decides.
+  function matchesStatus(g) {
+    if (!state.statusFilter) return true;
+    const isActive = !!creativeActiveDot(g.ads);
+    return state.statusFilter === 'active' ? isActive : !isActive;
+  }
+
   function matchesSearch(name) {
     const q = state.search.trim().toLowerCase();
     return !q || name.toLowerCase().includes(q);
@@ -448,7 +457,7 @@
     $('#board-title').textContent = BOARD_LABELS[state.board];
 
     const field = state.board;
-    const groups = sortGroups(aggregateByDimension(rows, field).filter((g) => matchesSearch(g.name)));
+    const groups = sortGroups(aggregateByDimension(rows, field).filter((g) => matchesSearch(g.name) && matchesStatus(g)));
     const sortLabel = state.sortBy === 'date' ? 'newest first' : 'ranked by ' + state.sortBy;
     $('#board-count').innerHTML = groups.length + ' ' + (groups.length === 1 ? 'entry' : 'entries') + ' &middot; ' + sortLabel;
     $('#board-list').innerHTML = !groups.length
@@ -522,6 +531,16 @@
     document.querySelectorAll('#sort-tabs .chip').forEach((c) => c.classList.remove('is-active'));
     btn.classList.add('is-active');
     state.sortBy = btn.dataset.sort;
+    render();
+  });
+
+  // ---- status filter (active/inactive) ----
+  $('#status-tabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.chip');
+    if (!btn) return;
+    document.querySelectorAll('#status-tabs .chip').forEach((c) => c.classList.remove('is-active'));
+    btn.classList.add('is-active');
+    state.statusFilter = btn.dataset.status;
     render();
   });
 

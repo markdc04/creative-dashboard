@@ -7,6 +7,7 @@ function startDashboardApp() {
     search: '',
     board: 'fileName', // 'fileName' | 'active' | 'hookType' | 'actor' | 'writer' | 'editor' | 'team'
     sortBy: 'profit', // 'profit' | 'revenue' | 'spend' | 'date'
+    statusFilter: '', // '' | 'active' | 'inactive'
     expanded: new Set(), // keys ("board::name") of entries with their ad-list dropdown open
     viewMode: 'cards', // 'cards' | 'table'
     openGroupKey: null, // fileName of whichever creative's video panel is currently open
@@ -475,6 +476,14 @@ function startDashboardApp() {
     return '<div style="padding:24px 0;color:var(--text-faint);font-size:12.5px;">' + text + '</div>';
   }
 
+  // '' (All) always matches; otherwise the creative/category's own active-dot state
+  // (any underlying ad still spending as of the most recent day with data) decides.
+  function matchesStatus(g) {
+    if (!state.statusFilter) return true;
+    const isActive = !!creativeActiveDot(g.ads);
+    return state.statusFilter === 'active' ? isActive : !isActive;
+  }
+
   function matchesSearch(name) {
     const q = state.search.trim().toLowerCase();
     return !q || name.toLowerCase().includes(q);
@@ -549,7 +558,7 @@ function startDashboardApp() {
     const isActiveBoard = state.board === 'active';
     const sourceRows = isActiveBoard ? rows.filter((r) => activeAdIdsToday.has(r.adId)) : rows;
     const field = isActiveBoard ? 'fileName' : state.board;
-    const groups = sortGroups(aggregateByDimension(sourceRows, field).filter((g) => matchesSearch(g.name)));
+    const groups = sortGroups(aggregateByDimension(sourceRows, field).filter((g) => matchesSearch(g.name) && matchesStatus(g)));
     if (!isActiveBoard && field !== 'fileName') {
       for (const g of groups) {
         const key = state.board + '::' + g.name;
@@ -680,6 +689,16 @@ function startDashboardApp() {
     document.querySelectorAll('#sort-tabs .chip').forEach((c) => c.classList.remove('is-active'));
     btn.classList.add('is-active');
     state.sortBy = btn.dataset.sort;
+    render();
+  });
+
+  // ---- status filter (active/inactive) ----
+  $('#status-tabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.chip');
+    if (!btn) return;
+    document.querySelectorAll('#status-tabs .chip').forEach((c) => c.classList.remove('is-active'));
+    btn.classList.add('is-active');
+    state.statusFilter = btn.dataset.status;
     render();
   });
 

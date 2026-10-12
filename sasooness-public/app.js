@@ -4,6 +4,7 @@
   const pct = (n) => (isFinite(n) ? n.toLocaleString('en-US', { maximumFractionDigits: 1 }) : '0') + '%';
   const AZ_NEW_BUDGET = 75000;
   const MARKETING_FEE_SHARE = 0.35;
+  const AZ_BUDGET_FROM = '2026-09-21';
   const PPL_PRICE_PER_LEAD = 425;
   const PPL_BUDGET = 20000;
   const PPL_BUDGET_FROM = '2026-09-21';
@@ -274,7 +275,7 @@
     // True "all time" counts the whole last scheduled month even if it isn't over yet (the
     // contract's full planned total); an open-ended range instead stops at today.
     const to = end || (noFilter ? toISO(endOfMonth(Number(lastEntry.month.slice(0, 4)), Number(lastEntry.month.slice(5, 7)))) : toISO(pacificToday()));
-    let budget = 0, fee = 0;
+    let budget = 0, fee = 0, feeSinceNew = 0;
     for (let d = new Date(from + 'T00:00:00'), stop = new Date(to + 'T00:00:00'); d <= stop; d.setDate(d.getDate() + 1)) {
       const key = d.getFullYear() + '-' + pad(d.getMonth() + 1);
       if (key < first) continue;
@@ -287,8 +288,12 @@
       const days = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
       budget += row.budget / days;
       fee += row.fee / days;
+      // The fee-settlement rule (only counted once the AZ ad budget is exhausted) only applies to
+      // the 9/21 tranche's own fee — fee from before that (the old monthly schedule) was already
+      // earned unconditionally and shouldn't get zeroed out just because the new budget isn't spent.
+      if (key + '-' + pad(d.getDate()) >= AZ_BUDGET_FROM) feeSinceNew += row.fee / days;
     }
-    return { budget, fee };
+    return { budget, fee, feeSinceNew };
   }
 
   function renderKpis(leads, spendRows) {
@@ -339,21 +344,20 @@
       // platform or status.
       const f = state.filters;
       const contractOk = !f.status && !f.campaign && !f.platform;
-      const { fee } = contractForRange();
+      const { fee, feeSinceNew } = contractForRange();
       // The new AZ budget ($75k/mo from 9/21): 35% of it is marketing fee, so 65% is what can go to ads.
-      const newFrom = '2026-09-21';
       const adBudgetNew = AZ_NEW_BUDGET * (1 - MARKETING_FEE_SHARE);
       // A running pool, always accumulating from 9/21 regardless of the picked range's start —
       // only the range's end matters (how much is left as of that date), defaulting to today when
       // no end is picked. The range's start is irrelevant here: picking "October" shouldn't hide
       // the spend that already happened between 9/21 and October.
       const budgetTo = state.range.end || toISO(pacificToday());
-      const ownSinceNew = state.campaignSpend.filter((r) => r.date >= newFrom && r.date <= budgetTo).reduce((a, r) => a + r.spend, 0);
-      const partnerSinceNew = partnerDeduction(state.leads.filter((l) => programOf(l) === 'agency' && l.createdDate >= newFrom && l.createdDate <= budgetTo)).total;
+      const ownSinceNew = state.campaignSpend.filter((r) => r.date >= AZ_BUDGET_FROM && r.date <= budgetTo).reduce((a, r) => a + r.spend, 0);
+      const partnerSinceNew = partnerDeduction(state.leads.filter((l) => programOf(l) === 'agency' && l.createdDate >= AZ_BUDGET_FROM && l.createdDate <= budgetTo)).total;
       const adBudgetLeft = adBudgetNew - ownSinceNew - partnerSinceNew;
-      // The marketing fee only settles as ours once the ad budget is fully spent — until then it
-      // isn't counted as earned, so Total Cost and CPC + Fee don't include it yet either.
-      const feeSettled = adBudgetLeft <= 0 ? fee : 0;
+      // Only the 9/21 tranche's own fee is gated behind its ad budget being exhausted — fee from
+      // before that (the old monthly schedule) was already earned unconditionally.
+      const feeSettled = (fee - feeSinceNew) + (adBudgetLeft <= 0 ? feeSinceNew : 0);
       const totalCost = totalSpend + feeSettled;
       const cpcWithFee = signed > 0 && costsMeaningful && contractOk ? totalCost / signed : 0;
       const dash = '—';

@@ -5,6 +5,9 @@
   const AZ_NEW_BUDGET = 75000;
   const MARKETING_FEE_SHARE = 0.35;
   const AZ_BUDGET_FROM = '2026-09-21';
+  // Combined ad-budget pool across both invoiced tranches: $20,000 (9/9) + $47,250 (9/21).
+  const AD_BUDGET_TOTAL = 67250;
+  const AD_BUDGET_FROM = '2026-09-09';
   const PPL_PRICE_PER_LEAD = 425;
   const PPL_BUDGET = 20000;
   const PPL_BUDGET_FROM = '2026-09-21';
@@ -345,16 +348,16 @@
       const f = state.filters;
       const contractOk = !f.status && !f.campaign && !f.platform;
       const { fee } = contractForRange();
-      // The new AZ budget ($75k/mo from 9/21): 35% of it is marketing fee, so 65% is what can go to ads.
-      const adBudgetNew = AZ_NEW_BUDGET * (1 - MARKETING_FEE_SHARE);
-      // A running pool, always accumulating from 9/21 regardless of the picked range's start —
+      // Two invoiced tranches make up one combined ad-budget pool: $20,000 (9/9) + $47,250
+      // (9/21) = $67,250. Tracked from 9/9, the first tranche's own start, not 9/21.
+      // A running pool, always accumulating from 9/9 regardless of the picked range's start —
       // only the range's end matters (how much is left as of that date), defaulting to today when
       // no end is picked. The range's start is irrelevant here: picking "October" shouldn't hide
-      // the spend that already happened between 9/21 and October.
+      // the spend that already happened between 9/9 and October.
       const budgetTo = state.range.end || toISO(pacificToday());
-      const ownSinceNew = state.campaignSpend.filter((r) => r.date >= AZ_BUDGET_FROM && r.date <= budgetTo).reduce((a, r) => a + r.spend, 0);
-      const partnerSinceNew = partnerDeduction(state.leads.filter((l) => programOf(l) === 'agency' && l.createdDate >= AZ_BUDGET_FROM && l.createdDate <= budgetTo)).total;
-      const adBudgetLeft = adBudgetNew - ownSinceNew - partnerSinceNew;
+      const ownSinceNew = state.campaignSpend.filter((r) => r.date >= AD_BUDGET_FROM && r.date <= budgetTo).reduce((a, r) => a + r.spend, 0);
+      const partnerSinceNew = partnerDeduction(state.leads.filter((l) => programOf(l) === 'agency' && l.createdDate >= AD_BUDGET_FROM && l.createdDate <= budgetTo)).total;
+      const adBudgetLeft = AD_BUDGET_TOTAL - ownSinceNew - partnerSinceNew;
       const totalCost = totalSpend + fee;
       const cpcWithFee = signed > 0 && costsMeaningful && contractOk ? totalCost / signed : 0;
       const dash = '—';

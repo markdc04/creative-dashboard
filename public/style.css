@@ -284,6 +284,8 @@ h1{font-size:28px;font-weight:800;letter-spacing:-.01em;margin:0;text-wrap:balan
 .stat-tag--profit-pos{background:rgba(52,211,153,.12);color:var(--profit);border-color:rgba(52,211,153,.3);}
 .stat-tag--profit-neg{background:rgba(251,111,111,.12);color:var(--loss);border-color:rgba(251,111,111,.3);}
 .date-tag{background:var(--surface-raised);color:var(--text-dim);border-color:var(--border);}
+.status-tag--active{color:var(--profit);border-color:rgba(60,200,120,.35);background:var(--profit-dim);}
+.status-tag--inactive{color:var(--loss);border-color:rgba(251,111,111,.35);background:rgba(251,111,111,.1);}
 .date-tag--unknown{color:var(--text-faint);border-color:var(--border);font-style:italic;}
 .dimension-name-clickable{cursor:pointer;}
 .dimension-name-clickable:hover{color:var(--accent);text-decoration:underline;}

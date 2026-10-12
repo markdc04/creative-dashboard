@@ -197,6 +197,8 @@ body.video-panel-open .back-to-top{right:calc(24px + min(440px,92vw));}
 }
 .dim-tag--actor,.dim-tag--writer,.dim-tag--editor{box-shadow:0 0 0 1px rgba(240,180,41,.12),0 3px 10px -3px rgba(240,180,41,.4);}
 .date-tag{background:var(--surface-raised);color:var(--text-dim);border-color:var(--border);}
+.status-tag--active{color:var(--profit);border-color:rgba(60,200,120,.35);background:var(--profit-dim);}
+.status-tag--inactive{color:var(--loss);border-color:rgba(251,111,111,.35);background:rgba(251,111,111,.1);}
 .date-tag--unknown{color:var(--text-faint);border-color:var(--border);font-style:italic;}
 
 .dimension-stats{display:flex;align-items:center;gap:6px;row-gap:5px;margin-top:4px;flex-wrap:wrap;}

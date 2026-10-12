@@ -131,7 +131,7 @@ function startDashboardApp() {
       if (!c) {
         c = {
           adId: r.adId, adName: r.adName, campaignName: r.campaignName, platform: r.platform,
-          spend: 0, revenue: 0,
+          spend: 0, revenue: 0, firstSpendDate: null, lastSpendDate: null,
           // All-time totals from the Creative Tracker sheet — identical on every daily row for
           // this ad, so they're set once here rather than summed across days (which would
           // multiply them by however many days are in the selected range).
@@ -144,6 +144,12 @@ function startDashboardApp() {
       }
       c.spend += r.spend;
       c.revenue += r.revenue;
+      // Tracked here (not from the per-ad total above) since a day with $0 spend shouldn't count
+      // as the ad "running" that day — only days it actually spent something.
+      if (r.spend > 0) {
+        if (!c.firstSpendDate || r.date < c.firstSpendDate) c.firstSpendDate = r.date;
+        if (!c.lastSpendDate || r.date > c.lastSpendDate) c.lastSpendDate = r.date;
+      }
     }
     return [...byAd.values()].map((c) => ({ ...c, profit: c.revenue - c.spend, team: teamKey(c) }));
   }
@@ -187,6 +193,9 @@ function startDashboardApp() {
   }
   function formatDate(d) {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  function formatDateLong(d) {
+    return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
   }
 
   // Aggregate ads by a metadata dimension (File Name / Hook Type / Actor / Writer / Editor /
@@ -252,6 +261,7 @@ function startDashboardApp() {
     if (field !== 'hookType' && g.hookType) {
       tags += '<span class="tag dim-tag dim-tag--hookType">' + TAG_LABELS.hookType + ': ' + escapeHtml(g.hookType) + '</span>';
     }
+    tags += statusTag(g);
     if (skipDate) return tags;
     if (g.uploadedAt) tags += '<span class="tag dim-tag date-tag">Uploaded ' + formatDate(g.uploadedAt) + '</span>';
     return tags;
@@ -340,6 +350,25 @@ function startDashboardApp() {
   }
   function creativeActiveDot(ads) {
     return ads && ads.some((ad) => activeAdIdsToday.has(ad.adId)) ? '<span class="active-dot" title="Spent today"></span>' : '';
+  }
+
+  // When a creative last had real spend, and whether that's still today — "Active, started on
+  // <first day it spent>" while it's still running, "Inactive on <the day after its last spend>"
+  // once it stops. Meta spend is excluded from the active check (same as the dot above), so a
+  // creative isn't flagged active just because an unrelated Meta ad happens to share its name.
+  function statusTag(g) {
+    // g.ads here are creativesForRange()'s per-ad totals (one entry per ad, already collapsed
+    // across days) — firstSpendDate/lastSpendDate were tracked during that fold, since the daily
+    // rows themselves aren't kept around at this point.
+    const ads = (g.ads || []).filter((ad) => ad.lastSpendDate);
+    if (!ads.length) return '';
+    const first = parseSheetDate(ads.map((ad) => ad.firstSpendDate).sort()[0]);
+    const last = parseSheetDate(ads.map((ad) => ad.lastSpendDate).sort().slice(-1)[0]);
+    if (!first || !last) return '';
+    if (creativeActiveDot(g.ads)) {
+      return '<span class="tag dim-tag date-tag status-tag status-tag--active">Active, started on ' + formatDateLong(first) + '</span>';
+    }
+    return '<span class="tag dim-tag date-tag status-tag status-tag--inactive">Inactive on ' + formatDateLong(addDays(last, 1)) + '</span>';
   }
 
   // Lets the video panel show "other ads using this video" without re-plumbing the ad list
@@ -469,6 +498,7 @@ function startDashboardApp() {
     if (showPeople) cols.push('Actor', 'Writer', 'Editor', 'Hook');
     cols.push('Ads', 'Spend', 'Revenue', 'Profit', 'ROAS', 'Contribution');
     if (showLeads) cols.push('Leads');
+    if (showPeople) cols.push('Status');
     cols.push(dateColLabel);
 
     const thead = '<thead><tr>' + cols.map((c) => '<th' + (numCols.includes(c) ? ' class="num-col"' : '') + '>' + c + '</th>').join('') + '</tr></thead>';
@@ -493,6 +523,7 @@ function startDashboardApp() {
       cells += '<td class="num-col">' + roasOf(g).toFixed(2) + '&times;</td>';
       cells += '<td class="num-col">' + (contribution != null ? pct(contribution) : '&mdash;') + '</td>';
       if (showLeads) cells += '<td class="num-col">' + g.leadsAllTime.toLocaleString('en-US') + '</td>';
+      if (showPeople) cells += '<td>' + (statusTag(g) || '&mdash;') + '</td>';
       cells += '<td>' + (g.uploadedAt ? formatDate(g.uploadedAt) : '&mdash;') + '</td>';
       return '<tr class="table-toggle-row' + (isActive ? ' row-active' : '') + '"' +
         (isCreative ? ' data-creative="1" data-group-key="' + escapeHtml(g.name) + '"' : ' data-category="1" data-category-key="' + escapeHtml(key) + '"') +

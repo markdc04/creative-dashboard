@@ -366,9 +366,14 @@
       // September's fee isn't a flat earned amount — it's each tranche's own rate (fee ÷ that
       // invoice's total) applied to the actual ad spend in its window: 37.5% ($12,000 ÷ $32,000)
       // for spend 9/9-9/20, then 35% ($26,250 ÷ $75,000) for spend 9/21 onward.
+      // Tranche 1 (9/9-10/8) is still running through its whole window, so its 37.5% applies to
+      // all spend in that window, not just the days before the second tranche started — and
+      // tranche 2's 35% stacks on top of that same spend from 9/21 on, since both are active then.
+      const AD_TRANCHE1_END = '2026-10-08';
+      const tranche1To = budgetTo < AD_TRANCHE1_END ? budgetTo : AD_TRANCHE1_END;
+      const spendTranche1 = combinedAgencySpend(AD_BUDGET_FROM, tranche1To);
       const spendSinceNew = combinedAgencySpend(AZ_BUDGET_FROM, budgetTo);
-      const spend0920 = spendSinceSept - spendSinceNew;
-      const fee = feeBeforeSept + spend0920 * 0.375 + spendSinceNew * 0.35;
+      const fee = feeBeforeSept + spendTranche1 * 0.375 + spendSinceNew * 0.35;
       const totalCost = totalSpend + fee;
       const cpcWithFee = signed > 0 && costsMeaningful && contractOk ? totalCost / signed : 0;
       const dash = '—';

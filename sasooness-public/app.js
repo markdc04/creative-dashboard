@@ -325,6 +325,7 @@
       const pplLeadsSinceBudget = state.leads.filter((l) => programOf(l) === 'ppl' && l.createdDate >= PPL_BUDGET_FROM).length;
       const budgetLeft = PPL_BUDGET - PPL_PRICE_PER_LEAD * pplLeadsSinceBudget;
       const costPerCase = signed > 0 && adSpent > 0 ? adSpent / signed : 0;
+      const cpcWithFee = signed > 0 ? revenue / signed : 0;
       const dash = '—';
       tiles = [
         ['leads', 'Total Leads', total.toLocaleString('en-US'), programLabel(program) + ' program', 'Click to clear the filters'],
@@ -338,6 +339,7 @@
         ['', 'Ad Budget Left', money(pplBudgetLeft), '', ''],
         ['', 'Budget Left', money(budgetLeft), '$20,000 invoice − revenue', ''],
         ['', 'Cost / Case', costPerCase ? money(costPerCase) : dash, signed ? 'ad spend ÷ signed cases' : 'no signed cases yet', ''],
+        ['', 'CPC + Marketing Fee', cpcWithFee ? money(cpcWithFee) : dash, signed ? 'revenue ÷ signed cases' : 'no signed cases yet', ''],
       ];
     } else {
       // Agency (AZ) mixes two spend sources: the Main Landing Page's own Google/Meta campaigns

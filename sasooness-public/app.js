@@ -49,7 +49,7 @@
     layout: { agency: null, ppl: null },
     editingLayout: false,
     editProgram: null,
-    dragLabels: null, // working copy of tile labels, in order, while editingLayout is true
+    dragTileLayout: null, // working copy of { order, hidden, titles } for tiles, while editingLayout is true
     // Whole-panel customization: order/visibility/renamed title+subtitle, saved as one object
     // under board 'sasooness', program 'panels' (reusing the same /api/layout endpoint).
     panelLayout: null, // { order: [id,...], hidden: {id:true}, titles: {id:{title,sub}} }
@@ -432,34 +432,47 @@
       ];
     }
     renderLayoutToolbar();
-    const tileHtml = ([key, label, value, sub, hint]) =>
-      '<div class="kpi' + (key ? ' is-clickable' : '') + (key === 'signed' || label === 'Profit' ? ' kpi--highlight' : '') + (key === 'signed' && state.filters.status === SIGNED ? ' is-selected' : '') + '"' + (key ? ' data-tile="' + key + '" title="' + hint + '"' : '') + '>' +
-      '<div class="kpi-label">' + escapeHtml(label) + '</div>' +
-      '<div class="kpi-value num">' + value + '</div>' +
-      (sub ? '<div class="kpi-sub">' + escapeHtml(sub) + '</div>' : '') + '</div>';
+    const overrideOf = (label, layout) => (layout && layout.titles && layout.titles[label]) || {};
+    const tileHtml = (layout) => ([key, label, value, sub, hint]) => {
+      const o = overrideOf(label, layout);
+      return '<div class="kpi' + (key ? ' is-clickable' : '') + (key === 'signed' || label === 'Profit' ? ' kpi--highlight' : '') + (key === 'signed' && state.filters.status === SIGNED ? ' is-selected' : '') + '"' + (key ? ' data-tile="' + key + '" title="' + hint + '"' : '') + '>' +
+        '<div class="kpi-label">' + escapeHtml(o.title || label) + '</div>' +
+        '<div class="kpi-value num">' + value + '</div>' +
+        (sub || o.sub ? '<div class="kpi-sub">' + escapeHtml(o.sub || sub) + '</div>' : '') + '</div>';
+    };
 
-    // An admin-chosen tile order (or the working copy while Mark is dragging) replaces the
-    // hardcoded two-row grouping above with one flat, re-sortable list — '__break__' markers only
-    // matter for the default, un-customized layout.
-    const savedOrder = state.layout[program];
+    // An admin-chosen tile order/hidden-set/renaming (or the working copy while Mark is editing)
+    // replaces the hardcoded two-row grouping above with one flat, re-sortable list — '__break__'
+    // markers only matter for the default, un-customized layout.
+    const saved = state.layout[program];
     const editingThis = state.editingLayout && state.editProgram === program;
-    if (editingThis || (savedOrder && savedOrder.length)) {
+    if (editingThis || (saved && saved.order && saved.order.length)) {
       const flat = tiles.filter((t) => t[0] !== '__break__');
       if (editingThis) {
-        if (!state.dragLabels) state.dragLabels = reorderByLabels(flat, savedOrder || []).map((t) => t[1]);
-        const ordered = reorderByLabels(flat, state.dragLabels);
-        const editHtml = ([, label, value, sub]) =>
-          '<div class="kpi is-draggable" draggable="true" data-drag-label="' + escapeHtml(label) + '">' +
-          '<div class="kpi-drag-handle">⠿ drag to reorder</div>' +
-          '<div class="kpi-label">' + escapeHtml(label) + '</div>' +
-          '<div class="kpi-value num">' + value + '</div>' +
-          (sub ? '<div class="kpi-sub">' + escapeHtml(sub) + '</div>' : '') + '</div>';
+        if (!state.dragTileLayout) {
+          state.dragTileLayout = {
+            order: reorderByLabels(flat, (saved && saved.order) || []).map((t) => t[1]),
+            hidden: Object.assign({}, saved && saved.hidden),
+            titles: JSON.parse(JSON.stringify((saved && saved.titles) || {})),
+          };
+        }
+        const layout = state.dragTileLayout;
+        const ordered = reorderByLabels(flat, layout.order);
+        const editHtml = ([, label, value, sub]) => {
+          const o = overrideOf(label, layout);
+          const hidden = !!layout.hidden[label];
+          return '<div class="kpi is-draggable' + (hidden ? ' is-panel-hidden' : '') + '" draggable="true" data-drag-label="' + escapeHtml(label) + '">' +
+            '<div class="kpi-drag-handle">⠿ drag <button type="button" data-hide-tile="' + escapeHtml(label) + '">' + (hidden ? 'Show' : 'Hide') + '</button></div>' +
+            '<div class="kpi-label" contenteditable="true" data-tile-field="title" data-tile-label="' + escapeHtml(label) + '">' + escapeHtml(o.title || label) + '</div>' +
+            '<div class="kpi-value num">' + value + '</div>' +
+            '<div class="kpi-sub" contenteditable="true" data-tile-field="sub" data-tile-label="' + escapeHtml(label) + '">' + escapeHtml(o.sub || sub || '') + '</div></div>';
+        };
         $('#kpi-row').className = 'kpi-row';
         $('#kpi-row').innerHTML = ordered.map(editHtml).join('');
       } else {
-        const ordered = reorderByLabels(flat, savedOrder);
+        const ordered = reorderByLabels(flat, saved.order).filter((t) => !(saved.hidden && saved.hidden[t[1]]));
         $('#kpi-row').className = 'kpi-row';
-        $('#kpi-row').innerHTML = ordered.map(tileHtml).join('');
+        $('#kpi-row').innerHTML = ordered.map(tileHtml(saved)).join('');
       }
       $('#kpi-row-2').hidden = true;
       $('#kpi-row-2').innerHTML = '';
@@ -469,10 +482,10 @@
     const groups = [[]];
     for (const t of tiles) { if (t[0] === '__break__') groups.push([]); else groups[groups.length - 1].push(t); }
     $('#kpi-row').className = 'kpi-row' + (groups[0].length === 4 || groups[0].length === 5 ? ' kpi-row--' + groups[0].length : '');
-    $('#kpi-row').innerHTML = groups[0].map(tileHtml).join('');
+    $('#kpi-row').innerHTML = groups[0].map(tileHtml(null)).join('');
     $('#kpi-row-2').hidden = groups.length < 2;
     $('#kpi-row-2').className = 'kpi-row' + (groups.length > 1 && groups[1].length === 5 ? ' kpi-row--5' : '');
-    $('#kpi-row-2').innerHTML = groups.length > 1 ? groups[1].map(tileHtml).join('') : '';
+    $('#kpi-row-2').innerHTML = groups.length > 1 ? groups[1].map(tileHtml(null)).join('') : '';
   }
 
   // Sorts tiles by a saved/working label order; tiles whose label isn't in `order` (e.g. a tile
@@ -1312,48 +1325,68 @@
   async function fetchMe() {
     try { const r = await fetch('/api/me', { cache: 'no-store' }); state.me = r.ok ? await r.json() : null; } catch (err) { state.me = null; }
   }
+  function emptyTileLayout() { return { order: [], hidden: {}, titles: {} }; }
   async function fetchLayout(program) {
     try {
       const r = await fetch('/api/layout?board=sasooness&program=' + program, { cache: 'no-store' });
       const d = r.ok ? await r.json() : null;
-      state.layout[program] = (d && d.order) || null;
+      const v = d && d.order;
+      // Older saves stored a bare array (order only) — treat that as just the order field.
+      state.layout[program] = Array.isArray(v) ? { order: v, hidden: {}, titles: {} } : (v || null);
     } catch (err) { state.layout[program] = null; }
   }
 
   $('#layout-edit-btn').addEventListener('click', () => {
     state.editingLayout = true;
     state.editProgram = state.filters.program;
-    state.dragLabels = null;
+    state.dragTileLayout = null;
     render();
   });
   $('#layout-cancel-btn').addEventListener('click', () => {
     state.editingLayout = false;
     state.editProgram = null;
-    state.dragLabels = null;
+    state.dragTileLayout = null;
     render();
   });
   $('#layout-save-btn').addEventListener('click', async () => {
     const program = state.editProgram;
+    const payload = state.dragTileLayout;
     try {
       const r = await fetch('/api/layout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ board: 'sasooness', program, order: state.dragLabels }),
+        body: JSON.stringify({ board: 'sasooness', program, order: payload }),
       });
       if (!r.ok) throw new Error('save failed');
-      state.layout[program] = state.dragLabels;
+      state.layout[program] = payload;
       state.editingLayout = false;
       state.editProgram = null;
-      state.dragLabels = null;
+      state.dragTileLayout = null;
       render();
     } catch (err) {
       alert('Could not save the layout — try again.');
     }
   });
 
+  document.addEventListener('click', (e) => {
+    const hideBtn = e.target.closest('[data-hide-tile]');
+    if (!hideBtn || !state.dragTileLayout) return;
+    e.stopPropagation();
+    const label = hideBtn.dataset.hideTile;
+    state.dragTileLayout.hidden[label] = !state.dragTileLayout.hidden[label];
+    render();
+  });
+  document.addEventListener('input', (e) => {
+    const el = e.target.closest('[data-tile-field]');
+    if (!el || !state.dragTileLayout) return;
+    const label = el.dataset.tileLabel;
+    if (!state.dragTileLayout.titles[label]) state.dragTileLayout.titles[label] = {};
+    state.dragTileLayout.titles[label][el.dataset.tileField] = el.textContent;
+  });
+
   // Native HTML5 drag-and-drop over whichever tile is currently under the pointer; reorders
-  // state.dragLabels and re-renders on drop, same working-copy-then-save pattern as every other
-  // filter on this page.
+  // state.dragTileLayout.order and re-renders on drop, same working-copy-then-save pattern as
+  // every other filter on this page.
   let dragSrcLabel = null;
   document.addEventListener('dragstart', (e) => {
     const el = e.target.closest('.kpi[data-drag-label]');
@@ -1372,17 +1405,17 @@
   });
   document.addEventListener('drop', (e) => {
     const el = e.target.closest('.kpi[data-drag-label]');
-    if (!el || !dragSrcLabel) return;
+    if (!el || !dragSrcLabel || !state.dragTileLayout) return;
     e.preventDefault();
     const targetLabel = el.dataset.dragLabel;
-    if (targetLabel !== dragSrcLabel && state.dragLabels) {
-      const order = state.dragLabels.slice();
+    if (targetLabel !== dragSrcLabel) {
+      const order = state.dragTileLayout.order.slice();
       const from = order.indexOf(dragSrcLabel);
       const to = order.indexOf(targetLabel);
       if (from !== -1 && to !== -1) {
         order.splice(from, 1);
         order.splice(to, 0, dragSrcLabel);
-        state.dragLabels = order;
+        state.dragTileLayout.order = order;
       }
     }
     dragSrcLabel = null;

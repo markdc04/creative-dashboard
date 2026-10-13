@@ -171,7 +171,9 @@ tr.is-dim:hover{opacity:.8;}
 .kpi.is-draggable{cursor:grab;border-style:dashed;}
 .kpi.is-dragging{opacity:.4;}
 .kpi.is-drag-over{border-color:var(--accent);}
-.kpi-drag-handle{font-size:11px;color:var(--text-faint);letter-spacing:.1em;}
+.kpi-drag-handle{font-size:11px;color:var(--text-faint);letter-spacing:.1em;display:flex;align-items:center;gap:8px;}
+.kpi-drag-handle button{background:none;border:1px solid var(--border);color:var(--text-dim);font-size:10.5px;padding:2px 7px;border-radius:6px;cursor:pointer;margin-left:auto;}
+.kpi[contenteditable="true"],.kpi .kpi-label[contenteditable="true"],.kpi .kpi-sub[contenteditable="true"]{outline:1px dashed var(--text-faint);border-radius:4px;}
 .panel-edit-bar{display:flex;align-items:center;gap:10px;background:var(--surface-raised);border:1px dashed var(--text-faint);border-radius:10px 10px 0 0;padding:6px 12px;margin-bottom:-1px;cursor:grab;font-size:11px;color:var(--text-faint);}
 .panel-edit-bar button{background:none;border:1px solid var(--border);color:var(--text-dim);font-size:11px;padding:3px 9px;border-radius:7px;cursor:pointer;margin-left:auto;}
 .panel.is-editing{border-style:dashed;}

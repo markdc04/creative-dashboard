@@ -805,10 +805,18 @@
       } else if (cpl.og.get(l.campaign)) {
         cplHtml = money(cpl.og.get(l.campaign));
       }
+      let daysToQualify = dash;
+      if (l.signedUpDate && l.createdDate) {
+        const ms = new Date(l.signedUpDate + 'T00:00:00Z') - new Date(l.createdDate + 'T00:00:00Z');
+        const d = Math.round(ms / 86400000);
+        if (d >= 0) daysToQualify = d.toLocaleString('en-US');
+      }
       return '<tr>' +
         '<td><div class="name-cell">' + escapeHtml(l.name || '(no name)') + '</div><div class="email-cell">' + escapeHtml(l.email || l.phone || '') + (l.email && l.phone ? ' &middot; ' + escapeHtml(l.phone) : '') + '</div></td>' +
         '<td>' + escapeHtml(l.createdDate || dash) + '' + '</td>' +
         '<td><span class="status-pill ' + statusClass(l.status) + '">' + escapeHtml(l.status || dash) + '</span>' + (l.subStatus ? '<div class="kpi-sub" style="margin-top:4px">' + escapeHtml(l.subStatus) + '</div>' : '') + '</td>' +
+        '<td>' + escapeHtml(l.signedUpDate || dash) + '</td>' +
+        '<td>' + escapeHtml(daysToQualify) + '</td>' +
         '<td>' + escapeHtml(source || dash) + '</td>' +
         '<td><div class="name-cell">' + escapeHtml(campaignName || dash) + '</div>' + (o.campaignId ? '<div class="email-cell">ID ' + escapeHtml(o.campaignId) + '</div>' : '') + '</td>' +
         '<td><div class="name-cell">' + escapeHtml(o.adName || (o.adId ? 'Ad ' + o.adId : dash)) + '</div>' + (o.adId ? '<div class="email-cell">ID ' + escapeHtml(o.adId) + '</div>' : '') + '</td>' +

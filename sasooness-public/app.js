@@ -319,6 +319,12 @@
       // since 9/21 across all of PPL's history, independent of whatever range is picked above.
       const pplSpentSinceBudget = partnerDeduction(state.leads.filter((l) => programOf(l) === 'ppl' && l.createdDate >= PPL_BUDGET_FROM)).total;
       const pplBudgetLeft = PPL_BUDGET - pplSpentSinceBudget;
+      // The $20k invoice is drawn down by revenue (what Sasooness owes per lead), not ad spend —
+      // same pool-since-9/21 pattern as Ad Budget Left above, just against the other side of the
+      // ledger.
+      const pplLeadsSinceBudget = state.leads.filter((l) => programOf(l) === 'ppl' && l.createdDate >= PPL_BUDGET_FROM).length;
+      const budgetLeft = PPL_BUDGET - PPL_PRICE_PER_LEAD * pplLeadsSinceBudget;
+      const costPerCase = signed > 0 && adSpent > 0 ? adSpent / signed : 0;
       const dash = '—';
       tiles = [
         ['leads', 'Total Leads', total.toLocaleString('en-US'), programLabel(program) + ' program', 'Click to clear the filters'],
@@ -330,6 +336,8 @@
         ['', 'Ad Spent', adSpent ? money(adSpent) : dash, 'already spent in Walker’s campaign on these leads', ''],
         ['', 'CPL (Cost / Lead)', cpl ? money(cpl) : dash, 'ad spend ÷ leads', ''],
         ['', 'Ad Budget Left', money(pplBudgetLeft), '', ''],
+        ['', 'Budget Left', money(budgetLeft), '$20,000 invoice − revenue', ''],
+        ['', 'Cost / Case', costPerCase ? money(costPerCase) : dash, signed ? 'ad spend ÷ signed cases' : 'no signed cases yet', ''],
       ];
     } else {
       // Agency (AZ) mixes two spend sources: the Main Landing Page's own Google/Meta campaigns

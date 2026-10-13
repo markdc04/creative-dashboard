@@ -322,6 +322,8 @@
       const budgetLeft = PPL_BUDGET - PPL_PRICE_PER_LEAD * pplLeadsSinceBudget;
       const costPerCase = signed > 0 && adSpent > 0 ? adSpent / signed : 0;
       const cpcWithFee = signed > 0 ? revenue / signed : 0;
+      const profit = revenue - adSpent;
+      const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
       const dash = '—';
       tiles = [
         ['leads', 'Total Leads', total.toLocaleString('en-US'), programLabel(program) + ' program', 'Click to clear the filters'],
@@ -331,6 +333,7 @@
         ['', 'Awaiting Status', open.toLocaleString('en-US'), 'no status yet', ''],
         ['', 'Revenue', money(revenue), '$' + PPL_PRICE_PER_LEAD + ' × ' + total.toLocaleString('en-US') + ' leads', ''],
         ['', 'Ad Spent', adSpent ? money(adSpent) : dash, 'already spent in Walker’s campaign on these leads', ''],
+        ['', 'Profit', money(profit), pct(margin) + ' margin · revenue − ad spend', ''],
         ['', 'CPL (Cost / Lead)', cpl ? money(cpl) : dash, 'ad spend ÷ leads', ''],
         ['', 'Budget Left', money(budgetLeft), '$20,000 invoice − revenue', ''],
         ['', 'Cost / Case', costPerCase ? money(costPerCase) : dash, signed ? 'ad spend ÷ signed cases' : 'no signed cases yet', ''],
@@ -402,7 +405,7 @@
     const groups = [[]];
     for (const t of tiles) { if (t[0] === '__break__') groups.push([]); else groups[groups.length - 1].push(t); }
     const tileHtml = ([key, label, value, sub, hint]) =>
-      '<div class="kpi' + (key ? ' is-clickable' : '') + (key === 'signed' ? ' kpi--highlight' : '') + (key === 'signed' && state.filters.status === SIGNED ? ' is-selected' : '') + '"' + (key ? ' data-tile="' + key + '" title="' + hint + '"' : '') + '>' +
+      '<div class="kpi' + (key ? ' is-clickable' : '') + (key === 'signed' || label === 'Profit' ? ' kpi--highlight' : '') + (key === 'signed' && state.filters.status === SIGNED ? ' is-selected' : '') + '"' + (key ? ' data-tile="' + key + '" title="' + hint + '"' : '') + '>' +
       '<div class="kpi-label">' + escapeHtml(label) + '</div>' +
       '<div class="kpi-value num">' + value + '</div>' +
       (sub ? '<div class="kpi-sub">' + escapeHtml(sub) + '</div>' : '') + '</div>';

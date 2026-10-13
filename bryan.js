@@ -39,7 +39,10 @@ function normName(v) { return String(v || '').toLowerCase().replace(/[^a-z ]/g, 
 // overcounting signed leads, though, so it now also requires the note itself to actually say
 // "signed" — green is necessary but not sufficient on its own.
 function classifyByColor(color, note) {
-  if (color === '34A853' && /\bsigned\b/i.test(note || '')) return 'Signed';
+  const n = note || '';
+  // "trying to get this guy signed up" says "signed" but means the opposite of done — anything
+  // phrased as still in progress ("trying to") doesn't count, even with the word present.
+  if (color === '34A853' && /\bsigned\b/i.test(n) && !/trying to/i.test(n)) return 'Signed';
   if (color === 'FF0000') return 'Rejected';
   return 'Reviewing';
 }

@@ -731,6 +731,21 @@
     $('#source-body').innerHTML = html;
   }
 
+  // ================= status summary (full breakdown of raw CRM status values) =================
+  function renderStatusSummary() {
+    const leads = leadsFor('status');
+    const groups = statusGroups(leads);
+    const total = leads.length;
+    const sf = state.filters.status;
+    const isSelected = (key) => sf === key || (sf === SIGNED && isSignedStatus(key));
+    const row = ([key, count]) => '<tr class="is-clickable' + (isSelected(key) ? ' is-selected' : sf ? ' is-dim' : '') + '" data-status-row="' + escapeHtml(key) + '"><td class="name-cell">' + escapeHtml(key) + '</td>' +
+      '<td class="td-num num">' + count.toLocaleString('en-US') + '</td>' +
+      '<td class="td-num num">' + (total ? pct((count / total) * 100) : '—') + '</td></tr>';
+    let html = groups.map(row).join('');
+    html += '<tr class="row-total"><td>Total</td><td class="td-num num">' + total.toLocaleString('en-US') + '</td><td class="td-num num">' + (total ? '100%' : '—') + '</td></tr>';
+    $('#status-summary-body').innerHTML = html;
+  }
+
   // ================= program tabs (All / OG / Agency / PPL) =================
   function renderSegmentTabs() {
     const base = leadsFor('program');
@@ -982,6 +997,7 @@
     renderPieChart();
     renderCampaigns();
     renderPrograms();
+    renderStatusSummary();
     renderSegmentTabs();
     renderDailyLeads();
     renderOrigins();
@@ -1019,6 +1035,8 @@
     if (campaignRow) { toggleFilter('campaign', campaignRow.dataset.campaign); return; }
     const programRow = e.target.closest('tr[data-program]');
     if (programRow) { state.filters.program = programRow.dataset.program; render(); return; }
+    const statusRow = e.target.closest('tr[data-status-row]');
+    if (statusRow) { toggleFilter('status', statusRow.dataset.statusRow); return; }
     const segment = e.target.closest('[data-segment]');
     if (segment) { state.filters.program = segment.dataset.segment; render(); return; }
   });

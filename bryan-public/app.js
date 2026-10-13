@@ -180,16 +180,16 @@
     const billable = leads.filter((l) => l.billable !== false).length;
     const nonBillable = total - billable;
     const revenue = billable * PRICE_PER_LEAD;
-    const profit = revenue - spend;
-    const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
     // Fee is a contract-level number (a fixed window, not split by status/campaign), so it only
     // applies when neither filter narrows the leads being looked at — same rule Sasooness/KM use.
-    // It's a separate retainer, not stacked onto the per-lead $350 revenue: its own profit is just
-    // what Bryan paid for the window minus what was actually spent on his ads in it.
     const contractOk = !state.filters.status && !state.filters.campaign;
     // Each calendar month with leads in the range carries its full $1,250 (not a daily share).
     const feeMonths = new Set(leads.filter((l) => l.createdDate >= MARKETING_FEE.start).map((l) => l.createdDate.slice(0, 7)));
     const fee = contractOk ? feeMonths.size * MARKETING_FEE.monthly : 0;
+    // Profit is all-in: the $350/lead revenue plus the $1,250/mo marketing fee (both part of what
+    // Bryan is actually invoiced), minus what was spent on his ads.
+    const profit = revenue + fee - spend;
+    const margin = revenue + fee > 0 ? (profit / (revenue + fee)) * 100 : 0;
     const cpcWithFee = fee && signed > 0 ? (spend + fee) / signed : 0;
     const dash = '—';
 
@@ -205,7 +205,7 @@
       [
       ['Ad Spend', money(spend), 'Bryan’s share of the shared campaigns'],
       ['Revenue', money(revenue), '$' + PRICE_PER_LEAD + ' × ' + billable.toLocaleString('en-US') + ' billable leads' + (nonBillable ? ' (' + nonBillable + ' not billed)' : '')],
-      ['Profit', money(profit), pct(margin) + ' margin · revenue − ad spend'],
+      ['Profit', money(profit), pct(margin) + ' margin · revenue + fee − ad spend'],
       ],
       [
       ['Marketing Fee', fee ? money(fee) : dash, contractOk ? '' : 'not split by filter'],

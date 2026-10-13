@@ -75,6 +75,12 @@
   <div class="kpi-row" id="kpi-row"></div>
   <div class="kpi-row" id="kpi-row-2" hidden></div>
 
+  <div class="kpi-toolbar" id="panel-toolbar" hidden>
+    <button class="clear-btn" id="panel-edit-btn">Customize Panels</button>
+    <button class="clear-btn" id="panel-save-btn" hidden>Save Panels</button>
+    <button class="clear-btn" id="panel-cancel-btn" hidden>Cancel</button>
+  </div>
+
   <div class="panel" id="daily-leads-panel" hidden>
     <div class="panel-head">
       <h2 class="panel-title">Leads Per Day</h2>
@@ -144,7 +150,7 @@
     </div>
   </div>
 
-  <div class="chart-row chart-row--split">
+  <div class="chart-row chart-row--split" id="trends-panel">
     <div class="panel chart-panel">
       <div class="panel-head">
         <h2 class="panel-title">Leads &amp; Signed Cases by Month</h2>
@@ -174,7 +180,7 @@
     <div id="campaign-empty" class="empty-msg" hidden>No campaign spend or leads in this range.</div>
   </div>
 
-  <div class="panel">
+  <div class="panel" id="program-summary-panel">
     <div class="panel-head">
       <h2 class="panel-title">Leads by Program</h2>
       <span class="panel-sub">click a row to switch program</span>
@@ -188,7 +194,7 @@
     <p class="footnote footnote--inside"><strong>Agency (AZ)</strong> combines the Main Landing Page's own leads (it also includes the few CRM leads with other marketing-source codes) with Lead Prosper leads from the Walker Agency AZ campaign &mdash; both are the AZ side of the business. <strong>PPL (WA)</strong> means the Pay Per Lead model (Lead Prosper WA). Ad spend in Agency is the Main Landing Page's own campaigns plus Sasooness's share of Walker's shared Lead Prosper AZ spend, combined; cost per lead and cost per case use that combined figure.</p>
   </div>
 
-  <div class="panel">
+  <div class="panel" id="status-summary-panel">
     <div class="panel-head">
       <h2 class="panel-title">Status Summary</h2>
       <span class="panel-sub">click a row to filter by status</span>
@@ -201,7 +207,7 @@
     </div>
   </div>
 
-  <div class="panel">
+  <div class="panel" id="period-comparison-panel">
     <div class="panel-head">
       <h2 class="panel-title">Period Comparison</h2>
       <div class="select-wrap">
@@ -222,7 +228,7 @@
     <p class="footnote footnote--inside">Compares the current program tab's leads (<span id="compare-program-label"></span>) regardless of the date range picker above.</p>
   </div>
 
-  <div class="panel panel--secondary">
+  <div class="panel panel--secondary" id="lead-details-panel">
     <div class="panel-head">
       <h2 class="panel-title panel-title--secondary">Lead Details</h2>
       <div class="search-box">
@@ -244,7 +250,7 @@
     <div id="leads-empty" class="empty-msg" hidden>No leads match this filter.</div>
   </div>
 
-  <div class="panel">
+  <div class="panel" id="reasons-panel">
     <div class="panel-head">
       <h2 class="panel-title">Top Reasons Leads Were Rejected</h2>
       <span class="panel-sub" id="reasons-sub"></span>

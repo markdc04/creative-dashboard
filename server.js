@@ -492,8 +492,10 @@ const server = http.createServer((req, res) => {
     req.on('end', () => {
       try {
         const { board, program, order } = JSON.parse(body);
-        if (!board || typeof board !== 'string' || !Array.isArray(order)) throw new Error('bad payload');
-        layoutStore.set(board, program || 'default', order.map(String));
+        // `order` is an array of tile labels for a KPI row, or a {order,hidden,titles} object for
+        // whole-panel layout — either way, just whatever shape the caller wants read back later.
+        if (!board || typeof board !== 'string' || order == null) throw new Error('bad payload');
+        layoutStore.set(board, program || 'default', order);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
       } catch (err) {

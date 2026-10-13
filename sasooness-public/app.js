@@ -50,7 +50,29 @@
     editingLayout: false,
     editProgram: null,
     dragLabels: null, // working copy of tile labels, in order, while editingLayout is true
+    // Whole-panel customization: order/visibility/renamed title+subtitle, saved as one object
+    // under board 'sasooness', program 'panels' (reusing the same /api/layout endpoint).
+    panelLayout: null, // { order: [id,...], hidden: {id:true}, titles: {id:{title,sub}} }
+    editingPanels: false,
+    dragPanelLayout: null, // working copy of the object above, while editingPanels is true
   };
+
+  // One entry per customizable block. `el` is the whole block to drag/hide; `title`/`sub` are the
+  // one heading + one subtitle inside it that can be renamed (the two-chart "trends" row only
+  // exposes its first chart's heading — renaming the second independently isn't supported).
+  const PANEL_BLOCKS = [
+    { id: 'daily-leads', el: '#daily-leads-panel', title: '.panel-title', sub: '.panel-sub' },
+    { id: 'deduct', el: '#deduct-panel', title: '.panel-title', sub: '.panel-sub' },
+    { id: 'origin', el: '#origin-panel', title: '.panel-title', sub: '#origin-sub' },
+    { id: 'spend', el: '#spend-panel', title: '.panel-title' },
+    { id: 'trends', el: '#trends-panel', title: '.panel-title' },
+    { id: 'campaign', el: '#campaign-panel', title: '.panel-title', sub: '#campaign-sub' },
+    { id: 'program-summary', el: '#program-summary-panel', title: '.panel-title' },
+    { id: 'status-summary', el: '#status-summary-panel', title: '.panel-title' },
+    { id: 'period-comparison', el: '#period-comparison-panel', title: '.panel-title' },
+    { id: 'lead-details', el: '#lead-details-panel', title: '.panel-title' },
+    { id: 'reasons', el: '#reasons-panel', title: '.panel-title', sub: '#reasons-sub' },
+  ];
 
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
@@ -477,6 +499,93 @@
     $('#layout-edit-btn').hidden = state.editingLayout;
     $('#layout-save-btn').hidden = !state.editingLayout;
     $('#layout-cancel-btn').hidden = !state.editingLayout;
+  }
+
+  // ================= whole-panel customization (order, visibility, renaming) ===================
+  function emptyPanelLayout() { return { order: [], hidden: {}, titles: {} }; }
+
+  function renderPanelToolbar() {
+    const canEdit = state.me && state.me.name === 'Mark';
+    $('#panel-toolbar').hidden = !canEdit;
+    if (!canEdit) return;
+    $('#panel-edit-btn').hidden = state.editingPanels;
+    $('#panel-save-btn').hidden = !state.editingPanels;
+    $('#panel-cancel-btn').hidden = !state.editingPanels;
+  }
+
+  // Runs after every other render* call: moves blocks into their saved (or working, mid-edit)
+  // order, applies saved hide flags on top of whatever each panel's own render already decided
+  // (never force-shows something that's conditionally hidden for the current program), applies
+  // renamed titles/subtitles, and — only while editingPanels — adds the drag handle bar and makes
+  // the title/subtitle directly editable.
+  function applyPanelLayout() {
+    renderPanelToolbar();
+    const layout = state.editingPanels ? state.dragPanelLayout : (state.panelLayout || emptyPanelLayout());
+    const idx = new Map((layout.order || []).map((id, i) => [id, i]));
+    const blocks = PANEL_BLOCKS
+      .map((b, i) => ({ b, el: $(b.el), i }))
+      .filter((x) => x.el)
+      .sort((x, y) => {
+        const ix = idx.has(x.b.id) ? idx.get(x.b.id) : 1e9 + x.i;
+        const iy = idx.has(y.b.id) ? idx.get(y.b.id) : 1e9 + y.i;
+        return ix - iy;
+      });
+
+    for (const { b, el } of blocks) {
+      el.parentNode.appendChild(el); // append in the sorted order, moving each to the end in turn
+
+      if (layout.hidden && layout.hidden[b.id]) el.hidden = true;
+      el.classList.toggle('is-panel-hidden', state.editingPanels && !!(layout.hidden && layout.hidden[b.id]));
+
+      const override = layout.titles && layout.titles[b.id];
+      const titleEl = b.title ? el.querySelector(b.title) : null;
+      const subEl = b.sub ? el.querySelector(b.sub) : null;
+      if (!state.editingPanels) {
+        if (titleEl && override && override.title) titleEl.textContent = override.title;
+        if (subEl && override && override.sub) subEl.textContent = override.sub;
+        el.classList.remove('is-editing');
+        const bar = el.querySelector(':scope > .panel-edit-bar');
+        if (bar) bar.remove();
+        if (titleEl) titleEl.removeAttribute('contenteditable');
+        if (subEl) subEl.removeAttribute('contenteditable');
+        continue;
+      }
+
+      // Edit mode: drag handle + hide toggle bar, and inline-editable title/subtitle.
+      el.classList.add('is-editing');
+      el.draggable = false; // the bar below is the drag handle, not the whole panel
+      let bar = el.querySelector(':scope > .panel-edit-bar');
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.className = 'panel-edit-bar';
+        bar.draggable = true;
+        bar.dataset.dragPanel = b.id;
+        bar.innerHTML = '⠿ drag to reorder <button type="button" data-hide-panel="' + b.id + '">' +
+          (layout.hidden && layout.hidden[b.id] ? 'Show' : 'Hide') + '</button>';
+        el.prepend(bar);
+      } else {
+        bar.querySelector('button').textContent = layout.hidden && layout.hidden[b.id] ? 'Show' : 'Hide';
+      }
+      el.hidden = false; // always visible while editing, so a hidden panel can still be re-shown
+      // Re-apply any not-yet-saved edit before wiring contenteditable, so a render() triggered by
+      // something else (dragging a different panel, say) doesn't blow away in-progress typing.
+      if (titleEl) {
+        if (override && override.title) titleEl.textContent = override.title;
+        titleEl.setAttribute('contenteditable', 'true');
+        titleEl.oninput = () => {
+          if (!layout.titles[b.id]) layout.titles[b.id] = {};
+          layout.titles[b.id].title = titleEl.textContent;
+        };
+      }
+      if (subEl) {
+        if (override && override.sub) subEl.textContent = override.sub;
+        subEl.setAttribute('contenteditable', 'true');
+        subEl.oninput = () => {
+          if (!layout.titles[b.id]) layout.titles[b.id] = {};
+          layout.titles[b.id].sub = subEl.textContent;
+        };
+      }
+    }
   }
 
   // ================= shared SVG/tooltip helpers =================
@@ -1132,6 +1241,7 @@
     renderChips();
     renderLeadsTable(leads);
     renderReasons();
+    applyPanelLayout();
   }
 
   // ---- click handling: everything clickable is wired here by data attribute ----
@@ -1279,10 +1389,106 @@
     render();
   });
 
+  // ================= whole-panel customization: fetch, buttons, drag, hide toggle =============
+  async function fetchPanelLayout() {
+    try {
+      const r = await fetch('/api/layout?board=sasooness&program=panels', { cache: 'no-store' });
+      const d = r.ok ? await r.json() : null;
+      state.panelLayout = (d && d.order) || emptyPanelLayout();
+    } catch (err) { state.panelLayout = emptyPanelLayout(); }
+  }
+
+  $('#panel-edit-btn').addEventListener('click', () => {
+    state.editingPanels = true;
+    // Deep-enough copy to edit freely without touching the saved version until Save is clicked.
+    const saved = state.panelLayout || emptyPanelLayout();
+    state.dragPanelLayout = {
+      order: saved.order ? saved.order.slice() : [],
+      hidden: Object.assign({}, saved.hidden),
+      titles: JSON.parse(JSON.stringify(saved.titles || {})),
+    };
+    render();
+  });
+  $('#panel-cancel-btn').addEventListener('click', () => {
+    state.editingPanels = false;
+    state.dragPanelLayout = null;
+    render();
+  });
+  $('#panel-save-btn').addEventListener('click', async () => {
+    // The drag code below keeps dragPanelLayout.order updated only for panels actually dragged;
+    // fill in the rest from current DOM order so nothing dropped out of the saved order.
+    const order = PANEL_BLOCKS.map((b) => $(b.el)).filter(Boolean)
+      .sort((a, c) => (a.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1))
+      .map((el) => PANEL_BLOCKS.find((b) => $(b.el) === el).id);
+    const payload = { order, hidden: state.dragPanelLayout.hidden, titles: state.dragPanelLayout.titles };
+    try {
+      const r = await fetch('/api/layout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ board: 'sasooness', program: 'panels', order: payload }),
+      });
+      if (!r.ok) throw new Error('save failed');
+      state.panelLayout = payload;
+      state.editingPanels = false;
+      state.dragPanelLayout = null;
+      render();
+    } catch (err) {
+      alert('Could not save the panel layout — try again.');
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    const hideBtn = e.target.closest('[data-hide-panel]');
+    if (!hideBtn || !state.dragPanelLayout) return;
+    const id = hideBtn.dataset.hidePanel;
+    state.dragPanelLayout.hidden[id] = !state.dragPanelLayout.hidden[id];
+    render();
+  });
+
+  let dragSrcPanel = null;
+  document.addEventListener('dragstart', (e) => {
+    const bar = e.target.closest('.panel-edit-bar[data-drag-panel]');
+    if (!bar) return;
+    dragSrcPanel = bar.dataset.dragPanel;
+    e.dataTransfer.effectAllowed = 'move';
+    bar.closest('.panel,.chart-row').classList.add('is-dragging');
+  });
+  document.addEventListener('dragend', (e) => {
+    const bar = e.target.closest('.panel-edit-bar[data-drag-panel]');
+    if (bar) bar.closest('.panel,.chart-row').classList.remove('is-dragging');
+  });
+  document.addEventListener('dragover', (e) => {
+    if (!dragSrcPanel || !e.target.closest('.panel-edit-bar[data-drag-panel]')) return;
+    e.preventDefault();
+  });
+  document.addEventListener('drop', (e) => {
+    const bar = e.target.closest('.panel-edit-bar[data-drag-panel]');
+    if (!bar || !dragSrcPanel || !state.dragPanelLayout) return;
+    e.preventDefault();
+    const targetId = bar.dataset.dragPanel;
+    if (targetId !== dragSrcPanel) {
+      // Seed the working order from current visual order first, so dragging always starts from
+      // what's on screen rather than a stale/empty saved order.
+      const visible = PANEL_BLOCKS.map((b) => ({ id: b.id, el: $(b.el) })).filter((x) => x.el)
+        .sort((a, c) => (a.el.compareDocumentPosition(c.el) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1))
+        .map((x) => x.id);
+      const order = state.dragPanelLayout.order && state.dragPanelLayout.order.length ? state.dragPanelLayout.order.slice() : visible;
+      const from = order.indexOf(dragSrcPanel);
+      const to = order.indexOf(targetId);
+      if (from !== -1 && to !== -1) {
+        order.splice(from, 1);
+        order.splice(to, 0, dragSrcPanel);
+        state.dragPanelLayout.order = order;
+      }
+    }
+    dragSrcPanel = null;
+    render();
+  });
+
   // Opens on the new AZ budget's start (9/21) through yesterday (Pacific), not all time.
   setRange('custom', '2026-09-21', toISO(addDays(pacificToday(), -1)));
   fetchData();
   setInterval(fetchData, 30000);
   fetchMe().then(render);
-  Promise.all([fetchLayout('agency'), fetchLayout('ppl')]).then(render);
+  Promise.all([fetchLayout('agency'), fetchLayout('ppl'), fetchPanelLayout()]).then(render);
 })();

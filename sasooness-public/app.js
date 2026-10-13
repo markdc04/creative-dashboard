@@ -315,10 +315,6 @@
       const adSpent = partnerDeduction(leads).total;
       const cpl = total > 0 && adSpent > 0 ? adSpent / total : 0;
       const revenue = PPL_PRICE_PER_LEAD * total;
-      // $20k ad budget sent 9/21 — a pool to exhaust, not a monthly allowance, so this is spend
-      // since 9/21 across all of PPL's history, independent of whatever range is picked above.
-      const pplSpentSinceBudget = partnerDeduction(state.leads.filter((l) => programOf(l) === 'ppl' && l.createdDate >= PPL_BUDGET_FROM)).total;
-      const pplBudgetLeft = PPL_BUDGET - pplSpentSinceBudget;
       // The $20k invoice is drawn down by revenue (what Sasooness owes per lead), not ad spend —
       // same pool-since-9/21 pattern as Ad Budget Left above, just against the other side of the
       // ledger.
@@ -336,7 +332,6 @@
         ['', 'Revenue', money(revenue), '$' + PPL_PRICE_PER_LEAD + ' × ' + total.toLocaleString('en-US') + ' leads', ''],
         ['', 'Ad Spent', adSpent ? money(adSpent) : dash, 'already spent in Walker’s campaign on these leads', ''],
         ['', 'CPL (Cost / Lead)', cpl ? money(cpl) : dash, 'ad spend ÷ leads', ''],
-        ['', 'Ad Budget Left', money(pplBudgetLeft), '', ''],
         ['', 'Budget Left', money(budgetLeft), '$20,000 invoice − revenue', ''],
         ['', 'Cost / Case', costPerCase ? money(costPerCase) : dash, signed ? 'ad spend ÷ signed cases' : 'no signed cases yet', ''],
         ['', 'CPC + Marketing Fee', cpcWithFee ? money(cpcWithFee) : dash, signed ? 'revenue ÷ signed cases' : 'no signed cases yet', ''],

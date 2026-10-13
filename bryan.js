@@ -23,7 +23,7 @@ const START_DATE = '2026-08-03';
 // One-time per-month billing caps: leads beyond the cap for that month (counted in sheet order)
 // aren't billed, though they still cost ad spend like any other real delivery. Not a standing
 // contract term — add an entry here whenever a month comes with its own agreed cap.
-const MONTHLY_BILLED_CAP = { '2026-10': 31 };
+const MONTHLY_BILLED_CAP = { '2026-10': 25 };
 
 // Leads confirmed by hand (in GoHighLevel) to be genuinely organic — see the note in pollAll.
 const ORGANIC_OVERRIDES = [{ name: 'Linda Parfait', createdDate: '2026-08-04' }];

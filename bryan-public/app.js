@@ -10,9 +10,8 @@
   // Separate from the per-lead billing: a flat marketing-fee contract for this specific window.
   // Prorated by day-overlap with whatever range is selected, same as Sasooness/KM's monthly fee.
   // $10,000 invoice per 25-lead month, of which $350 × 25 = $8,750 is revenue; the rest is the
-  // marketing fee, so each calendar month from August with leads carries the full amount.
-  // Retainer ran August-September only; not billed from October onward.
-  const MARKETING_FEE = { start: '2026-08-01', end: '2026-09-30', monthly: 1250 };
+  // marketing fee. The retainer amount per calendar month (months not listed aren't billed).
+  const MARKETING_FEE_BY_MONTH = { '2026-08': 1250, '2026-09': 1250, '2026-10': 1500 };
 
   const NO_CAMPAIGN = 'Not traced to a campaign';
   const STATUSES = ['Signed', 'Rejected', 'Reviewing'];
@@ -184,10 +183,11 @@
     // Fee is a contract-level number (a fixed window, not split by status/campaign), so it only
     // applies when neither filter narrows the leads being looked at — same rule Sasooness/KM use.
     const contractOk = !state.filters.status && !state.filters.campaign;
-    // Each calendar month with leads in the range carries its full $1,250 (not a daily share).
-    const feeMonths = new Set(leads.filter((l) => l.createdDate >= MARKETING_FEE.start && l.createdDate <= MARKETING_FEE.end).map((l) => l.createdDate.slice(0, 7)));
-    const fee = contractOk ? feeMonths.size * MARKETING_FEE.monthly : 0;
-    // Profit is all-in: the $350/lead revenue plus the $1,250/mo marketing fee (both part of what
+    // Each calendar month with leads in the range carries its full billed-month amount (not a
+    // daily share) — months with no entry in MARKETING_FEE_BY_MONTH aren't billed at all.
+    const feeMonths = new Set(leads.map((l) => l.createdDate.slice(0, 7)).filter((m) => MARKETING_FEE_BY_MONTH[m] != null));
+    const fee = contractOk ? [...feeMonths].reduce((a, m) => a + MARKETING_FEE_BY_MONTH[m], 0) : 0;
+    // Profit is all-in: the $350/lead revenue plus that month's marketing fee (both part of what
     // Bryan is actually invoiced), minus what was spent on his ads.
     const profit = revenue + fee - spend;
     const margin = revenue + fee > 0 ? (profit / (revenue + fee)) * 100 : 0;

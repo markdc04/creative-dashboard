@@ -35,12 +35,11 @@ function normName(v) { return String(v || '').toLowerCase().replace(/[^a-z ]/g, 
 // The CRM's "Lead Status" is call-log notes, not a clean status column — but the team already
 // color-codes that cell by hand (green = signed, red = rejected, black/default = still being
 // worked), which the CSV/gviz exports Loudr otherwise reads from strip out entirely. Read from
-// the sheet's .xlsx export instead, which does carry cell formatting. Text-keyword matching was
-// tried first and undercounted real signings (a lead can say "PENDING CONTRACT" and be marked
-// green) and missed real rejections with no "reject"-shaped wording at all — color is what the
-// team actually means, text is not a reliable proxy for it.
-function classifyByColor(color) {
-  if (color === '34A853') return 'Signed';
+// the sheet's .xlsx export instead, which does carry cell formatting. A green cell alone was
+// overcounting signed leads, though, so it now also requires the note itself to actually say
+// "signed" — green is necessary but not sufficient on its own.
+function classifyByColor(color, note) {
+  if (color === '34A853' && /\bsigned\b/i.test(note || '')) return 'Signed';
   if (color === 'FF0000') return 'Rejected';
   return 'Reviewing';
 }
@@ -81,7 +80,7 @@ function parseLeads(csv, colorByRow) {
         email: (r[iEmail] || '').trim().toLowerCase(),
         phone: (r[iPhone] || '').trim(),
         createdDate,
-        status: classifyByColor(colorByRow.get(sheetRow) || null),
+        status: classifyByColor(colorByRow.get(sheetRow) || null, note),
         note,
         reason: (r[iReason] || '').trim(),
         billable: createdDate ? isBillable(createdDate, augIdx) : true,

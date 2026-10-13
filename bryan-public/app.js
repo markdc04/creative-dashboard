@@ -11,7 +11,8 @@
   // Prorated by day-overlap with whatever range is selected, same as Sasooness/KM's monthly fee.
   // $10,000 invoice per 25-lead month, of which $350 × 25 = $8,750 is revenue; the rest is the
   // marketing fee, so each calendar month from August with leads carries the full amount.
-  const MARKETING_FEE = { start: '2026-08-01', monthly: 1250 };
+  // Retainer ran August-September only; not billed from October onward.
+  const MARKETING_FEE = { start: '2026-08-01', end: '2026-09-30', monthly: 1250 };
 
   const NO_CAMPAIGN = 'Not traced to a campaign';
   const STATUSES = ['Signed', 'Rejected', 'Reviewing'];
@@ -184,7 +185,7 @@
     // applies when neither filter narrows the leads being looked at — same rule Sasooness/KM use.
     const contractOk = !state.filters.status && !state.filters.campaign;
     // Each calendar month with leads in the range carries its full $1,250 (not a daily share).
-    const feeMonths = new Set(leads.filter((l) => l.createdDate >= MARKETING_FEE.start).map((l) => l.createdDate.slice(0, 7)));
+    const feeMonths = new Set(leads.filter((l) => l.createdDate >= MARKETING_FEE.start && l.createdDate <= MARKETING_FEE.end).map((l) => l.createdDate.slice(0, 7)));
     const fee = contractOk ? feeMonths.size * MARKETING_FEE.monthly : 0;
     // Profit is all-in: the $350/lead revenue plus the $1,250/mo marketing fee (both part of what
     // Bryan is actually invoiced), minus what was spent on his ads.
@@ -205,7 +206,7 @@
       [
       ['Ad Spend', money(spend), 'Bryan’s share of the shared campaigns'],
       ['Revenue', money(revenue), '$' + PRICE_PER_LEAD + ' × ' + billable.toLocaleString('en-US') + ' billable leads' + (nonBillable ? ' (' + nonBillable + ' not billed)' : '')],
-      ['Profit', money(profit), pct(margin) + ' margin · revenue + fee − ad spend'],
+      ['Profit', money(profit), pct(margin) + ' margin · revenue' + (fee ? ' + fee' : '') + ' − ad spend'],
       ],
       [
       ['Marketing Fee', fee ? money(fee) : dash, contractOk ? '' : 'not split by filter'],

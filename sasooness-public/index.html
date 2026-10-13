@@ -196,6 +196,27 @@
     </div>
   </div>
 
+  <div class="panel">
+    <div class="panel-head">
+      <h2 class="panel-title">Period Comparison</h2>
+      <div class="select-wrap">
+        <select id="compare-select">
+          <option value="thisweek_lastweek">This week vs last week</option>
+          <option value="lastweek_weekbefore">Last week vs week before</option>
+          <option value="thismonth_lastmonth">This month vs last month</option>
+        </select>
+        <svg class="select-caret" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg>
+      </div>
+    </div>
+    <div class="table-scroll table-scroll--short">
+      <table>
+        <thead><tr><th>Metric</th><th class="th-num" id="compare-th-a"></th><th class="th-num" id="compare-th-b"></th><th class="th-num">Change</th></tr></thead>
+        <tbody id="compare-body"></tbody>
+      </table>
+    </div>
+    <p class="footnote footnote--inside">Compares the current program tab's leads (<span id="compare-program-label"></span>) regardless of the date range picker above.</p>
+  </div>
+
   <div class="panel panel--secondary">
     <div class="panel-head">
       <h2 class="panel-title panel-title--secondary">Lead Details</h2>

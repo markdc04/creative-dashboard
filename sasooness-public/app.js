@@ -731,6 +731,67 @@
     $('#source-body').innerHTML = html;
   }
 
+  // ================= period comparison (independent of the date-range picker) =================
+  // Each period is [start, end] inclusive, computed off today's Pacific date, not state.range.
+  function comparisonWindows(key) {
+    const today = pacificToday();
+    const thisMon = mondayOf(today);
+    if (key === 'thisweek_lastweek') {
+      const lastMon = addDays(thisMon, -7), lastSun = addDays(lastMon, 6);
+      return { a: { start: toISO(lastMon), end: toISO(lastSun), label: 'Last week' }, b: { start: toISO(thisMon), end: toISO(today), label: 'This week' } };
+    }
+    if (key === 'lastweek_weekbefore') {
+      const lastMon = addDays(thisMon, -7), lastSun = addDays(lastMon, 6);
+      const beforeMon = addDays(lastMon, -7), beforeSun = addDays(beforeMon, 6);
+      return { a: { start: toISO(beforeMon), end: toISO(beforeSun), label: 'Week before last' }, b: { start: toISO(lastMon), end: toISO(lastSun), label: 'Last week' } };
+    }
+    // thismonth_lastmonth
+    const y = today.getFullYear(), m = today.getMonth() + 1;
+    const lastM = m === 1 ? 12 : m - 1, lastY = m === 1 ? y - 1 : y;
+    return {
+      a: { start: toISO(startOfMonth(lastY, lastM)), end: toISO(endOfMonth(lastY, lastM)), label: 'Last month' },
+      b: { start: toISO(startOfMonth(y, m)), end: toISO(today), label: 'This month' },
+    };
+  }
+  function periodLeads(win) {
+    const program = state.filters.program;
+    return state.leads.filter((l) => programOf(l) === program && l.createdDate >= win.start && l.createdDate <= win.end);
+  }
+  function periodMetrics(win) {
+    const leads = periodLeads(win);
+    const signed = leads.filter((l) => isSignedCase(l)).length;
+    const rejected = leads.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
+    return {
+      'Total Leads': leads.length,
+      'Signed Cases': signed,
+      'Conversion Rate': leads.length ? (signed / leads.length) * 100 : 0,
+      'Rejected': rejected,
+    };
+  }
+  function renderComparison() {
+    const key = $('#compare-select').value;
+    const { a, b } = comparisonWindows(key);
+    $('#compare-th-a').textContent = a.label;
+    $('#compare-th-b').textContent = b.label;
+    $('#compare-program-label').textContent = programLabel(state.filters.program);
+    const ma = periodMetrics(a), mb = periodMetrics(b);
+    const fmt = (metric, v) => (metric === 'Conversion Rate' ? pct(v) : v.toLocaleString('en-US'));
+    const rows = Object.keys(ma).map((metric) => {
+      const va = ma[metric], vb = mb[metric];
+      const isPct = metric === 'Conversion Rate';
+      const diff = vb - va;
+      const diffPct = va ? (diff / va) * 100 : (vb ? 100 : 0);
+      const sign = diff > 0 ? '+' : '';
+      const changeText = isPct ? sign + diff.toLocaleString('en-US', { maximumFractionDigits: 1 }) + ' pt' : sign + diff.toLocaleString('en-US') + ' (' + sign + diffPct.toLocaleString('en-US', { maximumFractionDigits: 1 }) + '%)';
+      const changeCls = diff > 0 ? 'compare-up' : diff < 0 ? 'compare-down' : '';
+      return '<tr><td class="name-cell">' + escapeHtml(metric) + '</td>' +
+        '<td class="td-num num">' + fmt(metric, va) + '</td>' +
+        '<td class="td-num num">' + fmt(metric, vb) + '</td>' +
+        '<td class="td-num num ' + changeCls + '">' + escapeHtml(changeText) + '</td></tr>';
+    }).join('');
+    $('#compare-body').innerHTML = rows;
+  }
+
   // ================= status summary (full breakdown of raw CRM status values) =================
   function renderStatusSummary() {
     const leads = leadsFor('status');
@@ -998,6 +1059,7 @@
     renderCampaigns();
     renderPrograms();
     renderStatusSummary();
+    renderComparison();
     renderSegmentTabs();
     renderDailyLeads();
     renderOrigins();
@@ -1064,6 +1126,7 @@
   });
 
   $('#search').addEventListener('input', (e) => { state.search = e.target.value; render(); });
+  $('#compare-select').addEventListener('change', renderComparison);
   $('#refresh-btn').addEventListener('click', () => {
     $('#refresh-btn').classList.add('is-spinning');
     fetchData().finally(() => setTimeout(() => $('#refresh-btn').classList.remove('is-spinning'), 400));

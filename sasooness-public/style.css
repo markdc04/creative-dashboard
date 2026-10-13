@@ -63,6 +63,8 @@ tbody tr:hover{background:var(--surface-raised);}
 .status-pill--signed{background:var(--profit-dim);color:var(--profit);}
 .status-pill--rejected{background:var(--loss-dim);color:var(--loss);}
 .status-pill--other{background:var(--surface-raised);color:var(--text-dim);border:1px solid var(--border);}
+.compare-up{color:var(--profit);}
+.compare-down{color:var(--loss);}
 .empty-msg{padding:30px 0;text-align:center;color:var(--text-faint);font-size:13px;}
 .source-tag{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);}
 

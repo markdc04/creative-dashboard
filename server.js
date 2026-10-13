@@ -8,6 +8,7 @@ const sasooness = require('./sasooness');
 const km = require('./km');
 const bryan = require('./bryan');
 const clientView = require('./client-view');
+const layoutStore = require('./layout-store');
 
 const DOC_ID = '1YkpQh4hR96iMtvd_bvtrT0fN0zCaLQNKl3pa6Tix8BA';
 
@@ -467,6 +468,39 @@ const server = http.createServer((req, res) => {
   if (url.pathname === '/api/me') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify(session));
+    return;
+  }
+
+  // KPI tile ordering, per dashboard + program. Anyone logged in can read the saved order (so
+  // clients get the same layout an admin picked); only Mark can write one, same gate as /api/visits.
+  if (url.pathname === '/api/layout' && req.method === 'GET') {
+    const board = url.searchParams.get('board') || '';
+    const program = url.searchParams.get('program') || 'default';
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ order: layoutStore.get(board, program) }));
+    return;
+  }
+
+  if (url.pathname === '/api/layout' && req.method === 'POST') {
+    if (!session || session.name !== 'Mark') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'forbidden' }));
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; if (body.length > 20000) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const { board, program, order } = JSON.parse(body);
+        if (!board || typeof board !== 'string' || !Array.isArray(order)) throw new Error('bad payload');
+        layoutStore.set(board, program || 'default', order.map(String));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'bad request' }));
+      }
+    });
     return;
   }
 

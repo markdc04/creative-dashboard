@@ -43,6 +43,13 @@
     // tile and chart then re-computes from the leads and spend that match.
     filters: { status: null, campaign: null, program: 'agency', platform: null, reason: null },
     topStatuses: [],
+    // KPI tile ordering: me is who's logged in (only 'Mark' gets the drag UI); layout holds the
+    // saved order per program, fetched once and applied to every render until changed and saved.
+    me: null,
+    layout: { agency: null, ppl: null },
+    editingLayout: false,
+    editProgram: null,
+    dragLabels: null, // working copy of tile labels, in order, while editingLayout is true
   };
 
   function escapeHtml(s) {
@@ -402,18 +409,74 @@
         ['', 'CPC + Marketing Fee', cpcWithFee ? money(cpcWithFee) : dash, !costsMeaningful || !contractOk ? 'not split by filter' : signed ? 'total cost ÷ signed cases' : 'no signed cases yet', ''],
       ];
     }
-    const groups = [[]];
-    for (const t of tiles) { if (t[0] === '__break__') groups.push([]); else groups[groups.length - 1].push(t); }
+    renderLayoutToolbar();
     const tileHtml = ([key, label, value, sub, hint]) =>
       '<div class="kpi' + (key ? ' is-clickable' : '') + (key === 'signed' || label === 'Profit' ? ' kpi--highlight' : '') + (key === 'signed' && state.filters.status === SIGNED ? ' is-selected' : '') + '"' + (key ? ' data-tile="' + key + '" title="' + hint + '"' : '') + '>' +
       '<div class="kpi-label">' + escapeHtml(label) + '</div>' +
       '<div class="kpi-value num">' + value + '</div>' +
       (sub ? '<div class="kpi-sub">' + escapeHtml(sub) + '</div>' : '') + '</div>';
+
+    // An admin-chosen tile order (or the working copy while Mark is dragging) replaces the
+    // hardcoded two-row grouping above with one flat, re-sortable list — '__break__' markers only
+    // matter for the default, un-customized layout.
+    const savedOrder = state.layout[program];
+    const editingThis = state.editingLayout && state.editProgram === program;
+    if (editingThis || (savedOrder && savedOrder.length)) {
+      const flat = tiles.filter((t) => t[0] !== '__break__');
+      if (editingThis) {
+        if (!state.dragLabels) state.dragLabels = reorderByLabels(flat, savedOrder || []).map((t) => t[1]);
+        const ordered = reorderByLabels(flat, state.dragLabels);
+        const editHtml = ([, label, value, sub]) =>
+          '<div class="kpi is-draggable" draggable="true" data-drag-label="' + escapeHtml(label) + '">' +
+          '<div class="kpi-drag-handle">⠿ drag to reorder</div>' +
+          '<div class="kpi-label">' + escapeHtml(label) + '</div>' +
+          '<div class="kpi-value num">' + value + '</div>' +
+          (sub ? '<div class="kpi-sub">' + escapeHtml(sub) + '</div>' : '') + '</div>';
+        $('#kpi-row').className = 'kpi-row';
+        $('#kpi-row').innerHTML = ordered.map(editHtml).join('');
+      } else {
+        const ordered = reorderByLabels(flat, savedOrder);
+        $('#kpi-row').className = 'kpi-row';
+        $('#kpi-row').innerHTML = ordered.map(tileHtml).join('');
+      }
+      $('#kpi-row-2').hidden = true;
+      $('#kpi-row-2').innerHTML = '';
+      return;
+    }
+
+    const groups = [[]];
+    for (const t of tiles) { if (t[0] === '__break__') groups.push([]); else groups[groups.length - 1].push(t); }
     $('#kpi-row').className = 'kpi-row' + (groups[0].length === 4 || groups[0].length === 5 ? ' kpi-row--' + groups[0].length : '');
     $('#kpi-row').innerHTML = groups[0].map(tileHtml).join('');
     $('#kpi-row-2').hidden = groups.length < 2;
     $('#kpi-row-2').className = 'kpi-row' + (groups.length > 1 && groups[1].length === 5 ? ' kpi-row--5' : '');
     $('#kpi-row-2').innerHTML = groups.length > 1 ? groups[1].map(tileHtml).join('') : '';
+  }
+
+  // Sorts tiles by a saved/working label order; tiles whose label isn't in `order` (e.g. a tile
+  // added after the layout was last saved) keep their original relative order, appended at the end.
+  function reorderByLabels(list, order) {
+    const idx = new Map((order || []).map((l, i) => [l, i]));
+    return list
+      .map((t, i) => ({ t, i }))
+      .sort((a, b) => {
+        const ia = idx.has(a.t[1]) ? idx.get(a.t[1]) : 1e9 + a.i;
+        const ib = idx.has(b.t[1]) ? idx.get(b.t[1]) : 1e9 + b.i;
+        return ia - ib;
+      })
+      .map((x) => x.t);
+  }
+
+  // Only Mark gets the drag UI; everyone else (other admins, clients) just sees whatever order he
+  // last saved, with no button at all — same "only I can touch it, it still applies to everyone"
+  // split as /api/visits being Mark-only server-side.
+  function renderLayoutToolbar() {
+    const canEdit = state.me && state.me.name === 'Mark';
+    $('#kpi-toolbar').hidden = !canEdit;
+    if (!canEdit) return;
+    $('#layout-edit-btn').hidden = state.editingLayout;
+    $('#layout-save-btn').hidden = !state.editingLayout;
+    $('#layout-cancel-btn').hidden = !state.editingLayout;
   }
 
   // ================= shared SVG/tooltip helpers =================
@@ -1135,8 +1198,91 @@
     fetchData().finally(() => setTimeout(() => $('#refresh-btn').classList.remove('is-spinning'), 400));
   });
 
+  // ================= KPI layout customization (Mark-only; saved order applies to everyone) =====
+  async function fetchMe() {
+    try { const r = await fetch('/api/me', { cache: 'no-store' }); state.me = r.ok ? await r.json() : null; } catch (err) { state.me = null; }
+  }
+  async function fetchLayout(program) {
+    try {
+      const r = await fetch('/api/layout?board=sasooness&program=' + program, { cache: 'no-store' });
+      const d = r.ok ? await r.json() : null;
+      state.layout[program] = (d && d.order) || null;
+    } catch (err) { state.layout[program] = null; }
+  }
+
+  $('#layout-edit-btn').addEventListener('click', () => {
+    state.editingLayout = true;
+    state.editProgram = state.filters.program;
+    state.dragLabels = null;
+    render();
+  });
+  $('#layout-cancel-btn').addEventListener('click', () => {
+    state.editingLayout = false;
+    state.editProgram = null;
+    state.dragLabels = null;
+    render();
+  });
+  $('#layout-save-btn').addEventListener('click', async () => {
+    const program = state.editProgram;
+    try {
+      const r = await fetch('/api/layout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ board: 'sasooness', program, order: state.dragLabels }),
+      });
+      if (!r.ok) throw new Error('save failed');
+      state.layout[program] = state.dragLabels;
+      state.editingLayout = false;
+      state.editProgram = null;
+      state.dragLabels = null;
+      render();
+    } catch (err) {
+      alert('Could not save the layout — try again.');
+    }
+  });
+
+  // Native HTML5 drag-and-drop over whichever tile is currently under the pointer; reorders
+  // state.dragLabels and re-renders on drop, same working-copy-then-save pattern as every other
+  // filter on this page.
+  let dragSrcLabel = null;
+  document.addEventListener('dragstart', (e) => {
+    const el = e.target.closest('.kpi[data-drag-label]');
+    if (!el) return;
+    dragSrcLabel = el.dataset.dragLabel;
+    e.dataTransfer.effectAllowed = 'move';
+    el.classList.add('is-dragging');
+  });
+  document.addEventListener('dragend', (e) => {
+    const el = e.target.closest('.kpi[data-drag-label]');
+    if (el) el.classList.remove('is-dragging');
+  });
+  document.addEventListener('dragover', (e) => {
+    if (!dragSrcLabel || !e.target.closest('.kpi[data-drag-label]')) return;
+    e.preventDefault();
+  });
+  document.addEventListener('drop', (e) => {
+    const el = e.target.closest('.kpi[data-drag-label]');
+    if (!el || !dragSrcLabel) return;
+    e.preventDefault();
+    const targetLabel = el.dataset.dragLabel;
+    if (targetLabel !== dragSrcLabel && state.dragLabels) {
+      const order = state.dragLabels.slice();
+      const from = order.indexOf(dragSrcLabel);
+      const to = order.indexOf(targetLabel);
+      if (from !== -1 && to !== -1) {
+        order.splice(from, 1);
+        order.splice(to, 0, dragSrcLabel);
+        state.dragLabels = order;
+      }
+    }
+    dragSrcLabel = null;
+    render();
+  });
+
   // Opens on the new AZ budget's start (9/21) through yesterday (Pacific), not all time.
   setRange('custom', '2026-09-21', toISO(addDays(pacificToday(), -1)));
   fetchData();
   setInterval(fetchData, 30000);
+  fetchMe().then(render);
+  Promise.all([fetchLayout('agency'), fetchLayout('ppl')]).then(render);
 })();

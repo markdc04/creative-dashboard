@@ -167,6 +167,11 @@ tr.is-dim:hover{opacity:.8;}
 .kpi-row.kpi-row--5{grid-template-columns:repeat(5,1fr);}
 @media (max-width:900px){.kpi-row.kpi-row--4,.kpi-row.kpi-row--5{grid-template-columns:repeat(2,1fr);}}
 .kpi.is-selected{border-color:var(--accent);background:rgba(240,180,41,.08);}
+.kpi-toolbar{display:flex;gap:8px;margin-bottom:12px;}
+.kpi.is-draggable{cursor:grab;border-style:dashed;}
+.kpi.is-dragging{opacity:.4;}
+.kpi.is-drag-over{border-color:var(--accent);}
+.kpi-drag-handle{font-size:11px;color:var(--text-faint);letter-spacing:.1em;}
 .legend-btn{background:none;border:none;font:inherit;padding:2px 4px;border-radius:6px;cursor:pointer;color:var(--text-dim);font-size:11.5px;font-weight:600;}
 .legend-btn:hover{background:var(--surface-raised);color:var(--text);}
 .legend-btn.is-selected{color:var(--text);box-shadow:0 0 0 1px var(--accent);}

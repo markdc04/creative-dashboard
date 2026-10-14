@@ -12,7 +12,7 @@ body{
   -webkit-font-smoothing:antialiased;min-height:100vh;
 }
 .num{font-family:ui-monospace,"SF Mono","Roboto Mono",monospace;font-variant-numeric:tabular-nums;}
-.wrap{max-width:1300px;margin:0 auto;padding:22px 24px 64px;}
+.wrap{max-width:1760px;margin:0 auto;padding:22px 24px 64px;}
 
 .brandbar{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:18px;flex-wrap:wrap;}
 .brandlogo{height:34px;width:auto;display:block;}
@@ -197,23 +197,28 @@ button.platform-tag:hover,button.platform-tag.is-selected{background:var(--surfa
 
 /* ===== Walker dashboard additions ===== */
 .kpi-row--walker{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));}
+.walker-section{container-type:inline-size;container-name:walker-section;}
 #global-kpis.kpi-row--walker,#agency-kpis.kpi-row--walker{
   grid-template-columns:repeat(9,minmax(0,1fr));
-  gap:clamp(4px,0.6vw,12px);
+  gap:clamp(6px,0.8vw,16px);
 }
 #global-kpis.kpi-row--walker .kpi,#agency-kpis.kpi-row--walker .kpi{
   container-type:inline-size;
-  padding:clamp(8px,1vw,16px) clamp(6px,0.8vw,14px);
-  gap:clamp(4px,0.5vw,8px);
+  padding:clamp(10px,1.3vw,20px) clamp(8px,1vw,16px);
+  gap:clamp(5px,0.7vw,10px);
 }
 #global-kpis.kpi-row--walker .kpi-label,#agency-kpis.kpi-row--walker .kpi-label{
-  font-size:clamp(7px,7cqw,10.5px);
+  font-size:clamp(7.5px,8cqw,12px);
   letter-spacing:.02em;
   white-space:normal;line-height:1.25;word-break:break-word;
 }
 #global-kpis.kpi-row--walker .kpi-value,#agency-kpis.kpi-row--walker .kpi-value{
-  font-size:clamp(10px,12cqw,22px);
-  white-space:normal;line-height:1.15;word-break:break-word;overflow-wrap:break-word;
+  font-size:clamp(13px,13.5cqw,26px);
+  white-space:nowrap;line-height:1.15;overflow:hidden;text-overflow:clip;
+}
+@container walker-section (max-width:900px){
+  #global-kpis.kpi-row--walker,#agency-kpis.kpi-row--walker{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));}
+  #global-kpis.kpi-row--walker .kpi-value,#agency-kpis.kpi-row--walker .kpi-value{white-space:normal;word-break:break-word;overflow-wrap:break-word;overflow:visible;}
 }
 @media (max-width:860px){
   #global-kpis.kpi-row--walker,#agency-kpis.kpi-row--walker{grid-template-columns:repeat(auto-fit,minmax(110px,1fr));}

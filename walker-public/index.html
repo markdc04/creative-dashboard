@@ -52,6 +52,7 @@
     <button class="segment-tab" data-section="agency">Agency Dashboard</button>
     <button class="segment-tab" data-section="trends">Campaign Trends</button>
     <button class="segment-tab" data-section="restored">Restored &amp; Late QMVAs</button>
+    <button class="segment-tab" data-section="hourly">Hourly Performance</button>
   </div>
 
   <!-- ============ GLOBAL PPL ============ -->
@@ -171,6 +172,24 @@
           <tbody id="correlation-body"></tbody>
         </table>
       </div>
+    </div>
+  </section>
+
+  <!-- ============ HOURLY PERFORMANCE (static export, not live) ============ -->
+  <section class="walker-section" id="section-hourly">
+    <div class="panel">
+      <div class="panel-head"><h2 class="panel-title">Days from Posted to Qualified</h2></div>
+      <p class="footnote footnote--inside" id="posted-subtitle">Weblead = ping-post form leads (posted, then dialed). Inbound = live calls, where the post and the call are the same event.</p>
+      <p class="panel-sub" id="posted-note"></p>
+      <div class="table-scroll"><table id="posted-table"></table></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2 class="panel-title">Walker CA vs Walker NW &mdash; Hourly Performance</h2></div>
+      <p class="footnote footnote--inside">QMVA and Revenue from Loudr_Posted_to_Qualified, joined by Call ID to the Real Time Publisher Portal for each lead's actual payout. Spend from the Google/Meta Ad Spend Per Hour sheet. No total-lead-volume source exists, so there's no CPL/CVR here.</p>
+      <p class="panel-sub" id="hourly-note"></p>
+      <div class="chart-canvas-wrap" style="margin-bottom:16px"><canvas id="chart-hourly"></canvas></div>
+      <div class="table-scroll"><table id="hourly-table"></table></div>
     </div>
   </section>
 

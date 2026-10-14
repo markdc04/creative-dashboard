@@ -73,6 +73,7 @@
     trendsDays: [],
     lateQmvas: [], restoredLeads: [], correlation: [],
     restoredSub: 'late',
+    posted: null, hourly: null,
     loadedSections: new Set(),
   };
 
@@ -374,6 +375,160 @@
     ).join('');
   }
 
+  // ---- Hourly Performance: static export, not live (same as the original app — its own two
+  // source files, posted-to-qualified-raw.json and hourly-performance-raw.json, are one-time
+  // Domo/sheet exports with no live refresh; re-export and overwrite the JSON files to update) ----
+  function pct1(n) { return (n * 100).toFixed(1) + '%'; }
+  function median(sorted) {
+    const n = sorted.length;
+    if (!n) return 0;
+    const mid = Math.floor(n / 2);
+    return n % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+  function fmtHours(h) {
+    if (h == null) return '—';
+    if (h < 1) return Math.round(h * 60) + 'm';
+    if (h < 24) return h.toFixed(1) + 'h';
+    const totalHours = Math.round(h);
+    const days = Math.floor(totalHours / 24), remHours = totalHours % 24;
+    return remHours ? days + 'd ' + remHours + 'h' : days + 'd';
+  }
+  function fmtHour(h) { const hh = ((h + 11) % 12) + 1; return hh + (h < 12 ? 'am' : 'pm'); }
+
+  function computePostedRows(leads, bucketLabels) {
+    const buckets = Array.from({ length: 6 }, () => ({ weblead: 0, inbound: 0, hours: [] }));
+    leads.forEach(([, channel, bucket, hours]) => {
+      if (channel === 0) buckets[bucket].weblead += 1; else buckets[bucket].inbound += 1;
+      buckets[bucket].hours.push(hours);
+    });
+    const totalWeblead = buckets.reduce((s, b) => s + b.weblead, 0);
+    const totalInbound = buckets.reduce((s, b) => s + b.inbound, 0);
+    const totalAll = totalWeblead + totalInbound;
+    const allHours = buckets.flatMap((b) => b.hours).sort((a, b) => a - b);
+    return {
+      rows: buckets.map((b, i) => {
+        const sorted = [...b.hours].sort((a, b) => a - b);
+        const n = sorted.length;
+        return {
+          label: bucketLabels[i],
+          weblead: b.weblead, webleadPct: totalWeblead ? b.weblead / totalWeblead : 0,
+          inbound: b.inbound, inboundPct: totalInbound ? b.inbound / totalInbound : 0,
+          all: b.weblead + b.inbound, allPct: totalAll ? (b.weblead + b.inbound) / totalAll : 0,
+          avgHours: n ? sorted.reduce((s, v) => s + v, 0) / n : null,
+          medianHours: n ? median(sorted) : null,
+          minHours: n ? sorted[0] : null,
+          maxHours: n ? sorted[n - 1] : null,
+        };
+      }),
+      total: {
+        weblead: totalWeblead, inbound: totalInbound, all: totalAll,
+        avgHours: allHours.length ? allHours.reduce((s, v) => s + v, 0) / allHours.length : null,
+        medianHours: allHours.length ? median(allHours) : null,
+        minHours: allHours.length ? allHours[0] : null,
+        maxHours: allHours.length ? allHours[allHours.length - 1] : null,
+      },
+    };
+  }
+  function renderPostedTable(computed) {
+    const bodyRows = computed.rows.map((r) =>
+      '<tr><td>' + escapeHtml(r.label) + '</td><td class="td-num num">' + fmtInt(r.weblead) + '</td><td class="td-num num">' + pct1(r.webleadPct) + '</td>' +
+      '<td class="td-num num">' + fmtInt(r.inbound) + '</td><td class="td-num num">' + pct1(r.inboundPct) + '</td>' +
+      '<td class="td-num num">' + fmtInt(r.all) + '</td><td class="td-num num">' + pct1(r.allPct) + '</td>' +
+      '<td class="td-num num">' + fmtHours(r.avgHours) + '</td><td class="td-num num">' + fmtHours(r.medianHours) + '</td>' +
+      '<td class="td-num num">' + fmtHours(r.minHours) + '</td><td class="td-num num">' + fmtHours(r.maxHours) + '</td></tr>'
+    ).join('');
+    const t = computed.total;
+    $('#posted-table').innerHTML =
+      '<thead><tr><th>Days from posted</th><th class="th-num">Weblead</th><th class="th-num">% of Weblead</th>' +
+      '<th class="th-num">Inbound</th><th class="th-num">% of Inbound</th><th class="th-num">All channels</th><th class="th-num">% of All</th>' +
+      '<th class="th-num">Avg hrs</th><th class="th-num">Median hrs</th><th class="th-num">Fastest</th><th class="th-num">Slowest</th></tr></thead>' +
+      '<tbody>' + bodyRows +
+      '<tr class="row-total"><td>Total measurable</td><td class="td-num num">' + fmtInt(t.weblead) + '</td><td class="td-num num">100.0%</td>' +
+      '<td class="td-num num">' + fmtInt(t.inbound) + '</td><td class="td-num num">100.0%</td><td class="td-num num">' + fmtInt(t.all) + '</td><td class="td-num num">100.0%</td>' +
+      '<td class="td-num num">' + fmtHours(t.avgHours) + '</td><td class="td-num num">' + fmtHours(t.medianHours) + '</td>' +
+      '<td class="td-num num">' + fmtHours(t.minHours) + '</td><td class="td-num num">' + fmtHours(t.maxHours) + '</td></tr></tbody>';
+  }
+
+  function computeHourlyRows(cells) {
+    const byHour = Array.from({ length: 24 }, () => ({ caSpend: 0, caQmva: 0, caRevenue: 0, nwSpend: 0, nwQmva: 0, nwRevenue: 0 }));
+    cells.forEach(([, hour, caSpend, caQmva, caRevenue, nwSpend, nwQmva, nwRevenue]) => {
+      const b = byHour[hour];
+      b.caSpend += caSpend; b.caQmva += caQmva; b.caRevenue += caRevenue;
+      b.nwSpend += nwSpend; b.nwQmva += nwQmva; b.nwRevenue += nwRevenue;
+    });
+    return byHour.map((b, hour) => ({
+      hour, caSpend: b.caSpend, caQmva: b.caQmva, caCostPerQmva: b.caQmva ? b.caSpend / b.caQmva : 0,
+      caRevenue: b.caRevenue, caProfit: b.caRevenue - b.caSpend,
+      nwSpend: b.nwSpend, nwQmva: b.nwQmva, nwCostPerQmva: b.nwQmva ? b.nwSpend / b.nwQmva : 0,
+      nwRevenue: b.nwRevenue, nwProfit: b.nwRevenue - b.nwSpend,
+    }));
+  }
+  function renderHourlyTable(rows) {
+    const bodyRows = rows.map((r) =>
+      '<tr><td>' + fmtHour(r.hour) + '</td>' +
+      '<td class="td-num num">' + fmtMoney(r.caSpend) + '</td><td class="td-num num">' + fmtInt(r.caQmva) + '</td>' +
+      '<td class="td-num num">' + fmtMoney(r.caCostPerQmva) + '</td><td class="td-num num">' + fmtMoney(r.caRevenue) + '</td>' +
+      '<td class="td-num num ' + (r.caProfit < 0 ? 'compare-down' : 'compare-up') + '">' + fmtMoney(r.caProfit) + '</td>' +
+      '<td class="td-num num">' + fmtMoney(r.nwSpend) + '</td><td class="td-num num">' + fmtInt(r.nwQmva) + '</td>' +
+      '<td class="td-num num">' + fmtMoney(r.nwCostPerQmva) + '</td><td class="td-num num">' + fmtMoney(r.nwRevenue) + '</td>' +
+      '<td class="td-num num ' + (r.nwProfit < 0 ? 'compare-down' : 'compare-up') + '">' + fmtMoney(r.nwProfit) + '</td></tr>'
+    ).join('');
+    $('#hourly-table').innerHTML =
+      '<thead><tr><th>Hour</th><th class="th-num">CA Spend</th><th class="th-num">CA QMVA</th><th class="th-num">CA Cost/QMVA</th><th class="th-num">CA Revenue</th><th class="th-num">CA Profit</th>' +
+      '<th class="th-num">NW Spend</th><th class="th-num">NW QMVA</th><th class="th-num">NW Cost/QMVA</th><th class="th-num">NW Revenue</th><th class="th-num">NW Profit</th></tr></thead>' +
+      '<tbody>' + bodyRows + '</tbody>';
+  }
+  function renderHourlyChart(rows) {
+    const labels = rows.map((r) => fmtHour(r.hour));
+    upsertChart('chart-hourly', {
+      data: { labels, datasets: [
+        { type: 'line', label: 'CA QMVA', data: rows.map((r) => r.caQmva), borderColor: PALETTE[0], tension: 0.35, pointRadius: 2, yAxisID: 'y' },
+        { type: 'line', label: 'CA Spend', data: rows.map((r) => r.caSpend), borderColor: PALETTE[1], borderDash: [5, 3], tension: 0.35, pointRadius: 2, yAxisID: 'y1' },
+        { type: 'line', label: 'NW QMVA', data: rows.map((r) => r.nwQmva), borderColor: PALETTE[2], tension: 0.35, pointRadius: 2, yAxisID: 'y' },
+        { type: 'line', label: 'NW Spend', data: rows.map((r) => r.nwSpend), borderColor: PALETTE[3], borderDash: [5, 3], tension: 0.35, pointRadius: 2, yAxisID: 'y1' },
+      ] },
+      options: chartOptions({ y1: true }),
+    });
+  }
+
+  async function loadHourly() {
+    const [postedRes, hourlyRes] = await Promise.all([
+      fetch('posted-to-qualified-raw.json', { cache: 'no-store' }).then((r) => r.json()),
+      fetch('hourly-performance-raw.json', { cache: 'no-store' }).then((r) => r.json()),
+    ]);
+    state.posted = postedRes;
+    state.hourly = hourlyRes;
+    renderHourly();
+  }
+  function renderHourly() {
+    const posted = state.posted, hourly = state.hourly;
+    if (!posted || !hourly) return;
+    const from = state.range.start || posted.minDate, to = state.range.end || posted.maxDate;
+    const pFrom = from < posted.minDate ? posted.minDate : from, pTo = to > posted.maxDate ? posted.maxDate : to;
+    if (pTo < posted.minDate || pFrom > posted.maxDate) {
+      renderPostedTable(computePostedRows([], posted.bucketLabels));
+      $('#posted-note').textContent = 'No data — this export only covers leads posted ' + posted.minDate + ' to ' + posted.maxDate + '.';
+    } else {
+      renderPostedTable(computePostedRows(posted.leads.filter((l) => l[0] >= pFrom && l[0] <= pTo), posted.bucketLabels));
+      $('#posted-note').textContent = (pFrom === posted.minDate && pTo === posted.maxDate)
+        ? 'Data covers leads posted ' + posted.minDate + ' to ' + posted.maxDate + ' — not live.'
+        : 'Showing leads posted ' + pFrom + ' to ' + pTo + ' (export covers ' + posted.minDate + ' to ' + posted.maxDate + ') — not live.';
+    }
+    const hFrom = from < hourly.minDate ? hourly.minDate : from, hTo = to > hourly.maxDate ? hourly.maxDate : to;
+    if (hTo < hourly.minDate || hFrom > hourly.maxDate) {
+      renderHourlyTable(computeHourlyRows([]));
+      renderHourlyChart(computeHourlyRows([]));
+      $('#hourly-note').textContent = 'No data — this table only covers ' + hourly.minDate + ' to ' + hourly.maxDate + '. Pick a date in that window to see numbers.';
+    } else {
+      const rows = computeHourlyRows(hourly.cells.filter((c) => c[0] >= hFrom && c[0] <= hTo));
+      renderHourlyTable(rows);
+      renderHourlyChart(rows);
+      $('#hourly-note').textContent = (hFrom === hourly.minDate && hTo === hourly.maxDate)
+        ? 'Showing the full export: ' + hourly.minDate + ' to ' + hourly.maxDate + ' — not live.'
+        : 'Showing ' + hFrom + ' to ' + hTo + ' (export covers ' + hourly.minDate + ' to ' + hourly.maxDate + ') — not live.';
+    }
+  }
+
   // ---- section switching ----
   async function showSection(name) {
     state.section = name;
@@ -386,12 +541,14 @@
       else if (name === 'agency') await loadAgency();
       else if (name === 'trends') await loadTrends();
       else if (name === 'restored') await loadRestored();
+      else if (name === 'hourly') await loadHourly();
     } else {
       if (name === 'global') renderGlobal();
       else if (name === 'nwca') renderNwCa();
       else if (name === 'agency') renderAgency();
       else if (name === 'trends') renderTrends();
       else if (name === 'restored') renderRestored();
+      else if (name === 'hourly') renderHourly();
     }
   }
 
@@ -405,6 +562,7 @@
     else if (state.section === 'agency') renderAgency();
     else if (state.section === 'trends') renderTrends();
     else if (state.section === 'restored') renderRestored();
+    else if (state.section === 'hourly') renderHourly();
   }
 
   $('#walker-tabs').addEventListener('click', (e) => {

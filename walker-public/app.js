@@ -69,7 +69,7 @@
   const state = {
     range: { start: null, end: null },
     section: 'global',
-    rows: { 'ca-nw': [], nw: [], ca: [], 'live-agency': [] },
+    rows: { 'ca-nw': [], nw: [], ca: [], 'live-agency': [], 'media-spend': [], 'agency-leads': [], 'google-ad-spent': [] },
     leadDetail: [],
     trendsDays: [],
     lateQmvas: [], restoredLeads: [], correlation: [],
@@ -381,14 +381,87 @@
   }
 
   async function loadAgency() {
-    const rows = await fetchTab('live-agency');
-    state.rows['live-agency'] = rows;
+    const [agency, mediaSpend, agencyLeads, googleAdSpent] = await Promise.all([
+      fetchTab('live-agency'), fetchTab('media-spend'), fetchTab('agency-leads'), fetchTab('google-ad-spent'),
+    ]);
+    state.rows['live-agency'] = agency;
+    state.rows['media-spend'] = mediaSpend;
+    state.rows['agency-leads'] = agencyLeads;
+    state.rows['google-ad-spent'] = googleAdSpent;
     renderAgency();
   }
+  // Ported from the original walker-dashboard's renderAgency(): Agency has no Revenue/Profit
+  // concept of its own (it's a pass-through ad-buying service, not a per-lead payout one) — its
+  // real scorecards are actual ad spend plus the 35% agency fee from the Media Spend Tracker,
+  // with QMVA/CPQMVA from the LIVE AGENCY rows and a real lead count from the AGENCY Leads
+  // Import sheet (one row per lead — LIVE AGENCY's own Total Leads column just mirrors Current
+  // QMVA 1:1 in the source sheet, not an independent count).
   function renderAgency() {
     const rows = state.rows['live-agency'].filter(inRange);
-    renderKpiRow('agency-kpis', rows, { includeHistorical: false });
+    const mediaRows = state.rows['media-spend'].filter(inRange);
+    const leadRows = state.rows['agency-leads'].filter(inRange);
+
+    const realAdSpent = mediaRows.reduce((s, r) => s + r.totalSpent, 0);
+    const realFee = mediaRows.reduce((s, r) => s + r.agencyFee, 0);
+    const realTotalWithFee = mediaRows.reduce((s, r) => s + r.totalWithFee, 0);
+    const qmva = rows.reduce((s, r) => s + r.currentQmva, 0);
+    const cpqmva = qmva ? realTotalWithFee / qmva : 0;
+    const totalLeads = leadRows.reduce((s, r) => s + r.totalLeads, 0);
+    const cpl = totalLeads ? realAdSpent / totalLeads : 0;
+
+    $('#agency-kpis').innerHTML = [
+      ['AD SPENT', fmtMoney(realAdSpent), true],
+      ['AGENCY FEE (35%)', fmtMoney(realFee), true],
+      ['AD SPENT + 35% FEE', fmtMoney(realTotalWithFee), true],
+      ['CURRENT QMVA', fmtInt(qmva), true],
+      ['CPQMVA', fmtMoney(cpqmva), true],
+      ['TOTAL LEADS', fmtInt(totalLeads), false],
+      ['COST PER LEAD', fmtMoney(cpl), false],
+    ].map(([label, value, highlight]) =>
+      '<div class="kpi' + (highlight ? ' kpi--highlight' : '') + '">' +
+      '<div class="kpi-label">' + label + '</div><div class="kpi-value num">' + value + '</div></div>'
+    ).join('');
+
     renderChartTrio('agency', rows);
+    renderLeadsByAd(leadRows);
+  }
+
+  // Joins each lead's UTM Term to the Google Ad Spent sheet's Ad ID to show how many leads each
+  // ad actually produced and its cost per lead on that specific ad.
+  function renderLeadsByAd(leadRows) {
+    const el = $('#agency-leads-by-ad');
+    if (!el) return;
+    const adSpendRows = state.rows['google-ad-spent'].filter(inRange);
+    const spendByAdId = new Map();
+    adSpendRows.forEach((r) => {
+      if (!r.adId) return;
+      if (!spendByAdId.has(r.adId)) spendByAdId.set(r.adId, { adName: r.adName, campaignName: r.campaignName, spend: 0 });
+      spendByAdId.get(r.adId).spend += r.totalSpent;
+    });
+    const leadsByAdId = new Map();
+    leadRows.forEach((r) => {
+      if (!r.utmTerm) return;
+      leadsByAdId.set(r.utmTerm, (leadsByAdId.get(r.utmTerm) || 0) + 1);
+    });
+    const adIds = new Set([...spendByAdId.keys(), ...leadsByAdId.keys()]);
+    const combined = Array.from(adIds).map((adId) => {
+      const spendInfo = spendByAdId.get(adId);
+      const leads = leadsByAdId.get(adId) || 0;
+      const spend = spendInfo ? spendInfo.spend : 0;
+      return {
+        adName: spendInfo ? spendInfo.adName : '(unmatched ad ID)',
+        campaignName: spendInfo ? spendInfo.campaignName : '',
+        leads, spend, cpl: leads ? spend / leads : 0,
+      };
+    }).filter((r) => r.leads > 0 || r.spend > 0).sort((a, b) => b.leads - a.leads).slice(0, 30);
+
+    if (!combined.length) { el.innerHTML = '<p style="padding:16px;opacity:0.7">No data for the current filters.</p>'; return; }
+    el.innerHTML = '<table><thead><tr><th>Ad Name</th><th>Campaign</th><th class="th-num">Leads</th><th class="th-num">Spend</th><th class="th-num">Cost/Lead</th></tr></thead><tbody>' +
+      combined.map((r) =>
+        '<tr><td>' + escapeHtml(r.adName) + '</td><td>' + escapeHtml(r.campaignName) + '</td>' +
+        '<td class="td-num num">' + fmtInt(r.leads) + '</td><td class="td-num num">' + fmtMoney(r.spend) + '</td>' +
+        '<td class="td-num num">' + fmtMoney(r.cpl) + '</td></tr>'
+      ).join('') + '</tbody></table>';
   }
 
   async function loadTrends() {

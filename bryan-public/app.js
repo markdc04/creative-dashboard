@@ -152,7 +152,10 @@
     for (const l of leads) {
       const o = l.origin;
       if (!o || !o.campaignId || !l.createdDate) continue;
-      if (l.billable === false) continue;
+      // A lead that's simply over the month's billable cap (or the Aug 3-5 "tail of a prior
+      // deal" leads) is still a real Walker delivery and still costs ad spend, just no revenue —
+      // only a free replacement for a bad lead is never charged, on either side of the ledger.
+      if (l.replacement) continue;
       if (l.createdDate === '2026-10-07') continue;
       const key = o.campaignId + '|' + l.createdDate;
       sent.set(key, (sent.get(key) || 0) + 1);

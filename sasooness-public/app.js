@@ -327,10 +327,10 @@
   // like Jan-Aug, it's two invoiced tranches whose fee scales with actual ad spend at each
   // tranche's own rate (37.5% for 9/9-9/20, 35% for 9/21 onward) — see renderKpis. So the
   // schedule's own Sep rows are excluded from this day-by-day proration, capped at end of August.
-  function contractForRange() {
+  function contractForRange(rangeOverride) {
     const sched = state.schedule;
     if (!sched.length) return { budget: 0, fee: 0 };
-    const { start, end } = state.range;
+    const { start, end } = rangeOverride || state.range;
     const first = sched[0].month;
     const lastEntry = sched[sched.length - 1];
     const noFilter = !start && !end;
@@ -967,21 +967,69 @@
       b: { start: toISO(startOfMonth(y, m)), end: toISO(today), label: 'This month' },
     };
   }
-  function periodLeads(win) {
-    const program = state.filters.program;
-    return state.leads.filter((l) => programOf(l) === program && l.createdDate >= win.start && l.createdDate <= win.end);
-  }
-  function periodMetrics(win) {
-    const leads = periodLeads(win);
+  // Every metric a program's own KPI tiles show, recomputed for an arbitrary window instead of
+  // the page's main date-range picker — same formulas as renderKpis, just parametrized by
+  // win.start/win.end so two different periods can be computed side by side.
+  function agencyFinancialsForWindow(win) {
+    const leads = state.leads.filter((l) => programOf(l) === 'agency' && l.createdDate >= win.start && l.createdDate <= win.end);
+    const total = leads.length;
     const signed = leads.filter((l) => isSignedCase(l)).length;
     const rejected = leads.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
+    const ownSpend = state.campaignSpend.filter((r) => r.date >= win.start && r.date <= win.end).reduce((a, r) => a + r.spend, 0);
+    const partnerSpend = partnerDeduction(leads).total;
+    const totalSpend = ownSpend + partnerSpend;
+    const cpl = total > 0 ? totalSpend / total : 0;
+    const costPerCase = signed > 0 ? totalSpend / signed : 0;
+    const { fee: feeBeforeSept } = contractForRange({ start: win.start, end: win.end });
+    const budgetTo = win.end;
+    const combinedAgencySpend = (from, to) => {
+      const own = state.campaignSpend.filter((r) => r.date >= from && r.date <= to).reduce((a, r) => a + r.spend, 0);
+      const partner = partnerDeduction(state.leads.filter((l) => programOf(l) === 'agency' && l.createdDate >= from && l.createdDate <= to)).total;
+      return own + partner;
+    };
+    const adBudgetLeft = AD_BUDGET_TOTAL - combinedAgencySpend(AD_BUDGET_FROM, budgetTo);
+    const AD_TRANCHE1_END = '2026-10-08';
+    const windowSpend = (winFrom, winTo) => {
+      const from = win.start && win.start > winFrom ? win.start : winFrom;
+      const to = winTo < budgetTo ? winTo : budgetTo;
+      return from > to ? 0 : combinedAgencySpend(from, to);
+    };
+    const fee = feeBeforeSept + windowSpend(AD_BUDGET_FROM, AD_TRANCHE1_END) * 0.375 + windowSpend(AZ_BUDGET_FROM, '9999-12-31') * 0.35;
+    const totalCost = totalSpend + fee;
     return {
-      'Total Leads': leads.length,
-      'Signed Cases': signed,
-      'Conversion Rate': leads.length ? (signed / leads.length) * 100 : 0,
-      'Rejected': rejected,
+      'Total Leads': total, 'Signed Cases': signed, 'Conversion Rate': total ? (signed / total) * 100 : 0, 'Rejected': rejected,
+      'Cost / Lead': cpl, 'CPC (Cost / Case)': costPerCase, 'Ad Spend': totalSpend, 'Ad Budget Left': adBudgetLeft,
+      'Marketing Fee': fee, 'Total Cost': totalCost, 'CPC + Marketing Fee': signed > 0 ? totalCost / signed : 0,
     };
   }
+  function pplFinancialsForWindow(win) {
+    const leads = state.leads.filter((l) => programOf(l) === 'ppl' && l.createdDate >= win.start && l.createdDate <= win.end);
+    const total = leads.length;
+    const signed = leads.filter((l) => isSignedCase(l)).length;
+    const rejected = leads.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
+    const open = leads.filter((l) => !(l.status || '').trim()).length;
+    const adSpent = partnerDeduction(leads).total;
+    const cpl = total > 0 ? adSpent / total : 0;
+    const revenue = PPL_PRICE_PER_LEAD * total;
+    const pplLeadsSinceBudget = state.leads.filter((l) => programOf(l) === 'ppl' && l.createdDate >= PPL_BUDGET_FROM && l.createdDate <= win.end).length;
+    const budgetLeft = PPL_BUDGET - PPL_PRICE_PER_LEAD * pplLeadsSinceBudget;
+    const costPerCase = signed > 0 ? adSpent / signed : 0;
+    const profit = revenue - adSpent;
+    return {
+      'Total Leads': total, 'Signed Cases': signed, 'Conversion Rate': total ? (signed / total) * 100 : 0, 'Rejected': rejected,
+      'Awaiting Status': open, 'Revenue': revenue, 'Ad Spent': adSpent, 'Profit': profit, 'CPL (Cost / Lead)': cpl,
+      'Budget Left': budgetLeft, 'Cost / Case': costPerCase, 'CPC + Marketing Fee': signed > 0 ? revenue / signed : 0,
+    };
+  }
+  function periodMetrics(win) {
+    return state.filters.program === 'ppl' ? pplFinancialsForWindow(win) : agencyFinancialsForWindow(win);
+  }
+
+  const COMPARE_PCT_METRICS = new Set(['Conversion Rate']);
+  const COMPARE_MONEY_METRICS = new Set([
+    'Cost / Lead', 'CPC (Cost / Case)', 'Ad Spend', 'Ad Budget Left', 'Marketing Fee', 'Total Cost', 'CPC + Marketing Fee',
+    'Revenue', 'Ad Spent', 'Profit', 'CPL (Cost / Lead)', 'Budget Left', 'Cost / Case',
+  ]);
   function renderComparison() {
     const key = $('#compare-select').value;
     const { a, b } = comparisonWindows(key);
@@ -989,14 +1037,17 @@
     $('#compare-th-b').textContent = b.label;
     $('#compare-program-label').textContent = programLabel(state.filters.program);
     const ma = periodMetrics(a), mb = periodMetrics(b);
-    const fmt = (metric, v) => (metric === 'Conversion Rate' ? pct(v) : v.toLocaleString('en-US'));
+    const fmt = (metric, v) => (COMPARE_PCT_METRICS.has(metric) ? pct(v) : COMPARE_MONEY_METRICS.has(metric) ? money(v) : v.toLocaleString('en-US'));
     const rows = Object.keys(ma).map((metric) => {
       const va = ma[metric], vb = mb[metric];
-      const isPct = metric === 'Conversion Rate';
       const diff = vb - va;
       const diffPct = va ? (diff / va) * 100 : (vb ? 100 : 0);
-      const sign = diff > 0 ? '+' : '';
-      const changeText = isPct ? sign + diff.toLocaleString('en-US', { maximumFractionDigits: 1 }) + ' pt' : sign + diff.toLocaleString('en-US') + ' (' + sign + diffPct.toLocaleString('en-US', { maximumFractionDigits: 1 }) + '%)';
+      const sign = diff > 0 ? '+' : diff < 0 ? '-' : '';
+      const absDiffPct = Math.abs(diffPct).toLocaleString('en-US', { maximumFractionDigits: 1 });
+      let changeText;
+      if (COMPARE_PCT_METRICS.has(metric)) changeText = sign + Math.abs(diff).toLocaleString('en-US', { maximumFractionDigits: 1 }) + ' pt';
+      else if (COMPARE_MONEY_METRICS.has(metric)) changeText = sign + money(Math.abs(diff)) + ' (' + sign + absDiffPct + '%)';
+      else changeText = sign + Math.abs(diff).toLocaleString('en-US') + ' (' + sign + absDiffPct + '%)';
       const changeCls = diff > 0 ? 'compare-up' : diff < 0 ? 'compare-down' : '';
       return '<tr><td class="name-cell">' + escapeHtml(metric) + '</td>' +
         '<td class="td-num num">' + fmt(metric, va) + '</td>' +

@@ -147,13 +147,40 @@
     if (state.range.end && toISO(d) > state.range.end) return false;
     return true;
   }
+  // ---- Late QMVA Invoice bonus ----
+  // The "Walker INVOICE Weekly" ledger's own Profit formula is (Invoice Amount - Ad Spent) +
+  // Late QMVA Invoice: a separate bonus recognized only once a batch of late-qualifying QMVAs
+  // gets formally invoiced, on top of the base weekly numbers — not folded into Invoice Amount
+  // itself. This dashboard recognizes late-arriving commission continuously as it updates at the
+  // source (confirmed directly, lead by lead), which is why matching the ledger's Profit total
+  // needs this added explicitly: these are the ledger's own "Late QMVA Invoice" column values,
+  // one per invoice batch, added to profit only (never to revenue, matching the ledger's own
+  // formula) and only once, at Global PPL — not split by vertical, since the ledger doesn't
+  // break this column out by NW vs CA.
+  const LATE_QMVA_INVOICE_BONUS = [
+    { from: '2026-07-01', to: '2026-07-05', amount: 21625 },
+    { from: '2026-07-27', to: '2026-08-02', amount: 43193 },
+    { from: '2026-08-31', to: '2026-09-06', amount: 52432.00 },
+    { from: '2026-09-28', to: '2026-10-04', amount: 28285.00 },
+  ];
+  function lateQmvaBonusTotal() {
+    const viewFrom = state.range.start ? parseInputDate(state.range.start, false) : new Date(2000, 0, 1);
+    const viewTo = state.range.end ? parseInputDate(state.range.end, true) : new Date(2100, 0, 1);
+    let total = 0;
+    LATE_QMVA_INVOICE_BONUS.forEach((c) => {
+      const cFrom = parseInputDate(c.from, false), cTo = parseInputDate(c.to, true);
+      if (rangesOverlap(viewFrom, viewTo, cFrom, cTo)) total += c.amount;
+    });
+    return total;
+  }
   function computeKPIs(rows, opts) {
     const includeHistorical = !opts || opts.includeHistorical !== false;
+    const includeLateBonus = !!(opts && opts.includeLateBonus);
     const totalLeads = rows.reduce((s, r) => s + r.totalLeads, 0);
     const correction = adSpendCorrectionTotal(rows) + (includeHistorical ? historicalSpendCorrectionTotal() : 0);
     const totalSpent = rows.reduce((s, r) => s + r.totalSpent, 0) - correction;
     const revenue = rows.reduce((s, r) => s + r.revenue, 0);
-    const profit = rows.reduce((s, r) => s + r.profit, 0) + correction;
+    const profit = rows.reduce((s, r) => s + r.profit, 0) + correction + (includeLateBonus ? lateQmvaBonusTotal() : 0);
     const qmva = rows.reduce((s, r) => s + r.currentQmva, 0);
     const conversionRate = totalLeads ? (qmva / totalLeads) * 100 : 0;
     const cpl = totalLeads ? totalSpent / totalLeads : 0;
@@ -288,7 +315,7 @@
   }
   function renderGlobal() {
     const rows = state.rows['ca-nw'].filter(inRange);
-    renderKpiRow('global-kpis', rows);
+    renderKpiRow('global-kpis', rows, { includeLateBonus: true });
     renderChartTrio('global', rows);
     renderOverTimeChart('chart-global-overtime', rows);
     renderLeadDetail();

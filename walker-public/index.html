@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Walker PPL / Agency — Loudr Media</title>
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="/shared/sidebar.css">
+<link rel="stylesheet" href="/shared/back-to-top.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brandbar">
+    <img src="/shared/logo-loudr.png" alt="Loudr Media" class="brandlogo">
+    <div class="brandbar-right">
+      <button id="refresh-btn" class="refresh-btn" title="Refresh now" aria-label="Refresh now">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+      </button>
+      <span id="live-pill" class="live-pill">
+        <span class="live-dot"></span>
+        <span id="live-text">Live &ndash; checked just now</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="topbar">
+    <div>
+      <p class="brand-eyebrow">Walker Advertising</p>
+      <h1>Pay Per Lead / Agency</h1>
+      <p class="topbar-sub" id="data-range-note">&mdash;</p>
+    </div>
+    <div class="date-bar">
+      <div class="select-wrap">
+        <select id="quick-range"></select>
+        <svg class="select-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+      <div class="date-inputs">
+        <input type="date" id="range-start">
+        <span class="date-arrow">&rarr;</span>
+        <input type="date" id="range-end">
+      </div>
+      <button id="range-clear" class="clear-btn">Clear</button>
+    </div>
+  </div>
+
+  <div class="segment-tabs-walker" id="walker-tabs">
+    <button class="segment-tab is-active" data-section="global">Global PPL</button>
+    <button class="segment-tab" data-section="nwca">NW &amp; CA PPL</button>
+    <button class="segment-tab" data-section="agency">Agency Dashboard</button>
+    <button class="segment-tab" data-section="trends">Campaign Trends</button>
+    <button class="segment-tab" data-section="restored">Restored &amp; Late QMVAs</button>
+  </div>
+
+  <!-- ============ GLOBAL PPL ============ -->
+  <section class="walker-section is-active" id="section-global">
+    <div class="kpi-row kpi-row--walker" id="global-kpis"></div>
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <h3>Profit and Total Amount Spent by Date</h3>
+        <div class="chart-canvas-wrap"><canvas id="chart-global-bydate"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>State by Current QMVA</h3>
+        <div class="chart-canvas-wrap"><canvas id="chart-global-state"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Current QMVA by Day of Week</h3>
+        <div class="chart-canvas-wrap"><canvas id="chart-global-dow"></canvas></div>
+      </div>
+    </div>
+
+    <div class="charts-row full">
+      <div class="chart-card">
+        <h3>Profit and Total Amount Spent over Time</h3>
+        <div class="chart-canvas-wrap tall"><canvas id="chart-global-overtime"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Lead Detail</h2>
+        <div class="search-box">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="lead-search" type="text" placeholder="Search name, phone, state, campaign&hellip;">
+        </div>
+      </div>
+      <p class="footnote footnote--inside">Real per-lead data from Publisher Data CA/TX &mdash; commission-paid leads only. Filtered by the date range above.</p>
+      <p class="panel-sub" id="lead-count"></p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Date</th><th>Name</th><th>Phone</th><th>State</th><th>Campaign</th><th class="th-num">Commission</th><th>Qualified</th></tr></thead>
+          <tbody id="lead-detail-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ NW & CA PPL ============ -->
+  <section class="walker-section" id="section-nwca">
+    <div class="charts-row two-col">
+      <div>
+        <h2 class="panel-title" style="margin-bottom:10px">NW Campaign</h2>
+        <div class="kpi-row kpi-row--walker" id="nw-kpis" style="margin-bottom:14px"></div>
+        <div class="chart-card" style="margin-bottom:14px"><h3>NW State by QMVA</h3><div class="chart-canvas-wrap"><canvas id="chart-nw-state"></canvas></div></div>
+        <div class="chart-card"><h3>NW Profit/Spend over Time</h3><div class="chart-canvas-wrap"><canvas id="chart-nw-overtime"></canvas></div></div>
+      </div>
+      <div>
+        <h2 class="panel-title" style="margin-bottom:10px">CA Campaign</h2>
+        <div class="kpi-row kpi-row--walker" id="ca-kpis" style="margin-bottom:14px"></div>
+        <div class="chart-card" style="margin-bottom:14px"><h3>CA State by QMVA</h3><div class="chart-canvas-wrap"><canvas id="chart-ca-state"></canvas></div></div>
+        <div class="chart-card"><h3>CA Profit/Spend over Time</h3><div class="chart-canvas-wrap"><canvas id="chart-ca-overtime"></canvas></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ AGENCY DASHBOARD ============ -->
+  <section class="walker-section" id="section-agency">
+    <div class="kpi-row kpi-row--walker" id="agency-kpis"></div>
+    <div class="charts-row">
+      <div class="chart-card">
+        <h3>Profit and Total Amount Spent by Date</h3>
+        <div class="chart-canvas-wrap"><canvas id="chart-agency-bydate"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>State by Current QMVA</h3>
+        <div class="chart-canvas-wrap"><canvas id="chart-agency-state"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Current QMVA by Day of Week</h3>
+        <div class="chart-canvas-wrap"><canvas id="chart-agency-dow"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CAMPAIGN TRENDS ============ -->
+  <section class="walker-section" id="section-trends">
+    <div class="panel">
+      <div class="panel-head"><h2 class="panel-title">Campaign Trends</h2><span class="panel-sub" id="trends-sub"></span></div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Date</th><th class="th-num">Leads</th><th class="th-num">Accepted</th><th class="th-num">QMVA</th><th class="th-num">Ad Spend</th><th class="th-num">Recency (median, hrs)</th></tr></thead>
+          <tbody id="trends-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RESTORED & LATE QMVAS ============ -->
+  <section class="walker-section" id="section-restored">
+    <div class="chip-group" id="restored-inner-tabs" style="margin-bottom:14px">
+      <button class="chip is-active" data-rl="late">Late QMVAs</button>
+      <button class="chip" data-rl="restored">Restored Leads</button>
+      <button class="chip" data-rl="correlation">Spend vs Late QMVAs</button>
+    </div>
+    <div class="panel" id="restored-late-pane">
+      <div class="table-scroll">
+        <table>
+          <thead id="restored-late-head"></thead>
+          <tbody id="restored-late-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel" id="correlation-pane" hidden>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Week</th><th class="th-num">Ad Spend</th><th class="th-num">Late QMVA Revenue</th><th class="th-num">Late QMVA %</th></tr></thead>
+          <tbody id="correlation-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</div>
+<script src="app.js"></script>
+<script src="/shared/sidebar.js" data-active="walker"></script>
+<script src="/shared/back-to-top.js"></script>
+</body>
+</html>

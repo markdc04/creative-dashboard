@@ -9,6 +9,7 @@ const km = require('./km');
 const bryan = require('./bryan');
 const clientView = require('./client-view');
 const layoutStore = require('./layout-store');
+const walker = require('./walker');
 
 const DOC_ID = '1YkpQh4hR96iMtvd_bvtrT0fN0zCaLQNKl3pa6Tix8BA';
 
@@ -608,6 +609,27 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Admin-only (no client view) — a straight port of the Walker PPL/Agency dashboard, each tab
+  // keyed the same way its own /api/data?tab= was.
+  if (url.pathname === '/walker-api/data') {
+    const tab = url.searchParams.get('tab') || 'ca-nw';
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ tab, rows: walker.getData(tab), updatedAt: walker.getUpdatedAt(tab) }));
+    return;
+  }
+  if (url.pathname === '/walker-api/campaign-trends') {
+    walker.getCampaignTrends()
+      .then((days) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ days })); })
+      .catch((err) => { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message })); });
+    return;
+  }
+  if (url.pathname === '/walker-api/late-qmva-correlation') {
+    walker.getLateQmvaCorrelation()
+      .then((weeks) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ weeks })); })
+      .catch((err) => { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message })); });
+    return;
+  }
+
   // One process serves everything: the leaderboard at the site root, the dashboard under
   // /dashboard/ (login enforced above), and the shared side-panel files under /shared/.
   let root = 'leaderboard-public';
@@ -617,7 +639,9 @@ const server = http.createServer((req, res) => {
   if (rel === '/sasooness') { res.writeHead(301, { Location: '/sasooness/' }); res.end(); return; }
   if (rel === '/km') { res.writeHead(301, { Location: '/km/' }); res.end(); return; }
   if (rel === '/bryan') { res.writeHead(301, { Location: '/bryan/' }); res.end(); return; }
+  if (rel === '/walker') { res.writeHead(301, { Location: '/walker/' }); res.end(); return; }
   if (rel.startsWith('/dashboard/')) { root = 'public'; rel = rel.slice('/dashboard'.length); }
+  if (rel.startsWith('/walker/')) { root = 'walker-public'; rel = rel.slice('/walker'.length); }
   // A client-role session gets the shared, limited client-view app for any of the three client
   // dashboards instead of the internal one admins/creative see at the same URL — one small static
   // app that reads which client it's for from the URL path at runtime (see client-public/app.js).
@@ -653,6 +677,13 @@ km.pollAll();
 setInterval(km.pollAll, POLL_MS);
 bryan.pollAll();
 setInterval(bryan.pollAll, POLL_MS);
+// Same two-timer split as the original walker-dashboard app: the plain CSV/API tabs poll on the
+// usual cadence, while the heavier corrected-campaign recompute (Global PPL / NW & CA PPL) runs
+// on its own 5-minute timer, staggered 2 minutes behind so it isn't competing with the first
+// pollAllTabs pass for the same Sheets API rate limit.
+walker.pollAllTabs();
+setInterval(walker.pollAllTabs, POLL_MS);
+setTimeout(() => { walker.runLiveCampaigns(); setInterval(walker.runLiveCampaigns, 5 * 60 * 1000); }, 120000);
 
 server.listen(PORT, () => {
   console.log(`Creative Dashboard running at http://localhost:${PORT}`);

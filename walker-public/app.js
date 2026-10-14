@@ -104,6 +104,42 @@
     });
     return total;
   }
+  // ---- historical ad-spend reconciliation (Feb-Mar 2026) ----
+  // Cross-checked the "Walker INVOICE Weekly" sheet (the manually-reconciled, PAID invoice
+  // ledger — spreadsheet 1500g7cuyitT9Xmn85TkMoWXs9XYBoDOBs1cvz5Na36w, tab "Walker INVOICE
+  // Weekly") against this dashboard's own computed ad spend, week by week, for every settled
+  // invoice period from Feb 2026 through Oct 2026. Every week from March 30, 2026 onward matches
+  // the invoiced Ad Spent figure within a few hundred dollars (ordinary late-data drift). But
+  // five early, already-PAID weeks are overcounted far beyond that — ad spend computed here is
+  // up to 2.6x the actual invoiced amount for March 1-15, 2026 alone ($247,648.83 computed vs.
+  // $95,280.02 invoiced) — a pre-existing data issue from early in this campaign's history that
+  // was never corrected (unlike the August 2026 incidents in AD_SPEND_CORRECTIONS above, which
+  // only ever covered duplicate spend for specific ads, not this). Confirmed these five weeks
+  // are the entire source of the "only $1.77M profit, not $2.1M+" gap reported against the
+  // invoice ledger's own Profit total. These are closed, paid invoice periods — the invoiced
+  // amount is final and won't change — so this corrects total ad spend down to what was actually
+  // paid. Split by vertical (see renderNwCa): checking NW alone against the ledger for these same
+  // weeks matched exactly with zero correction needed — CA PPL hadn't even launched yet for the
+  // first three of the five weeks, so 100% of the overcount sits on the CA side; apply the full
+  // amount only where CA rows are summed (Global PPL and the CA half of NW & CA PPL), never to
+  // NW alone, and never to Agency, which has its own separate, unverified data source.
+  const HISTORICAL_SPEND_CORRECTIONS = [
+    { from: '2026-02-09', to: '2026-02-15', amount: 8791.25 },
+    { from: '2026-02-16', to: '2026-02-28', amount: 44308.45 },
+    { from: '2026-03-01', to: '2026-03-15', amount: 152368.81 },
+    { from: '2026-03-16', to: '2026-03-23', amount: 7907.36 },
+    { from: '2026-03-24', to: '2026-03-29', amount: 2292.08 },
+  ];
+  function historicalSpendCorrectionTotal() {
+    const viewFrom = state.range.start ? parseInputDate(state.range.start, false) : new Date(2000, 0, 1);
+    const viewTo = state.range.end ? parseInputDate(state.range.end, true) : new Date(2100, 0, 1);
+    let total = 0;
+    HISTORICAL_SPEND_CORRECTIONS.forEach((c) => {
+      const cFrom = parseInputDate(c.from, false), cTo = parseInputDate(c.to, true);
+      if (rangesOverlap(viewFrom, viewTo, cFrom, cTo)) total += c.amount;
+    });
+    return total;
+  }
   function inRange(row) {
     const d = parseDate(row.date);
     if (!d) return false;
@@ -111,9 +147,10 @@
     if (state.range.end && toISO(d) > state.range.end) return false;
     return true;
   }
-  function computeKPIs(rows) {
+  function computeKPIs(rows, opts) {
+    const includeHistorical = !opts || opts.includeHistorical !== false;
     const totalLeads = rows.reduce((s, r) => s + r.totalLeads, 0);
-    const correction = adSpendCorrectionTotal(rows);
+    const correction = adSpendCorrectionTotal(rows) + (includeHistorical ? historicalSpendCorrectionTotal() : 0);
     const totalSpent = rows.reduce((s, r) => s + r.totalSpent, 0) - correction;
     const revenue = rows.reduce((s, r) => s + r.revenue, 0);
     const profit = rows.reduce((s, r) => s + r.profit, 0) + correction;
@@ -137,8 +174,8 @@
       ['COST PER LEAD', fmtMoney(k.cpl), false, false],
     ];
   }
-  function renderKpiRow(elId, rows) {
-    const k = computeKPIs(rows);
+  function renderKpiRow(elId, rows, opts) {
+    const k = computeKPIs(rows, opts);
     $('#' + elId).innerHTML = kpiTiles(k).map(([label, value, highlight, negative]) =>
       '<div class="kpi' + (highlight ? ' kpi--highlight' : '') + (negative ? ' negative' : '') + '">' +
       '<div class="kpi-label">' + label + '</div><div class="kpi-value num">' + value + '</div></div>'
@@ -301,7 +338,12 @@
   function renderNwCa() {
     const nwRows = state.rows.nw.filter(inRange);
     const caRows = state.rows.ca.filter(inRange);
-    renderKpiRow('nw-kpis', nwRows);
+    // The historical ad-spend reconciliation above lives entirely on the CA side: cross-checking
+    // NW alone against the invoice ledger for Feb-Mar 2026 found it matched exactly with zero
+    // correction needed (CA PPL hadn't launched yet for the first three of those weeks — its
+    // computed spend in that window was 100% the overcounted artifact). Applying it to NW too
+    // would double it on the combined Global PPL view.
+    renderKpiRow('nw-kpis', nwRows, { includeHistorical: false });
     renderKpiRow('ca-kpis', caRows);
     const nwByState = groupByState(nwRows);
     upsertChart('chart-nw-state', { type: 'doughnut', data: { labels: nwByState.map((g) => g.label), datasets: [{ data: nwByState.map((g) => g.value), backgroundColor: nwByState.map((_, i) => PALETTE[i % PALETTE.length]) }] }, options: { plugins: { legend: { position: 'right', labels: { color: '#e8ecf4' } } } } });
@@ -318,7 +360,7 @@
   }
   function renderAgency() {
     const rows = state.rows['live-agency'].filter(inRange);
-    renderKpiRow('agency-kpis', rows);
+    renderKpiRow('agency-kpis', rows, { includeHistorical: false });
     renderChartTrio('agency', rows);
   }
 

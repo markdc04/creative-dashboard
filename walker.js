@@ -202,7 +202,11 @@ const TABS = {
   // Real per-lead detail (name, phone, actual commission) for the Global PPL "Lead Detail" tab —
   // nw/ca/ca-nw above are aggregated by date+ad+state, so this is the only tab with one row per
   // real lead. Same source refresh_campaign_snapshot.js already reads as ground truth.
-  'publisher-leads': { name: 'Publisher Leads', docId: MAIN_DOC, gid: '858250735', type: 'raw-table' },
+  // 36,000+ rows, 26 columns in the raw sheet — trimmed to just the ones the Lead Detail table and
+  // enrichPublisherLeadsCommission actually use (see normalizePublisherLeadsRows), not kept as a
+  // raw-table pass-through: the full untrimmed shape was ~3x the memory for no benefit, and was
+  // part of what pushed this process over its memory limit (see the OOM incident this fixed).
+  'publisher-leads': { name: 'Publisher Leads', docId: MAIN_DOC, gid: '858250735', type: 'publisher-leads' },
   // Cross-check source for publisher-leads' commission — see QMVA_PAYOUT_DOC comment above.
   'qmva-payout-ca': { name: 'QMVA Payout CA', docId: QMVA_PAYOUT_DOC, sheetName: 'DATABASE PPL CA', apiRange: 'A1:T20000', type: 'qmva-payout', phoneCol: 'Phone Number', payoutCol: 'Payout' },
   'qmva-payout-nw': { name: 'QMVA Payout NW', docId: QMVA_PAYOUT_DOC, sheetName: 'DATABASE PPL NW', apiRange: 'A1:T20000', type: 'qmva-payout', phoneCol: 'Phone Number', payoutCol: 'Payout' },
@@ -259,7 +263,10 @@ function fetchText(url, redirects = 5) {
 }
 
 // Minimal RFC4180-ish CSV parser (handles quoted fields with commas/newlines/escaped quotes)
-function parseCSV(text) {
+// Shared RFC4180-ish tokenizer: splits raw CSV text into rows of raw string cells. Pulled out of
+// parseCSV so parseCSVOnlyColumns (below) can reuse the exact same tokenizing without also paying
+// for a full per-row object across every column — see that function's comment.
+function tokenizeCSV(text) {
   const rows = [];
   let row = [];
   let field = '';
@@ -280,6 +287,12 @@ function parseCSV(text) {
     }
   }
   if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+// Minimal RFC4180-ish CSV parser (handles quoted fields with commas/newlines/escaped quotes)
+function parseCSV(text) {
+  const rows = tokenizeCSV(text);
   if (!rows.length) return [];
   const headers = rows[0].map((h) => h.trim());
   return rows.slice(1)
@@ -290,6 +303,27 @@ function parseCSV(text) {
       // Column A is always the date in these sheets — keep it by position too, so a renamed or
       // corrupted "Date" header cell (this has happened before) doesn't silently drop every row.
       obj.__col0 = (r[0] || '').trim();
+      return obj;
+    });
+}
+
+// Same CSV, but only ever materializes an object with the columns in `wantedHeaders` — for a
+// 36,000-row/26-column sheet where only 9 columns are ever read downstream (publisher-leads), the
+// full per-row object held all 26 columns' strings in memory for every row just to immediately
+// throw away 17 of them; building the trimmed shape directly instead (never allocating the other
+// 17 columns' worth of strings per row to begin with) was the single biggest lever for the heap
+// pressure that caused the OOM crash this was added to fix.
+function parseCSVOnlyColumns(text, wantedHeaders) {
+  const rows = tokenizeCSV(text);
+  if (!rows.length) return [];
+  const headers = rows[0].map((h) => h.trim());
+  const wantedIdx = headers.map((h, idx) => (wantedHeaders.has(h) ? idx : -1)).filter((idx) => idx !== -1);
+  const wantedNames = wantedIdx.map((idx) => headers[idx]);
+  return rows.slice(1)
+    .filter((r) => r.some((v) => v && v.trim() !== ''))
+    .map((r) => {
+      const obj = {};
+      for (let i = 0; i < wantedIdx.length; i++) obj[wantedNames[i]] = (r[wantedIdx[i]] || '').trim();
       return obj;
     });
 }
@@ -482,6 +516,42 @@ function normalizeAdSpendLiveRows(raw, platform) {
     adId: r['Ad ID'] || '',
     spend: num(platform === 'google' ? r['Cost (Spend)'] : r['Amount Spent']),
   })).filter((r) => VALID_DATE.test(r.date));
+}
+
+// Same campaign whitelist the Lead Detail table itself filters to (see LEAD_DETAIL_CA/NW in
+// walker-public/app.js) — everything outside it (Agency traffic, LoudrDupe, anything else) is
+// never shown there, so there's no reason to carry it in memory either. Applied at the CAMPAIGN
+// level only, never by commission: a lead can start at $0 and get boosted to its real payout later
+// by enrichPublisherLeadsCommission, so filtering out $0 rows here would wrongly discard the very
+// candidates that enrichment still needs to find.
+const PUBLISHER_LEADS_CAMPAIGNS = new Set([
+  'Loudr', 'LoudrDQ', 'LoudrSPCA', 'LoudrSP_DQ', 'Loudr - IB SP', 'Loudr - IB CA', 'LoudrCA - IB SP',
+  'LoudrNWCPA', 'LoudrNWDQ', 'Loudr - IB NW TX', 'LoudrNWCPA - IB', 'Loudr - IB NW GA', 'LoudrNWCPA_SP',
+  'LoudrNWCPA - IB SP', 'LoudrNW', 'Loudr - IB Catchall',
+]);
+// Fed to parseCSVOnlyColumns so the CSV parse itself never builds the other 17 columns per row.
+const PUBLISHER_LEADS_WANTED_COLUMNS = new Set([
+  'Date', 'First Name', 'Last Name', 'Consumer Phone', 'Consumer Phone(Primary)',
+  'Incident State', 'Campaign', 'Partner Commission', 'Qualified',
+]);
+// Same key names as the raw sheet (enrichPublisherLeadsCommission and the Lead Detail table both
+// read these by name) — just the 9 of 26 columns anything downstream actually touches, and only
+// the campaigns the Lead Detail table can ever show (cuts ~36,000 raw rows down to a few thousand
+// — this file alone, at full width, was a meaningful share of the OOM crash this was added to fix).
+function normalizePublisherLeadsRows(raw) {
+  return raw
+    .filter((r) => PUBLISHER_LEADS_CAMPAIGNS.has(r['Campaign']))
+    .map((r) => ({
+      Date: r['Date'] || '',
+      'First Name': r['First Name'] || '',
+      'Last Name': r['Last Name'] || '',
+      'Consumer Phone': r['Consumer Phone'] || '',
+      'Consumer Phone(Primary)': r['Consumer Phone(Primary)'] || '',
+      'Incident State': r['Incident State'] || '',
+      Campaign: r['Campaign'] || '',
+      'Partner Commission': r['Partner Commission'] || '',
+      Qualified: r['Qualified'] || '',
+    }));
 }
 
 // Builds LIVE NW/CA/AGENCY by joining, per (date, ad): lead counts + revenue from the QMVA
@@ -696,13 +766,16 @@ async function pollTab(key) {
   try {
     const raw = sheetName
       ? await fetchSheetValuesViaApi(docId, sheetName, apiRange)
-      : parseCSV(await fetchText(csvUrl(docId, gid)));
+      : type === 'publisher-leads'
+        ? parseCSVOnlyColumns(await fetchText(csvUrl(docId, gid)), PUBLISHER_LEADS_WANTED_COLUMNS)
+        : parseCSV(await fetchText(csvUrl(docId, gid)));
     const normalized = type === 'media-spend' ? normalizeMediaSpendRows(raw)
       : type === 'agency-leads' ? normalizeAgencyLeadsRows(raw)
       : type === 'google-ad-spent' ? normalizeGoogleAdSpentRows(raw)
       : type === 'qmva-import' ? normalizeQmvaRows(raw, TABS[key].vertical)
       : type === 'ad-spend-live' ? normalizeAdSpendLiveRows(raw, TABS[key].platform)
       : type === 'raw-table' ? raw // pass the sheet's own columns through unchanged
+      : type === 'publisher-leads' ? normalizePublisherLeadsRows(raw)
       : type === 'import-qmva' ? normalizeImportQmvaRows(raw, TABS[key].vertical)
       : type === 'qmva-payout' ? normalizeQmvaPayoutRows(raw, TABS[key].phoneCol, TABS[key].payoutCol)
       : normalizeRows(raw);
@@ -741,6 +814,9 @@ async function pollTab(key) {
 
 let lastPolled = {};
 
+// Returns the in-flight/just-finished promise so on-demand callers (ensureTab, below) can await
+// completion instead of racing it — the original app only ever fired this from a timer and never
+// needed to await it itself.
 function pollAllTabs() {
   const now = Date.now();
   const toPoll = Object.keys(TABS).filter((key) => {
@@ -752,7 +828,7 @@ function pollAllTabs() {
   // Without this catch, one tab's rejected fetch became an unhandled promise rejection — which
   // newer Node versions terminate the whole process on by default, silently taking down every
   // other timer (including runSync's) with it until Render noticed and restarted the dyno.
-  Promise.all(toPoll.map((key) => pollTab(key))).then(() => {
+  const p = Promise.all(toPoll.map((key) => pollTab(key))).then(() => {
     ['nw', 'ca', 'agency'].forEach(updateLiveVertical);
     updateGlobalPpl();
     enrichCampaigns();
@@ -763,6 +839,7 @@ function pollAllTabs() {
   // Fires every pollAll pass regardless of whether any tab's data actually changed, so the
   // frontend's "checked Xs ago" indicator reflects real polling activity, not just updates.
   broadcastHeartbeat();
+  return p;
 }
 
 // Populates cache['nw']/cache['ca'] directly from computeCorrectedCampaigns() (dashboard_sync.js)
@@ -830,6 +907,53 @@ async function runLive() {
   }
 }
 
+// On-demand data loading (added after the always-on background polling + full computeCorrectedCampaigns
+// recompute, held in memory across every tab at once, pushed this process over its 512MB heap limit
+// in production and crash-looped the whole shared server — see the incident this was added to fix).
+// Nothing here polls on a timer any more: a request for a given tab fetches/recomputes only what
+// that tab actually needs, with the same staleness windows as before, so the data is only ever
+// resident in memory while someone is actually looking at the Walker page.
+let lastLiveRunAt = 0;
+async function ensureLiveFresh() {
+  if (cache['ca-nw'] && Date.now() - lastLiveRunAt < LIVE_INTERVAL_MS) return;
+  lastLiveRunAt = Date.now();
+  await runLive();
+}
+const LIVE_VERTICAL_DEPS = {
+  nw: ['qmva-nw', 'ad-spend-google-live', 'ad-spend-meta-live'],
+  ca: ['qmva-ca', 'ad-spend-google-live', 'ad-spend-meta-live'],
+  agency: ['qmva-agency', 'ad-spend-google-live', 'ad-spend-meta-live'],
+};
+async function ensurePlainTab(key) {
+  const now = Date.now();
+  const interval = (TABS[key] && TABS[key].pollMs) || POLL_MS;
+  if (cache[key] && now - (lastPolled[key] || 0) < interval) return;
+  lastPolled[key] = now;
+  await pollTab(key);
+}
+async function ensureTab(key) {
+  if (key === 'ca-nw' || key === 'nw' || key === 'ca') {
+    await ensureLiveFresh();
+    return;
+  }
+  if (key.startsWith('live-')) {
+    const vertical = key.slice(5);
+    const deps = LIVE_VERTICAL_DEPS[vertical] || [];
+    await Promise.all(deps.map(ensurePlainTab));
+    updateLiveVertical(vertical);
+    enrichCampaigns();
+    enrichPublisherLeadsCommission();
+    return;
+  }
+  if (TABS[key] && !TABS[key].virtual) {
+    await ensurePlainTab(key);
+    // Origin/campaign enrichment and the publisher-commission cross-check both read straight off
+    // already-cached tabs (no network), so it's cheap to keep them current after any plain fetch.
+    enrichCampaigns();
+    enrichPublisherLeadsCommission();
+  }
+}
+
 // Weekly ad spend vs late-QMVA revenue (see computeLateQmvaCorrelation's comment) — a lower-
 // traffic analytical view, so computed lazily on request instead of its own polling interval, with
 // a 5-minute cache so repeated page loads don't re-read every source tab each time.
@@ -880,8 +1004,7 @@ function getCampaignTrends() {
 }
 
 module.exports = {
-  pollAllTabs,
-  runLiveCampaigns: runLive,
+  ensureTab,
   getData: (key) => (cache[key] ? cache[key].rows : []),
   getUpdatedAt: (key) => (cache[key] ? cache[key].updatedAt : null),
   getLateQmvaCorrelation,

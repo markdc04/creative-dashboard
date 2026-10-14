@@ -613,8 +613,12 @@ const server = http.createServer((req, res) => {
   // keyed the same way its own /api/data?tab= was.
   if (url.pathname === '/walker-api/data') {
     const tab = url.searchParams.get('tab') || 'ca-nw';
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ tab, rows: walker.getData(tab), updatedAt: walker.getUpdatedAt(tab) }));
+    // On-demand, not background-polled (see server bottom) — only fetches/recomputes this one
+    // tab's data, and only while someone is actually requesting it.
+    walker.ensureTab(tab).catch((err) => console.error('walker ensureTab error:', err.message)).finally(() => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ tab, rows: walker.getData(tab), updatedAt: walker.getUpdatedAt(tab) }));
+    });
     return;
   }
   if (url.pathname === '/walker-api/campaign-trends') {
@@ -677,13 +681,12 @@ km.pollAll();
 setInterval(km.pollAll, POLL_MS);
 bryan.pollAll();
 setInterval(bryan.pollAll, POLL_MS);
-// Same two-timer split as the original walker-dashboard app: the plain CSV/API tabs poll on the
-// usual cadence, while the heavier corrected-campaign recompute (Global PPL / NW & CA PPL) runs
-// on its own 5-minute timer, staggered 2 minutes behind so it isn't competing with the first
-// pollAllTabs pass for the same Sheets API rate limit.
-walker.pollAllTabs();
-setInterval(walker.pollAllTabs, POLL_MS);
-setTimeout(() => { walker.runLiveCampaigns(); setInterval(walker.runLiveCampaigns, 5 * 60 * 1000); }, 120000);
+// Walker is NOT polled on a background timer, unlike every dashboard above — its combined tabs
+// (tens of thousands of rows each, held across a dozen-plus caches at once) pushed this process
+// past its 512MB heap limit and crash-looped the whole shared server when it ran continuously in
+// the background, even with nobody looking at the page. /walker-api/data now fetches/recomputes
+// on demand instead (see walker.ensureTab above) — data is only resident in memory while someone
+// is actually viewing that tab, and goes stale and gets dropped the moment they leave.
 
 server.listen(PORT, () => {
   console.log(`Creative Dashboard running at http://localhost:${PORT}`);

@@ -202,17 +202,18 @@ button.platform-tag:hover,button.platform-tag.is-selected{background:var(--surfa
   gap:clamp(4px,0.6vw,12px);
 }
 #global-kpis.kpi-row--walker .kpi,#agency-kpis.kpi-row--walker .kpi{
+  container-type:inline-size;
   padding:clamp(8px,1vw,16px) clamp(6px,0.8vw,14px);
   gap:clamp(4px,0.5vw,8px);
 }
 #global-kpis.kpi-row--walker .kpi-label,#agency-kpis.kpi-row--walker .kpi-label{
-  font-size:clamp(7px,0.62vw,10.5px);
+  font-size:clamp(7px,7cqw,10.5px);
   letter-spacing:.02em;
   white-space:normal;line-height:1.25;word-break:break-word;
 }
 #global-kpis.kpi-row--walker .kpi-value,#agency-kpis.kpi-row--walker .kpi-value{
-  font-size:clamp(12px,1.25vw,22px);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font-size:clamp(10px,12cqw,22px);
+  white-space:normal;line-height:1.15;word-break:break-word;overflow-wrap:break-word;
 }
 @media (max-width:860px){
   #global-kpis.kpi-row--walker,#agency-kpis.kpi-row--walker{grid-template-columns:repeat(auto-fit,minmax(110px,1fr));}

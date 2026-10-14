@@ -71,6 +71,31 @@
     }
   }
 
+  // Builds the quick-range dropdown fresh off today's date every load, so it never goes stale —
+  // Today/Yesterday/This week/Last week/This month/Last month, then every earlier month back to
+  // floorYear-floorMonth, newest first. Month keys are "YYYY-MM", which computeRange's default
+  // case already parses generically.
+  function buildQuickRangeOptions(floorYear, floorMonth) {
+    const sel = $('#quick-range');
+    const today = pacificToday();
+    const names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const idxToKey = (idx) => { const y = Math.floor((idx - 1) / 12); return y + '-' + pad(idx - y * 12); };
+    const idxToName = (idx) => { const y = Math.floor((idx - 1) / 12); return names[idx - y * 12 - 1] + ' ' + y; };
+    const thisIdx = today.getFullYear() * 12 + (today.getMonth() + 1);
+    const lastIdx = thisIdx - 1;
+    const floorIdx = floorYear * 12 + floorMonth;
+    const mkOpt = (value, label) => { const o = document.createElement('option'); o.value = value; o.textContent = label; return o; };
+    sel.innerHTML = '';
+    sel.appendChild(mkOpt('today', 'Today'));
+    sel.appendChild(mkOpt('yesterday', 'Yesterday'));
+    sel.appendChild(mkOpt('wtd', 'This week'));
+    sel.appendChild(mkOpt('lastweek', 'Last week'));
+    sel.appendChild(mkOpt(idxToKey(thisIdx), 'This month'));
+    sel.appendChild(mkOpt(idxToKey(lastIdx), 'Last month'));
+    for (let idx = lastIdx - 1; idx >= floorIdx; idx--) sel.appendChild(mkOpt(idxToKey(idx), idxToName(idx)));
+    return idxToKey(thisIdx);
+  }
+
   function rangeLabel() {
     const { key, start, end } = state.range;
     const opt = document.querySelector(`#quick-range option[value="${key}"]`);
@@ -487,11 +512,17 @@
   }
 
   // ---- quick range ----
+  const defaultRangeKey = buildQuickRangeOptions(2026, 2);
+  state.range = { key: defaultRangeKey, ...computeRange(defaultRangeKey) };
+  $('#quick-range').value = defaultRangeKey;
+  $('#date-start').value = state.range.start || '';
+  $('#date-end').value = state.range.end || '';
+
   $('#quick-range').addEventListener('change', (e) => {
     const key = e.target.value;
-    $('#custom-dates').hidden = key !== 'custom';
-    if (key === 'custom') return;
     state.range = { key, ...computeRange(key) };
+    $('#date-start').value = state.range.start || '';
+    $('#date-end').value = state.range.end || '';
     render();
   });
   function applyCustomRange() {
@@ -499,6 +530,7 @@
     const e = $('#date-end').value;
     if (s && e) {
       state.range = { key: 'custom', start: s, end: e };
+      $('#quick-range').value = '';
       render();
     }
   }
@@ -506,11 +538,10 @@
   $('#date-end').addEventListener('change', applyCustomRange);
 
   $('#clear-range').addEventListener('click', () => {
-    $('#quick-range').value = 'all';
-    $('#custom-dates').hidden = true;
-    $('#date-start').value = '';
-    $('#date-end').value = '';
-    state.range = { key: 'all', start: null, end: null };
+    $('#quick-range').value = defaultRangeKey;
+    state.range = { key: defaultRangeKey, ...computeRange(defaultRangeKey) };
+    $('#date-start').value = state.range.start || '';
+    $('#date-end').value = state.range.end || '';
     render();
   });
 

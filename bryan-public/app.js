@@ -56,6 +56,31 @@
       }
     }
   }
+  // Builds the quick-range dropdown fresh off today's date every load, so it never goes stale —
+  // Today/Yesterday/This week/Last week/This month/Last month, then every earlier month back to
+  // floorYear-floorMonth, newest first. Month keys are "YYYY-MM", which computeRange's default
+  // case already parses generically.
+  function buildQuickRangeOptions(floorYear, floorMonth) {
+    const sel = $('#quick-range');
+    const today = pacificToday();
+    const names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const idxToKey = (idx) => { const y = Math.floor((idx - 1) / 12); return y + '-' + pad(idx - y * 12); };
+    const idxToName = (idx) => { const y = Math.floor((idx - 1) / 12); return names[idx - y * 12 - 1] + ' ' + y; };
+    const thisIdx = today.getFullYear() * 12 + (today.getMonth() + 1);
+    const lastIdx = thisIdx - 1;
+    const floorIdx = floorYear * 12 + floorMonth;
+    const mkOpt = (value, label) => { const o = document.createElement('option'); o.value = value; o.textContent = label; return o; };
+    sel.innerHTML = '';
+    sel.appendChild(mkOpt('today', 'Today'));
+    sel.appendChild(mkOpt('yesterday', 'Yesterday'));
+    sel.appendChild(mkOpt('wtd', 'This week'));
+    sel.appendChild(mkOpt('lastweek', 'Last week'));
+    sel.appendChild(mkOpt(idxToKey(thisIdx), 'This month'));
+    sel.appendChild(mkOpt(idxToKey(lastIdx), 'Last month'));
+    for (let idx = lastIdx - 1; idx >= floorIdx; idx--) sel.appendChild(mkOpt(idxToKey(idx), idxToName(idx)));
+    return idxToKey(thisIdx);
+  }
+
   function inRange(dateStr) {
     const { start, end } = state.range;
     if (!dateStr) return !start && !end;
@@ -524,7 +549,7 @@
     const clear = e.target.closest('[data-clear]');
     if (clear) {
       const what = clear.dataset.clear;
-      if (what === 'all') { resetFilters(); setRange('all', null, null); }
+      if (what === 'all') { resetFilters(); const { start, end } = computeRange(defaultRangeKey); setRange(defaultRangeKey, start, end); }
       else if (what === 'range') setRange('all', null, null);
       else state.filters[what] = null;
       render();
@@ -560,7 +585,7 @@
   }
   $('#range-start').addEventListener('change', applyCustomRange);
   $('#range-end').addEventListener('change', applyCustomRange);
-  $('#range-clear').addEventListener('click', () => { setRange('all', null, null); render(); });
+  $('#range-clear').addEventListener('click', () => { const { start, end } = computeRange(defaultRangeKey); setRange(defaultRangeKey, start, end); render(); });
 
   $('#search').addEventListener('input', (e) => { state.search = e.target.value; render(); });
   $('#refresh-btn').addEventListener('click', () => {
@@ -568,20 +593,9 @@
     fetchData().finally(() => setTimeout(() => $('#refresh-btn').classList.remove('is-spinning'), 400));
   });
 
-  // Month options run from Bryan's first month (August) up to the current month, newest first,
-  // so a new month shows up on its own when it starts.
-  {
-    const sel = $('#quick-range');
-    const custom = sel.querySelector('option[value="custom"]');
-    const today = pacificToday();
-    const names = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-    for (let y = today.getFullYear(), m = today.getMonth() + 1; y > 2026 || (y === 2026 && m >= 8); m === 1 ? (y--, m = 12) : m--) {
-      const opt = document.createElement('option');
-      opt.value = y + '-' + pad(m);
-      opt.textContent = names[m - 1] + ' ' + y;
-      sel.insertBefore(opt, custom);
-    }
-  }
+  // Bryan's own history only starts August 2026, so that's the floor for "previous months".
+  const defaultRangeKey = buildQuickRangeOptions(2026, 8);
+  { const { start, end } = computeRange(defaultRangeKey); setRange(defaultRangeKey, start, end); }
   fetchData();
   setInterval(fetchData, 30000);
 })();

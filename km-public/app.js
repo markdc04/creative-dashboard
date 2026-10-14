@@ -17,6 +17,7 @@
     // tables then re-compute from what matches.
     filters: { platform: null, ad: null },
   };
+  let defaultRangeKey = null; // set once the quick-range dropdown is built, at the bottom of this file
 
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
@@ -51,6 +52,31 @@
       }
     }
   }
+  // Builds the quick-range dropdown fresh off today's date every load, so it never goes stale —
+  // Today/Yesterday/This week/Last week/This month/Last month, then every earlier month back to
+  // floorYear-floorMonth, newest first. Month keys are "YYYY-MM", which computeRange's default
+  // case already parses generically.
+  function buildQuickRangeOptions(floorYear, floorMonth) {
+    const sel = $('#quick-range');
+    const today = pacificToday();
+    const names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const idxToKey = (idx) => { const y = Math.floor((idx - 1) / 12); return y + '-' + pad(idx - y * 12); };
+    const idxToName = (idx) => { const y = Math.floor((idx - 1) / 12); return names[idx - y * 12 - 1] + ' ' + y; };
+    const thisIdx = today.getFullYear() * 12 + (today.getMonth() + 1);
+    const lastIdx = thisIdx - 1;
+    const floorIdx = floorYear * 12 + floorMonth;
+    const mkOpt = (value, label) => { const o = document.createElement('option'); o.value = value; o.textContent = label; return o; };
+    sel.innerHTML = '';
+    sel.appendChild(mkOpt('today', 'Today'));
+    sel.appendChild(mkOpt('yesterday', 'Yesterday'));
+    sel.appendChild(mkOpt('wtd', 'This week'));
+    sel.appendChild(mkOpt('lastweek', 'Last week'));
+    sel.appendChild(mkOpt(idxToKey(thisIdx), 'This month'));
+    sel.appendChild(mkOpt(idxToKey(lastIdx), 'Last month'));
+    for (let idx = lastIdx - 1; idx >= floorIdx; idx--) sel.appendChild(mkOpt(idxToKey(idx), idxToName(idx)));
+    return idxToKey(thisIdx);
+  }
+
   function inRange(dateStr) {
     const { start, end } = state.range;
     if (!dateStr) return !start && !end;
@@ -145,7 +171,7 @@
       ? '<span class="filter-bar-label">Filtered by</span>' + chips.join('') + '<button class="filter-clear-all" data-clear="all">Clear all</button>'
       : '';
   }
-  function clearRange() { setRange('all', null, null); }
+  function clearRange() { const { start, end } = computeRange(defaultRangeKey); setRange(defaultRangeKey, start, end); }
   function clearAll() { state.filters = { platform: null, ad: null }; clearRange(); }
 
   // The sheet's AD Budget is a monthly figure, so a range's budget is that amount spread over each
@@ -537,6 +563,8 @@
     fetchData().finally(() => setTimeout(() => $('#refresh-btn').classList.remove('is-spinning'), 400));
   });
 
+  defaultRangeKey = buildQuickRangeOptions(2026, 1);
+  clearRange();
   fetchData();
   setInterval(fetchData, 30000);
 })();

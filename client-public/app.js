@@ -61,6 +61,31 @@
       }
     }
   }
+  // Builds the quick-range dropdown fresh off today's date every load, so it never goes stale —
+  // Today/Yesterday/This week/Last week/This month/Last month, then every earlier month back to
+  // floorYear-floorMonth, newest first. Month keys are "YYYY-MM", which computeRange's default
+  // case already parses generically.
+  function buildQuickRangeOptions(floorYear, floorMonth) {
+    const sel = $('#quick-range');
+    const today = pacificToday();
+    const names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const idxToKey = (idx) => { const y = Math.floor((idx - 1) / 12); return y + '-' + pad(idx - y * 12); };
+    const idxToName = (idx) => { const y = Math.floor((idx - 1) / 12); return names[idx - y * 12 - 1] + ' ' + y; };
+    const thisIdx = today.getFullYear() * 12 + (today.getMonth() + 1);
+    const lastIdx = thisIdx - 1;
+    const floorIdx = floorYear * 12 + floorMonth;
+    const mkOpt = (value, label) => { const o = document.createElement('option'); o.value = value; o.textContent = label; return o; };
+    sel.innerHTML = '';
+    sel.appendChild(mkOpt('today', 'Today'));
+    sel.appendChild(mkOpt('yesterday', 'Yesterday'));
+    sel.appendChild(mkOpt('wtd', 'This week'));
+    sel.appendChild(mkOpt('lastweek', 'Last week'));
+    sel.appendChild(mkOpt(idxToKey(thisIdx), 'This month'));
+    sel.appendChild(mkOpt(idxToKey(lastIdx), 'Last month'));
+    for (let idx = lastIdx - 1; idx >= floorIdx; idx--) sel.appendChild(mkOpt(idxToKey(idx), idxToName(idx)));
+    return idxToKey(thisIdx);
+  }
+
   function inRange(dateStr) {
     const { start, end } = state.range;
     if (!dateStr) return !start && !end;
@@ -242,7 +267,11 @@
   }
   $('#range-start').addEventListener('change', applyCustomRange);
   $('#range-end').addEventListener('change', applyCustomRange);
-  $('#range-clear').addEventListener('click', () => setRange('all', null, null));
+  $('#range-clear').addEventListener('click', () => { const { start, end } = computeRange(defaultRangeKey); setRange(defaultRangeKey, start, end); });
+
+  // Bryan's own history only starts August 2026; Sasooness and KM go back to January 2026.
+  const defaultRangeKey = buildQuickRangeOptions(2026, scope === 'bryan' ? 8 : 1);
+  { const { start, end } = computeRange(defaultRangeKey); setRange(defaultRangeKey, start, end); }
 
   fetchData();
   setInterval(fetchData, 30000);

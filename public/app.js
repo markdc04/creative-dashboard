@@ -42,6 +42,31 @@ function startDashboardApp() {
     return new Date(get('year'), get('month') - 1, get('day'));
   }
 
+  // Builds the quick-range dropdown fresh off today's date every load, so it never goes stale —
+  // Today/Yesterday/This week/Last week/This month/Last month, then every earlier month back to
+  // floorYear-floorMonth, newest first. Month keys are "YYYY-MM", which computeRange's default
+  // case already parses generically.
+  function buildQuickRangeOptions(floorYear, floorMonth) {
+    const sel = $('#quick-range');
+    const today = pacificToday();
+    const names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const idxToKey = (idx) => { const y = Math.floor((idx - 1) / 12); return y + '-' + pad(idx - y * 12); };
+    const idxToName = (idx) => { const y = Math.floor((idx - 1) / 12); return names[idx - y * 12 - 1] + ' ' + y; };
+    const thisIdx = today.getFullYear() * 12 + (today.getMonth() + 1);
+    const lastIdx = thisIdx - 1;
+    const floorIdx = floorYear * 12 + floorMonth;
+    const mkOpt = (value, label) => { const o = document.createElement('option'); o.value = value; o.textContent = label; return o; };
+    sel.innerHTML = '';
+    sel.appendChild(mkOpt('today', 'Today'));
+    sel.appendChild(mkOpt('yesterday', 'Yesterday'));
+    sel.appendChild(mkOpt('wtd', 'This week'));
+    sel.appendChild(mkOpt('lastweek', 'Last week'));
+    sel.appendChild(mkOpt(idxToKey(thisIdx), 'This month'));
+    sel.appendChild(mkOpt(idxToKey(lastIdx), 'Last month'));
+    for (let idx = lastIdx - 1; idx >= floorIdx; idx--) sel.appendChild(mkOpt(idxToKey(idx), idxToName(idx)));
+    return idxToKey(thisIdx);
+  }
+
   function computeRange(key) {
     const today = pacificToday();
     switch (key) {
@@ -627,26 +652,15 @@ function startDashboardApp() {
   }
 
   // ---- date range controls ----
+  const defaultRangeKey = buildQuickRangeOptions(2026, 2);
+  state.range = Object.assign({ key: defaultRangeKey }, computeRange(defaultRangeKey));
+  $('#quick-range').value = defaultRangeKey;
+  $('#date-start').value = state.range.start || '';
+  $('#date-end').value = state.range.end || '';
+
   $('#quick-range').addEventListener('change', (e) => {
     const key = e.target.value;
-    const customBox = $('#custom-dates');
-    if (key === 'custom') {
-      customBox.hidden = false;
-      const { start, end } = state.range;
-      if (start) $('#date-start').value = start;
-      if (end) $('#date-end').value = end;
-      return;
-    }
-    if (key === 'all') {
-      customBox.hidden = true;
-      $('#date-start').value = '';
-      $('#date-end').value = '';
-      state.range = { key, start: null, end: null };
-      render();
-      return;
-    }
     const { start, end } = computeRange(key);
-    customBox.hidden = false;
     $('#date-start').value = start || '';
     $('#date-end').value = end || '';
     state.range = { key, start, end };
@@ -658,17 +672,18 @@ function startDashboardApp() {
     const end = $('#date-end').value;
     if (!start || !end) return;
     state.range = { key: 'custom', start, end };
+    $('#quick-range').value = '';
     render();
   }
   $('#date-start').addEventListener('change', applyCustomRange);
   $('#date-end').addEventListener('change', applyCustomRange);
 
   $('#clear-range').addEventListener('click', () => {
-    $('#quick-range').value = 'all';
-    $('#custom-dates').hidden = true;
-    $('#date-start').value = '';
-    $('#date-end').value = '';
-    state.range = { key: 'all', start: null, end: null };
+    $('#quick-range').value = defaultRangeKey;
+    const { start, end } = computeRange(defaultRangeKey);
+    $('#date-start').value = start || '';
+    $('#date-end').value = end || '';
+    state.range = { key: defaultRangeKey, start, end };
     render();
   });
 

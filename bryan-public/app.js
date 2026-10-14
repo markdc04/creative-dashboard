@@ -71,6 +71,7 @@
     const floorIdx = floorYear * 12 + floorMonth;
     const mkOpt = (value, label) => { const o = document.createElement('option'); o.value = value; o.textContent = label; return o; };
     sel.innerHTML = '';
+    sel.appendChild(mkOpt('all', 'All time'));
     sel.appendChild(mkOpt('today', 'Today'));
     sel.appendChild(mkOpt('yesterday', 'Yesterday'));
     sel.appendChild(mkOpt('wtd', 'This week'));

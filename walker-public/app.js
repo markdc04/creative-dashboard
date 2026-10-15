@@ -71,7 +71,7 @@
     section: 'global',
     rows: { 'ca-nw': [], nw: [], ca: [], 'live-agency': [], 'media-spend': [], 'agency-leads': [], 'google-ad-spent': [] },
     leadDetail: [],
-    trendsDays: [],
+    trendsDays: [], trendsVertical: 'combined',
     lateQmvas: [], restoredLeads: [], correlation: [],
     restoredSub: 'late',
     posted: null, hourly: null,
@@ -480,7 +480,7 @@
     });
     $('#trends-sub').textContent = rows.length + ' days';
     $('#trends-body').innerHTML = rows.slice().reverse().map((d) => {
-      const c = d.combined;
+      const c = d[state.trendsVertical] || d.combined;
       return '<tr><td>' + escapeHtml(d.date) + '</td>' +
         '<td class="td-num num">' + fmtInt(c.totalLeads) + '</td>' +
         '<td class="td-num num">' + fmtInt(c.acceptedLeads) + '</td>' +
@@ -498,6 +498,33 @@
     state.lateQmvas = lateRows; state.restoredLeads = restoredRows; state.correlation = corrRes.weeks || [];
     renderRestored();
   }
+  function renderCorrelationChart() {
+    const weeks = state.correlation || [];
+    if (!weeks.length) { upsertChart('chart-correlation', { type: 'bar', data: { labels: [], datasets: [] } }); return; }
+    upsertChart('chart-correlation', {
+      data: {
+        labels: weeks.map((w) => w.weekStart),
+        datasets: [
+          { type: 'bar', label: 'Ad Spend', data: weeks.map((w) => w.spend), backgroundColor: PALETTE[0] + '99', yAxisID: 'y' },
+          { type: 'bar', label: 'Late QMVA Revenue', data: weeks.map((w) => w.lateRevenue), backgroundColor: PALETTE[1] + '99', yAxisID: 'y' },
+          { type: 'line', label: 'Late QMVA % of Spend', data: weeks.map((w) => w.lateRevenuePctOfSpend), borderColor: PALETTE[4], backgroundColor: PALETTE[4], yAxisID: 'y1', tension: 0.2 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false, axis: 'x' },
+        plugins: {
+          legend: { labels: { color: '#e8ecf4' } },
+          tooltip: { callbacks: { label: (ctx) => ctx.dataset.yAxisID === 'y1' ? (ctx.dataset.label + ': ' + (ctx.parsed.y == null ? 'n/a' : ctx.parsed.y.toFixed(1) + '%')) : (ctx.dataset.label + ': ' + fmtMoney(ctx.parsed.y)) } },
+        },
+        scales: {
+          x: { ticks: { color: '#8b96ac' }, grid: { color: '#232d42' } },
+          y: { position: 'left', ticks: { color: '#8b96ac', callback: (v) => '$' + Number(v).toLocaleString('en-US') }, grid: { color: '#232d42' } },
+          y1: { position: 'right', ticks: { color: '#8b96ac', callback: (v) => v + '%' }, grid: { display: false } },
+        },
+      },
+    });
+  }
   const RL_COLUMNS = ['Original Date', 'Call ID', 'Name', 'Campaign', 'Commission', 'Invoice Period', 'Was $0 As Of', 'Converted By', 'Reason'];
   function renderRestored() {
     $('#correlation-pane').hidden = state.restoredSub !== 'correlation';
@@ -509,6 +536,7 @@
         '<td class="td-num num">' + fmtMoney(w.lateRevenue) + '</td>' +
         '<td class="td-num num">' + (w.lateRevenuePctOfSpend != null ? w.lateRevenuePctOfSpend.toFixed(1) + '%' : '—') + '</td></tr>'
       ).join('');
+      renderCorrelationChart();
       return;
     }
     const rows = state.restoredSub === 'late' ? state.lateQmvas : state.restoredLeads;
@@ -643,6 +671,94 @@
     state.hourly = hourlyRes;
     renderHourly();
   }
+
+  // ---- Hourly Performance: Lead Detail pane ----
+  let hourlyLeadDetailCache = null;
+  let hourlyInnerTab = 'summary';
+  let hourlyDetailDateField = 'posted'; // 'posted' | 'converted'
+  let hourlyDetailGroup = 'all'; // 'all' | 'nwa' | 'nwaib' | 'agency'
+  let hourlyDetailDqFilter = 'nondq'; // 'nondq' | 'dq' | 'all'
+  function campaignGroup(c) {
+    if (/NWA/i.test(c) && /IB/i.test(c)) return 'nwaib';
+    if (/NWA/i.test(c)) return 'nwa';
+    if (/WAGENCY|AGENCY/i.test(c)) return 'agency';
+    return 'other';
+  }
+  // Render's free tier can take ~30s to wake from a cold start, and this is a 1.2MB file —
+  // without a timeout, a stalled request leaves the pane stuck on "Loading leads…" forever.
+  async function loadHourlyLeadDetail() {
+    if (hourlyLeadDetailCache) return hourlyLeadDetailCache;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45000);
+    try {
+      const res = await fetch('hourly-lead-detail.json', { signal: controller.signal });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      hourlyLeadDetailCache = await res.json();
+      return hourlyLeadDetailCache;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  function setHourlyInnerTab(tab) {
+    hourlyInnerTab = tab;
+    document.querySelectorAll('#hourly-inner-tabs .chip').forEach((b) => b.classList.toggle('is-active', b.dataset.innertab === tab));
+    $('#hourly-summary-pane').style.display = tab === 'summary' ? '' : 'none';
+    $('#hourly-detail-pane').style.display = tab === 'detail' ? '' : 'none';
+    if (tab === 'detail') renderHourlyDetailPane();
+  }
+  async function renderHourlyDetailPane() {
+    const head = $('#hourly-detail-head');
+    const table = $('#hourly-detail-table');
+    head.textContent = 'Loading leads…';
+    table.innerHTML = '';
+    let leads;
+    try {
+      leads = await loadHourlyLeadDetail();
+    } catch (err) {
+      head.textContent = '';
+      table.innerHTML = '<tbody><tr><td style="padding:8px 10px;opacity:0.7">Failed to load lead detail (' + escapeHtml(err.name === 'AbortError' ? 'timed out — the server may be waking up' : err.message) + ').</td></tr></tbody>';
+      return;
+    }
+    const range = state.range.start && state.range.end ? { from: state.range.start, to: state.range.end } : null;
+    const byConverted = hourlyDetailDateField === 'converted';
+    const filtered = leads
+      .filter((l) => {
+        if (hourlyDetailDqFilter === 'nondq' && l.dq === 'DQ') return false;
+        if (hourlyDetailGroup !== 'all' && campaignGroup(l.campaign) !== hourlyDetailGroup) return false;
+        if (hourlyDetailDqFilter === 'dq' && l.dq !== 'DQ') return false;
+        if (!range) return true;
+        const d = byConverted ? l.convertedDate : l.date;
+        return d && d >= range.from && d <= range.to;
+      })
+      .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+
+    const fieldLabel = byConverted ? 'converted' : 'posted';
+    head.textContent = filtered.length + ' lead' + (filtered.length === 1 ? '' : 's') + (range ? ' ' + fieldLabel + ' from ' + range.from + ' to ' + range.to : '');
+    if (!filtered.length) {
+      table.innerHTML = '';
+      head.textContent += ' — none match this filter.';
+      return;
+    }
+    const MAX_ROWS = 500;
+    const shown = filtered.slice(0, MAX_ROWS);
+    const rows = shown.map((l) =>
+      '<tr><td>' + escapeHtml(l.date) + ' ' + escapeHtml(l.time) + '</td>' +
+      '<td>' + (l.convertedDate ? escapeHtml(l.convertedDate) + ' ' + escapeHtml(l.convertedTime) : '—') + '</td>' +
+      '<td class="td-num num">' + fmtHours(l.hoursToConvert) + '</td>' +
+      '<td>' + escapeHtml((l.vertical || '').toUpperCase()) + '</td>' +
+      '<td>' + escapeHtml(l.campaign) + '</td>' +
+      '<td>' + escapeHtml(l.channel) + '</td>' +
+      '<td>' + escapeHtml(l.state) + '</td>' +
+      '<td>' + escapeHtml(l.lawType) + '</td>' +
+      '<td>' + escapeHtml(l.dq) + '</td>' +
+      '<td>' + escapeHtml(l.name || '—') + '</td>' +
+      '<td class="td-num num" title="' + escapeHtml(l.revenueNote || '') + '">' + fmtMoney(l.revenue) + (l.revenueNote ? ' ⚠️' : '') + '</td></tr>'
+    ).join('');
+    const truncNote = filtered.length > MAX_ROWS ? '<tr><td colspan="11" style="padding:8px 0;opacity:0.7">Showing the most recent ' + MAX_ROWS + ' of ' + filtered.length.toLocaleString() + ' — narrow the date range to see more.</td></tr>' : '';
+    table.innerHTML =
+      '<thead><tr><th>Posted</th><th>Converted</th><th class="th-num">Hrs to convert</th><th>Vertical</th><th>Campaign</th><th>Channel</th><th>State</th><th>Law Type</th><th>DQ</th><th>Name</th><th class="th-num">Revenue</th></tr></thead>' +
+      '<tbody>' + rows + truncNote + '</tbody>';
+  }
   function renderHourly() {
     const posted = state.posted, hourly = state.hourly;
     if (!posted || !hourly) return;
@@ -670,7 +786,23 @@
         ? 'Showing the full export: ' + hourly.minDate + ' to ' + hourly.maxDate + ' — not live.'
         : 'Showing ' + hFrom + ' to ' + hTo + ' (export covers ' + hourly.minDate + ' to ' + hourly.maxDate + ') — not live.';
     }
+    if (hourlyInnerTab === 'detail') renderHourlyDetailPane();
   }
+
+  $('#hourly-inner-tabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.chip');
+    if (!btn) return;
+    setHourlyInnerTab(btn.dataset.innertab);
+  });
+  document.querySelectorAll('input[name="hourlyDetailDateField"]').forEach((radio) => {
+    radio.addEventListener('change', () => { hourlyDetailDateField = radio.value; renderHourlyDetailPane(); });
+  });
+  document.querySelectorAll('input[name="hourlyDetailGroup"]').forEach((radio) => {
+    radio.addEventListener('change', () => { hourlyDetailGroup = radio.value; renderHourlyDetailPane(); });
+  });
+  document.querySelectorAll('input[name="hourlyDetailDq"]').forEach((radio) => {
+    radio.addEventListener('change', () => { hourlyDetailDqFilter = radio.value; renderHourlyDetailPane(); });
+  });
 
   // ---- section switching ----
   async function showSection(name) {
@@ -719,6 +851,13 @@
     document.querySelectorAll('#restored-inner-tabs .chip').forEach((b) => b.classList.toggle('is-active', b === btn));
     state.restoredSub = btn.dataset.rl;
     renderRestored();
+  });
+  $('#trends-vertical-tabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.chip');
+    if (!btn) return;
+    document.querySelectorAll('#trends-vertical-tabs .chip').forEach((b) => b.classList.toggle('is-active', b === btn));
+    state.trendsVertical = btn.dataset.trendsVertical;
+    renderTrends();
   });
   $('#lead-search').addEventListener('input', renderLeadDetail);
 

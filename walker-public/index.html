@@ -144,6 +144,11 @@
 
   <!-- ============ CAMPAIGN TRENDS ============ -->
   <section class="walker-section" id="section-trends">
+    <div class="chip-group" id="trends-vertical-tabs" style="margin-bottom:14px">
+      <button class="chip is-active" data-trends-vertical="combined">CA + NW</button>
+      <button class="chip" data-trends-vertical="CA">CA only</button>
+      <button class="chip" data-trends-vertical="NW">NW only</button>
+    </div>
     <div class="panel">
       <div class="panel-head"><h2 class="panel-title">Campaign Trends</h2><span class="panel-sub" id="trends-sub"></span></div>
       <div class="table-scroll">
@@ -171,6 +176,8 @@
       </div>
     </div>
     <div class="panel" id="correlation-pane" hidden>
+      <p class="footnote footnote--inside">Late-QMVA revenue is attributed to the week the lead itself came in (not the later week it got invoiced in), so each week's late-QMVA % can be read against that same week's spend.</p>
+      <div class="chart-canvas-wrap" style="height:320px;margin-bottom:16px"><canvas id="chart-correlation"></canvas></div>
       <div class="table-scroll">
         <table>
           <thead><tr><th>Week</th><th class="th-num">Ad Spend</th><th class="th-num">Late QMVA Revenue</th><th class="th-num">Late QMVA %</th></tr></thead>
@@ -193,8 +200,36 @@
       <div class="panel-head"><h2 class="panel-title">Walker CA vs Walker NW &mdash; Hourly Performance</h2></div>
       <p class="footnote footnote--inside">QMVA and Revenue from Loudr_Posted_to_Qualified, joined by Call ID to the Real Time Publisher Portal for each lead's actual payout. Spend from the Google/Meta Ad Spend Per Hour sheet. No total-lead-volume source exists, so there's no CPL/CVR here.</p>
       <p class="panel-sub" id="hourly-note"></p>
-      <div class="chart-canvas-wrap" style="margin-bottom:16px"><canvas id="chart-hourly"></canvas></div>
-      <div class="table-scroll"><table id="hourly-table"></table></div>
+      <div class="chip-group" id="hourly-inner-tabs" style="margin-bottom:14px">
+        <button class="chip is-active" data-innertab="summary">Hourly Summary</button>
+        <button class="chip" data-innertab="detail">Lead Detail</button>
+      </div>
+      <div id="hourly-summary-pane">
+        <div class="chart-canvas-wrap" style="margin-bottom:16px"><canvas id="chart-hourly"></canvas></div>
+        <div class="table-scroll"><table id="hourly-table"></table></div>
+      </div>
+      <div id="hourly-detail-pane" style="display:none">
+        <div class="hour-detail-filter-by">
+          <span>Filter the date range above by:</span>
+          <label><input type="radio" name="hourlyDetailDateField" value="posted" checked /> Posted date</label>
+          <label><input type="radio" name="hourlyDetailDateField" value="converted" /> Converted date</label>
+        </div>
+        <div class="hour-detail-filter-by">
+          <span>Campaign:</span>
+          <label><input type="radio" name="hourlyDetailGroup" value="all" checked /> All</label>
+          <label><input type="radio" name="hourlyDetailGroup" value="nwa" /> Loudr NWA</label>
+          <label><input type="radio" name="hourlyDetailGroup" value="nwaib" /> NWA IB</label>
+          <label><input type="radio" name="hourlyDetailGroup" value="agency" /> Agency</label>
+        </div>
+        <div class="hour-detail-filter-by">
+          <span>Show leads:</span>
+          <label><input type="radio" name="hourlyDetailDq" value="nondq" checked /> Non DQ (qualified)</label>
+          <label><input type="radio" name="hourlyDetailDq" value="dq" /> DQ only</label>
+          <label><input type="radio" name="hourlyDetailDq" value="all" /> All leads</label>
+        </div>
+        <p class="panel-sub" id="hourly-detail-head"></p>
+        <div class="table-scroll" style="max-height:600px"><table id="hourly-detail-table"></table></div>
+      </div>
     </div>
   </section>
 

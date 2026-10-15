@@ -183,6 +183,7 @@
       // only a free replacement for a bad lead is never charged, on either side of the ledger.
       if (l.replacement) continue;
       if (l.createdDate === '2026-10-07') continue;
+      if (l.createdDate === '2026-10-13' || l.createdDate === '2026-10-14' || l.createdDate === '2026-10-15') continue;
       const key = o.campaignId + '|' + l.createdDate;
       sent.set(key, (sent.get(key) || 0) + 1);
     }

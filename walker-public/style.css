@@ -202,23 +202,33 @@ button.platform-tag:hover,button.platform-tag.is-selected{background:var(--surfa
   grid-template-columns:repeat(9,minmax(0,1fr));
   gap:clamp(6px,0.8vw,16px);
 }
-#global-kpis.kpi-row--walker .kpi,#agency-kpis.kpi-row--walker .kpi{
+#global-kpis.kpi-row--walker .kpi,#agency-kpis.kpi-row--walker .kpi,
+#nw-kpis.kpi-row--walker .kpi,#ca-kpis.kpi-row--walker .kpi{
   container-type:inline-size;
-  padding:clamp(10px,1.3vw,20px) clamp(8px,1vw,16px);
-  gap:clamp(5px,0.7vw,10px);
+  padding:clamp(8px,1.3vw,20px) clamp(6px,1vw,16px);
+  gap:clamp(4px,0.7vw,10px);
 }
-#global-kpis.kpi-row--walker .kpi-label,#agency-kpis.kpi-row--walker .kpi-label{
-  font-size:clamp(7.5px,8cqw,12px);
+#global-kpis.kpi-row--walker .kpi-label,#agency-kpis.kpi-row--walker .kpi-label,
+#nw-kpis.kpi-row--walker .kpi-label,#ca-kpis.kpi-row--walker .kpi-label{
+  font-size:clamp(7px,8cqw,12px);
   letter-spacing:.02em;
   white-space:normal;line-height:1.25;word-break:break-word;
 }
 #global-kpis.kpi-row--walker .kpi-value,#agency-kpis.kpi-row--walker .kpi-value{
-  font-size:clamp(13px,13.5cqw,26px);
+  font-size:clamp(11px,13.5cqw,26px);
+  white-space:nowrap;line-height:1.15;overflow:hidden;text-overflow:clip;
+}
+/* NW/CA tiles sit in a half-width two-column layout, so their containers run narrower than
+   Global/Agency's — a lower ratio and cap here (instead of reusing Global's) is what actually
+   keeps long values like $2,806,371.00 on one line instead of wrapping or overflowing. */
+#nw-kpis.kpi-row--walker .kpi-value,#ca-kpis.kpi-row--walker .kpi-value{
+  font-size:clamp(9px,9.5cqw,18px);
   white-space:nowrap;line-height:1.15;overflow:hidden;text-overflow:clip;
 }
 @container walker-section (max-width:900px){
   #global-kpis.kpi-row--walker,#agency-kpis.kpi-row--walker{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));}
-  #global-kpis.kpi-row--walker .kpi-value,#agency-kpis.kpi-row--walker .kpi-value{white-space:normal;word-break:break-word;overflow-wrap:break-word;overflow:visible;}
+  #global-kpis.kpi-row--walker .kpi-value,#agency-kpis.kpi-row--walker .kpi-value,
+  #nw-kpis.kpi-row--walker .kpi-value,#ca-kpis.kpi-row--walker .kpi-value{white-space:normal;word-break:break-word;overflow-wrap:break-word;overflow:visible;}
 }
 @media (max-width:860px){
   #global-kpis.kpi-row--walker,#agency-kpis.kpi-row--walker{grid-template-columns:repeat(auto-fit,minmax(110px,1fr));}

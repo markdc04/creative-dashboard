@@ -573,7 +573,14 @@
       renderCorrelationChart();
       return;
     }
-    const rows = state.restoredSub === 'late' ? state.lateQmvas : state.restoredLeads;
+    const all = state.restoredSub === 'late' ? state.lateQmvas : state.restoredLeads;
+    const rows = all.filter((r) => {
+      const d = parsePublisherDate(r['Original Date']);
+      if (!d) return true;
+      if (state.range.start && toISO(d) < state.range.start) return false;
+      if (state.range.end && toISO(d) > state.range.end) return false;
+      return true;
+    });
     $('#restored-late-head').innerHTML = '<tr>' + RL_COLUMNS.map((c) => '<th>' + escapeHtml(c) + '</th>').join('') + '</tr>';
     $('#restored-late-body').innerHTML = rows.map((r) =>
       '<tr>' + RL_COLUMNS.map((c) => '<td>' + escapeHtml(r[c] || '') + '</td>').join('') + '</tr>'

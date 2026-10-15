@@ -488,6 +488,38 @@
         '<td class="td-num num">' + fmtMoney(c.spend) + '</td>' +
         '<td class="td-num num">' + (c.recency != null ? c.recency.toFixed(1) : '—') + '</td></tr>';
     }).join('');
+
+    const metrics = rows.map((d) => d[state.trendsVertical] || d.combined);
+    const totalLeads = metrics.reduce((s, c) => s + c.totalLeads, 0);
+    const totalAccepted = metrics.reduce((s, c) => s + c.acceptedLeads, 0);
+    const totalQmva = metrics.reduce((s, c) => s + c.qmvaCount, 0);
+    const totalSpend = metrics.reduce((s, c) => s + c.spend, 0);
+    const recencies = metrics.map((c) => c.recency).filter((v) => v != null).sort((a, b) => a - b);
+    const medianRecency = recencies.length ? recencies[Math.floor(recencies.length / 2)] : null;
+    $('#trends-kpis').innerHTML = [
+      ['TOTAL LEADS', fmtInt(totalLeads), false],
+      ['ACCEPTED', fmtInt(totalAccepted), false],
+      ['QMVA', fmtInt(totalQmva), true],
+      ['CONVERSION RATE', totalAccepted ? fmtPct((totalQmva / totalAccepted) * 100) : '0.00%', false],
+      ['AD SPEND', fmtMoney(totalSpend), true],
+      ['CPQMVA', fmtMoney(totalQmva ? totalSpend / totalQmva : 0), true],
+      ['MEDIAN RECENCY (HRS)', medianRecency != null ? medianRecency.toFixed(1) : '—', false],
+    ].map(([label, value, highlight]) =>
+      '<div class="kpi' + (highlight ? ' kpi--highlight' : '') + '"><div class="kpi-label">' + label + '</div><div class="kpi-value num">' + value + '</div></div>'
+    ).join('');
+
+    const byDate = rows.map((d) => ({ date: d.date, c: d[state.trendsVertical] || d.combined }));
+    upsertChart('chart-trends', {
+      data: {
+        labels: byDate.map((g) => g.date),
+        datasets: [
+          { type: 'bar', label: 'Leads', data: byDate.map((g) => g.c.totalLeads), backgroundColor: PALETTE[0] + '99', yAxisID: 'y' },
+          { type: 'line', label: 'QMVA', data: byDate.map((g) => g.c.qmvaCount), borderColor: PALETTE[2], tension: 0.3, pointRadius: 1.5, yAxisID: 'y' },
+          { type: 'line', label: 'Ad Spend', data: byDate.map((g) => g.c.spend), borderColor: PALETTE[1], borderDash: [5, 3], tension: 0.3, pointRadius: 1.5, yAxisID: 'y1' },
+        ],
+      },
+      options: chartOptions({ y1: true }),
+    });
   }
 
   async function loadRestored() {
@@ -529,6 +561,8 @@
   function renderRestored() {
     $('#correlation-pane').hidden = state.restoredSub !== 'correlation';
     $('#restored-late-pane').hidden = state.restoredSub === 'correlation';
+    $('#restored-late-kpis').hidden = state.restoredSub === 'correlation';
+    $('#restored-late-chart-card').hidden = state.restoredSub === 'correlation';
     if (state.restoredSub === 'correlation') {
       $('#correlation-body').innerHTML = state.correlation.map((w) =>
         '<tr><td>' + escapeHtml(w.weekStart) + '</td>' +
@@ -544,6 +578,40 @@
     $('#restored-late-body').innerHTML = rows.map((r) =>
       '<tr>' + RL_COLUMNS.map((c) => '<td>' + escapeHtml(r[c] || '') + '</td>').join('') + '</tr>'
     ).join('');
+
+    const commission = (r) => Number(String(r['Commission'] || '0').replace(/[$,]/g, '')) || 0;
+    const total = rows.reduce((s, r) => s + commission(r), 0);
+    const avg = rows.length ? total / rows.length : 0;
+    $('#restored-late-kpis').innerHTML = [
+      [state.restoredSub === 'late' ? 'LATE QMVAS' : 'RESTORED LEADS', fmtInt(rows.length), true],
+      ['TOTAL COMMISSION', fmtMoney(total), true],
+      ['AVG COMMISSION', fmtMoney(avg), false],
+    ].map(([label, value, highlight]) =>
+      '<div class="kpi' + (highlight ? ' kpi--highlight' : '') + '"><div class="kpi-label">' + label + '</div><div class="kpi-value num">' + value + '</div></div>'
+    ).join('');
+    $('#restored-late-chart-title').textContent = (state.restoredSub === 'late' ? 'Late QMVA' : 'Restored Lead') + ' Commission by Date';
+
+    const byDate = new Map();
+    rows.forEach((r) => {
+      const d = parsePublisherDate(r['Original Date']);
+      if (!d) return;
+      const key = toISO(d);
+      if (!byDate.has(key)) byDate.set(key, { date: d, count: 0, commission: 0 });
+      const g = byDate.get(key);
+      g.count += 1;
+      g.commission += commission(r);
+    });
+    const sorted = Array.from(byDate.values()).sort((a, b) => a.date - b.date);
+    upsertChart('chart-restored-late', {
+      data: {
+        labels: sorted.map((g) => g.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+        datasets: [
+          { type: 'bar', label: 'Commission', data: sorted.map((g) => g.commission), backgroundColor: PALETTE[1] + '99', yAxisID: 'y1' },
+          { type: 'line', label: 'Count', data: sorted.map((g) => g.count), borderColor: PALETTE[0], tension: 0.3, pointRadius: 1.5, yAxisID: 'y' },
+        ],
+      },
+      options: chartOptions({ y1: true }),
+    });
   }
 
   // ---- Hourly Performance: static export, not live (same as the original app — its own two

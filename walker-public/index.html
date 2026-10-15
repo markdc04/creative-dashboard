@@ -149,6 +149,11 @@
       <button class="chip" data-trends-vertical="CA">CA only</button>
       <button class="chip" data-trends-vertical="NW">NW only</button>
     </div>
+    <div class="kpi-row kpi-row--walker" id="trends-kpis" style="margin-bottom:14px"></div>
+    <div class="chart-card" style="margin-bottom:14px">
+      <h3>Leads, QMVA &amp; Ad Spend by Date</h3>
+      <div class="chart-canvas-wrap" style="height:280px"><canvas id="chart-trends"></canvas></div>
+    </div>
     <div class="panel">
       <div class="panel-head"><h2 class="panel-title">Campaign Trends</h2><span class="panel-sub" id="trends-sub"></span></div>
       <div class="table-scroll">
@@ -166,6 +171,11 @@
       <button class="chip is-active" data-rl="late">Late QMVAs</button>
       <button class="chip" data-rl="restored">Restored Leads</button>
       <button class="chip" data-rl="correlation">Spend vs Late QMVAs</button>
+    </div>
+    <div class="kpi-row kpi-row--walker" id="restored-late-kpis" style="margin-bottom:14px"></div>
+    <div class="chart-card" id="restored-late-chart-card" style="margin-bottom:14px">
+      <h3 id="restored-late-chart-title">Commission by Date</h3>
+      <div class="chart-canvas-wrap" style="height:260px"><canvas id="chart-restored-late"></canvas></div>
     </div>
     <div class="panel" id="restored-late-pane">
       <div class="table-scroll">

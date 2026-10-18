@@ -18,7 +18,7 @@
     switch (key) {
       case 'today': return { start: toISO(today), end: toISO(today) };
       case 'yesterday': { const y = addDays(today, -1); return { start: toISO(y), end: toISO(y) }; }
-      case 'wtd': return { start: toISO(mondayOf(today)), end: toISO(today) };
+      case 'wtd': return { start: toISO(mondayOf(today)), end: toISO(addDays(today, -1)) };
       case 'lastweek': { const lastMon = addDays(mondayOf(today), -7); const lastSun = addDays(lastMon, 6); return { start: toISO(lastMon), end: toISO(lastSun) }; }
       default: {
         const m = /^(\d{4})-(\d{2})$/.exec(key);

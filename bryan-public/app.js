@@ -184,6 +184,7 @@
       if (l.replacement) continue;
       if (l.createdDate === '2026-10-07') continue;
       if (l.createdDate === '2026-10-13' || l.createdDate === '2026-10-14' || l.createdDate === '2026-10-15') continue;
+      if (l.createdDate === '2026-10-18' || l.createdDate === '2026-10-19') continue;
       const key = o.campaignId + '|' + l.createdDate;
       sent.set(key, (sent.get(key) || 0) + 1);
     }

@@ -5,6 +5,7 @@ const path = require('path');
 const auth = require('./auth');
 const { csvUrl: sharedCsvUrl, fetchText, parseCSV, num, toISODate } = require('./csv-utils');
 const sasooness = require('./sasooness');
+const { syncSasoonessSheet } = require('./sasooness-sheet-sync');
 const km = require('./km');
 const bryan = require('./bryan');
 const clientView = require('./client-view');
@@ -675,8 +676,14 @@ const server = http.createServer((req, res) => {
 
 pollAll();
 setInterval(pollAll, POLL_MS);
-sasooness.pollAll();
-setInterval(sasooness.pollAll, POLL_MS);
+function pollSasoonessAndSync() {
+  sasooness.pollAll();
+  // Throttled independently (every 5 min, not every 30s poll) inside syncSasoonessSheet itself —
+  // Google Sheets write quota wouldn't tolerate a write this often.
+  syncSasoonessSheet(sasooness.getData()).catch(() => {});
+}
+pollSasoonessAndSync();
+setInterval(pollSasoonessAndSync, POLL_MS);
 km.pollAll();
 setInterval(km.pollAll, POLL_MS);
 bryan.pollAll();

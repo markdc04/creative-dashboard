@@ -1,14 +1,23 @@
-// Writes a live snapshot of the Sasooness dashboard's headline numbers + lead tables out to a
-// Google Sheet, for anyone who'd rather glance at a spreadsheet than open the dashboard. Mirrors
-// the core metrics from sasooness-public/app.js's renderKpis (Total Leads, Signed, Conversion
-// Rate, Rejected, Revenue, Ad Spend, Profit) for both programs (PPL and Agency), all-time/
-// unfiltered since a static sheet has no date-range picker. Deliberately leaves out the Agency
-// contract's monthly fee/budget-tranche proration (contractForRange/windowSpend in app.js) — that
-// logic is calendar-schedule-dependent and date-range-sensitive in a way that doesn't map cleanly
-// onto a single always-current snapshot; the live dashboard remains the source of truth for that.
-const { writeSheetTab } = require('./sheet-writer');
+// Writes a live snapshot of the Sasooness dashboard out to a Google Sheet, for anyone who'd
+// rather glance at a spreadsheet than open the dashboard. Mirrors the core metrics from
+// sasooness-public/app.js's renderKpis (Total Leads, Signed, Conversion Rate, Rejected, Revenue,
+// Ad Spend, Profit) for both programs (PPL and Agency), plus a week-by-week trend tab (with an
+// embedded line chart) and a per-lead detail tab carrying the converting ad/campaign — the same
+// fields the dashboard's own lead table shows. Deliberately leaves out the Agency contract's
+// monthly fee/budget-tranche proration (contractForRange/windowSpend in app.js) — that logic is
+// calendar-schedule-dependent and date-range-sensitive in a way that doesn't map cleanly onto a
+// single always-current snapshot; the live dashboard remains the source of truth for that.
+const { writeSheetTab, upsertLineChart, setBasicFilter } = require('./sheet-writer');
 
 const SPREADSHEET_ID = '1PCSysjKer16YHJOvLMiG8flEu4ymVjja0dxFHEYB0J0';
+const SHEET_IDS = {
+  'PPL Summary': 150714352,
+  'PPL Lead Details': 838305441,
+  'Agency Summary': 55477001,
+  'Agency Lead Details': 1251385546,
+  'PPL Weekly Trends': 1763630289,
+  'Agency Weekly Trends': 813782328,
+};
 const PPL_PRICE_PER_LEAD = 425;
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -80,15 +89,87 @@ function buildSummaryRows(leads, program, data) {
   return rows;
 }
 
-function buildLeadsRows(leads) {
-  const rows = [['Date', 'Name', 'Email', 'Phone', 'Status', 'Campaign', 'Channel']];
+// Lead Details — same columns the dashboard's own lead table shows, including the converting ad.
+function buildLeadDetailRows(leads) {
+  const rows = [['Date', 'Name', 'Email', 'Phone', 'Status', 'Campaign', 'Converting Ad', 'Contact Source', 'Channel']];
   leads
     .slice()
     .sort((a, b) => (b.createdDate || '').localeCompare(a.createdDate || ''))
     .forEach((l) => {
-      rows.push([l.createdDate || '', l.name || '', l.email || '', l.phone || '', l.status || '', l.campaign || '', l.channel || '']);
+      const o = l.origin || {};
+      rows.push([
+        l.createdDate || '', l.name || '', l.email || '', l.phone || '', l.status || '',
+        o.campaignName || l.campaign || '', o.adName || '', o.contactSource || '', l.channel || '',
+      ]);
     });
   return rows;
+}
+
+// Monday-start week-of-month, same numbering as Walker's weekOfMonthRange: the days before a
+// month's first Monday still belong to "Week 1" rather than spilling into the prior month.
+function weekOfMonth(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  if (isNaN(d)) return null;
+  const year = d.getFullYear(), month = d.getMonth();
+  const firstOfMonth = new Date(year, month, 1);
+  const dow = firstOfMonth.getDay();
+  const daysToFirstMonday = dow === 1 ? 0 : (8 - dow) % 7;
+  const weekIndex = Math.floor((d.getDate() - 1 - (daysToFirstMonday === 0 ? 0 : -(7 - daysToFirstMonday))) / 7);
+  const monthLabel = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  return { key: `${year}-${String(month + 1).padStart(2, '0')}-W${weekIndex + 1}`, label: `${monthLabel} — Week ${weekIndex + 1}`, sortKey: year * 100 + month, weekIndex };
+}
+
+function buildWeeklyTrendsRows(leads, program, data) {
+  const buckets = new Map();
+  for (const l of leads) {
+    const w = weekOfMonth(l.createdDate);
+    if (!w) continue;
+    if (!buckets.has(w.key)) buckets.set(w.key, { ...w, leads: [] });
+    buckets.get(w.key).leads.push(l);
+  }
+  const weeks = [...buckets.values()].sort((a, b) => a.sortKey - b.sortKey || a.weekIndex - b.weekIndex);
+
+  if (program === 'ppl') {
+    const rows = [['Week', 'Total Leads', 'Signed', 'Conversion Rate', 'Ad Spend', 'Revenue', 'Profit']];
+    weeks.forEach((w) => {
+      const total = w.leads.length;
+      const signed = w.leads.filter(isSignedCase).length;
+      const adSpend = partnerDeduction(w.leads, data.walker);
+      const revenue = PPL_PRICE_PER_LEAD * total;
+      rows.push([w.label, total, signed, total ? Math.round((signed / total) * 1000) / 10 : 0, Math.round(adSpend * 100) / 100, revenue, Math.round((revenue - adSpend) * 100) / 100]);
+    });
+    return rows;
+  }
+  const rows = [['Week', 'Total Leads', 'Signed', 'Conversion Rate', 'Ad Spend']];
+  weeks.forEach((w) => {
+    const total = w.leads.length;
+    const signed = w.leads.filter(isSignedCase).length;
+    // Own-ad spend isn't attributable to a specific week's leads (account-wide, not per-lead) —
+    // only the Walker/Lead Prosper partner deduction is split by week here.
+    const adSpend = partnerDeduction(w.leads, data.walker);
+    rows.push([w.label, total, signed, total ? Math.round((signed / total) * 1000) / 10 : 0, Math.round(adSpend * 100) / 100]);
+  });
+  return rows;
+}
+
+async function syncTrendsTab(sheetTitle, rows, leftCols, rightCols) {
+  await writeSheetTab(SPREADSHEET_ID, sheetTitle, rows);
+  if (rows.length > 1) {
+    await upsertLineChart(SPREADSHEET_ID, {
+      sheetId: SHEET_IDS[sheetTitle],
+      title: sheetTitle,
+      rowCount: rows.length,
+      startCol: 0,
+      leftSeriesCols: leftCols,
+      rightSeriesCols: rightCols,
+    }).catch((err) => console.error(`[${new Date().toISOString()}] chart upsert failed (${sheetTitle}):`, err.message));
+  }
+}
+
+async function syncLeadDetailTab(sheetTitle, rows) {
+  await writeSheetTab(SPREADSHEET_ID, sheetTitle, rows);
+  await setBasicFilter(SPREADSHEET_ID, SHEET_IDS[sheetTitle], rows.length, rows[0].length)
+    .catch((err) => console.error(`[${new Date().toISOString()}] filter set failed (${sheetTitle}):`, err.message));
 }
 
 let lastSyncAt = 0;
@@ -102,9 +183,12 @@ async function syncSasoonessSheet(data) {
     const agencyLeads = data.leads.filter((l) => programOf(l) === 'agency');
     await Promise.all([
       writeSheetTab(SPREADSHEET_ID, 'PPL Summary', buildSummaryRows(pplLeads, 'ppl', data)),
-      writeSheetTab(SPREADSHEET_ID, 'PPL Leads', buildLeadsRows(pplLeads)),
       writeSheetTab(SPREADSHEET_ID, 'Agency Summary', buildSummaryRows(agencyLeads, 'agency', data)),
-      writeSheetTab(SPREADSHEET_ID, 'Agency Leads', buildLeadsRows(agencyLeads)),
+      syncLeadDetailTab('PPL Lead Details', buildLeadDetailRows(pplLeads)),
+      syncLeadDetailTab('Agency Lead Details', buildLeadDetailRows(agencyLeads)),
+      // Weekly Trends columns: Week(0), Total Leads(1), Signed(2), Conversion Rate(3), Ad Spend(4)[, Revenue(5), Profit(6)]
+      syncTrendsTab('PPL Weekly Trends', buildWeeklyTrendsRows(pplLeads, 'ppl', data), [1, 2], [4, 5, 6]),
+      syncTrendsTab('Agency Weekly Trends', buildWeeklyTrendsRows(agencyLeads, 'agency', data), [1, 2], [4]),
     ]);
   })().catch((err) => {
     console.error(`[${new Date().toISOString()}] sasooness sheet sync failed:`, err.message);

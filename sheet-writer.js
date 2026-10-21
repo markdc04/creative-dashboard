@@ -82,4 +82,50 @@ async function writeSheetTab(spreadsheetId, sheetTitle, rows) {
   );
 }
 
-module.exports = { writeSheetTab };
+// A raw batchUpdate call (requests array per the Sheets API's Request schema) for anything
+// writeSheetTab can't do — adding/positioning an embedded chart, setting a basic filter, resizing
+// columns, etc.
+async function batchUpdate(spreadsheetId, requests) {
+  if (!requests.length) return;
+  const token = await getWriteAccessToken();
+  return sheetsRequest('POST', `/v4/spreadsheets/${spreadsheetId}:batchUpdate`, token, { requests });
+}
+
+// Adds (or replaces, if chartId is given) an embedded line chart reading from a tab's own data —
+// sheetId is the tab's numeric sheet ID (not its title), rowCount/colCount describe the data
+// range including its header row. leftSeriesCols/rightSeriesCols are 0-based column indexes (col
+// 0 is the X-axis labels) assigned to the left/right Y-axis, so count metrics and dollar metrics
+// can share one chart at very different scales.
+async function upsertLineChart(spreadsheetId, { sheetId, chartId, title, rowCount, startCol, leftSeriesCols, rightSeriesCols, anchorRow = 0, anchorCol = 10 }) {
+  const domain = { domain: { sourceRange: { sources: [{ sheetId, startRowIndex: 0, endRowIndex: rowCount, startColumnIndex: startCol, endColumnIndex: startCol + 1 }] } } };
+  const seriesFor = (cols, axis) => cols.map((col) => ({
+    series: { sourceRange: { sources: [{ sheetId, startRowIndex: 0, endRowIndex: rowCount, startColumnIndex: col, endColumnIndex: col + 1 }] } },
+    targetAxis: axis,
+  }));
+  const chartSpec = {
+    title,
+    basicChart: {
+      chartType: 'LINE',
+      legendPosition: 'BOTTOM_LEGEND',
+      axis: [{ position: 'BOTTOM_AXIS' }, { position: 'LEFT_AXIS' }, { position: 'RIGHT_AXIS' }],
+      domains: [domain],
+      series: [...seriesFor(leftSeriesCols, 'LEFT_AXIS'), ...seriesFor(rightSeriesCols, 'RIGHT_AXIS')],
+      headerCount: 1,
+    },
+  };
+  const position = { overlayPosition: { anchorCell: { sheetId, rowIndex: anchorRow, columnIndex: anchorCol }, widthPixels: 760, heightPixels: 360 } };
+  const request = chartId
+    ? { updateChartSpec: { chartId, spec: chartSpec } }
+    : { addChart: { chart: { spec: chartSpec, position } } };
+  return batchUpdate(spreadsheetId, [request]);
+}
+
+// A plain header-row filter (Data > Create a filter equivalent) over a tab's full written range,
+// so a column's own dropdown arrow lets a viewer filter/sort it directly in Sheets.
+async function setBasicFilter(spreadsheetId, sheetId, rowCount, colCount) {
+  return batchUpdate(spreadsheetId, [{
+    setBasicFilter: { filter: { range: { sheetId, startRowIndex: 0, endRowIndex: rowCount, startColumnIndex: 0, endColumnIndex: colCount } } },
+  }]);
+}
+
+module.exports = { writeSheetTab, batchUpdate, upsertLineChart, setBasicFilter };

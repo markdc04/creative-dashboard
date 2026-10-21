@@ -1327,10 +1327,17 @@ async function getLeadsImportCounts(token) {
 // date's law type, misclassifying that other date's QMVA count.
 async function getLeadLookups(token) {
   const lawTypeByDateKey = {};
+  // Case-qualification status (Qualified Yes/No), keyed by phone+date — same source/key shape as
+  // lawTypeByDateKey above, read in the same pass. Used only by the Data Analysis weekly
+  // breakdown's QMVA Q/DQ split below; kept separate from getPublisherLeads' own commission logic
+  // (same reasoning as this function's own header comment) so it can never affect revenue/QMVA
+  // totals anywhere else.
+  const qualifiedByDateKey = {};
   for (const row of (await getValues(token, 'Publisher Data CA/TX', 'A2:V40000', PUBLISHER_DOC)) || []) {
     const phone = normPhone(row[5]) || normPhone(row[6]);
     const date = normPublisherDate(row[0]);
     if (phone && date && row[9]) lawTypeByDateKey[`${phone}|${date}`] = row[9];
+    if (phone && date) qualifiedByDateKey[`${phone}|${date}`] = String(row[8] || '').trim().toLowerCase() === 'yes';
   }
   const recencyByPhone = {};
   for (const [sheet, phoneCol, recencyCol] of [['DATABASE PPL CA', 18, 10], ['DATABASE PPL NW', 14, 16]]) {
@@ -1340,7 +1347,7 @@ async function getLeadLookups(token) {
       if (phone && Number.isFinite(recency)) recencyByPhone[phone] = recency;
     }
   }
-  return { lawTypeByDateKey, recencyByPhone };
+  return { lawTypeByDateKey, recencyByPhone, qualifiedByDateKey };
 }
 
 // Daily campaign-trends table (Total Spend/Leads/CPL/Accepted/QMVA/NON MVA/Recency/Payout/Profit/
@@ -1356,7 +1363,7 @@ async function computeCampaignTrends(getAccessToken) {
     getLiveGoogleSpendByDate(token, (c) => c.includes('LOUDRCA')),
   ]);
   const publisher = await getPublisherLeads(token, qmvaPayouts, rtpp);
-  const { lawTypeByDateKey, recencyByPhone } = lookups;
+  const { lawTypeByDateKey, recencyByPhone, qualifiedByDateKey } = lookups;
 
   // COPY/COPY OF read once and reused for both spend figures, not fetched twice.
   const nwSpendByDate = spendByDateFromRows(nwCopyValues);
@@ -1386,7 +1393,7 @@ async function computeCampaignTrends(getAccessToken) {
   const bucket = (key, vertical) => {
     const d = (days[key] ||= { date: key, CA: null, NW: null });
     return (d[vertical] ||= {
-      spend: 0, totalLeads: 0, acceptedLeads: 0, qmvaCount: 0, nonMvaCount: 0, payout: 0,
+      spend: 0, totalLeads: 0, acceptedLeads: 0, qmvaCount: 0, qmvaQ: 0, qmvaDQ: 0, nonMvaCount: 0, payout: 0,
       recencyValues: [],
     });
   };
@@ -1408,7 +1415,13 @@ async function computeCampaignTrends(getAccessToken) {
       // say it's anything other than MVA, so it still defaults to qmvaCount rather than being
       // misclassified as non-MVA just because the lookup hasn't arrived yet.
       if (lawType && lawType.trim().toUpperCase() !== 'MVA') b.nonMvaCount += 1;
-      else b.qmvaCount += 1;
+      else {
+        b.qmvaCount += 1;
+        // Case-qualification split (Q vs DQ) for the Data Analysis weekly breakdown — purely
+        // additive bucketing, doesn't change which leads count as QMVA or how much they pay out.
+        const qualified = lead.phone && qualifiedByDateKey[`${lead.phone}|${lead.date}`];
+        if (qualified) b.qmvaQ += 1; else b.qmvaDQ += 1;
+      }
       b.payout += lead.commission;
       const recency = lead.phone && recencyByPhone[lead.phone];
       if (Number.isFinite(recency)) b.recencyValues.push(recency);
@@ -1421,20 +1434,26 @@ async function computeCampaignTrends(getAccessToken) {
     cpl: b.totalLeads > 0 ? b.spend / b.totalLeads : null,
     acceptedLeads: b.acceptedLeads,
     qmvaCount: b.qmvaCount,
+    qmvaQ: b.qmvaQ,
+    qmvaDQ: b.qmvaDQ,
     nonMvaCount: b.nonMvaCount,
     costPerAcceptedLead: b.acceptedLeads > 0 ? b.spend / b.acceptedLeads : null,
     acceptedLeadsPct: b.totalLeads > 0 ? (b.acceptedLeads / b.totalLeads) * 100 : null,
     conversionRate: b.acceptedLeads > 0 ? (b.qmvaCount / b.acceptedLeads) * 100 : null,
+    conversionRateQ: b.qmvaCount > 0 ? (b.qmvaQ / b.qmvaCount) * 100 : null,
+    conversionRateDQ: b.qmvaCount > 0 ? (b.qmvaDQ / b.qmvaCount) * 100 : null,
     recency: median(b.recencyValues),
     payout: b.payout,
     profit: b.payout - b.spend,
     revenuePerQmva: b.qmvaCount > 0 ? b.payout / b.qmvaCount : null,
   });
-  const empty = { spend: 0, totalLeads: 0, acceptedLeads: 0, qmvaCount: 0, nonMvaCount: 0, payout: 0, recencyValues: [] };
+  const empty = { spend: 0, totalLeads: 0, acceptedLeads: 0, qmvaCount: 0, qmvaQ: 0, qmvaDQ: 0, nonMvaCount: 0, payout: 0, recencyValues: [] };
   const combine = (a, b) => ({
     spend: a.spend + b.spend,
     totalLeads: a.totalLeads + b.totalLeads,
     acceptedLeads: a.acceptedLeads + b.acceptedLeads,
+    qmvaQ: a.qmvaQ + b.qmvaQ,
+    qmvaDQ: a.qmvaDQ + b.qmvaDQ,
     qmvaCount: a.qmvaCount + b.qmvaCount,
     nonMvaCount: a.nonMvaCount + b.nonMvaCount,
     payout: a.payout + b.payout,

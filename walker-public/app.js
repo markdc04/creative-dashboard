@@ -75,6 +75,7 @@
     lateQmvas: [], restoredLeads: [], correlation: [],
     restoredSub: 'late',
     posted: null, hourly: null,
+    dataTab: 'trends', weeklyVertical: 'combined',
     loadedSections: new Set(),
   };
 
@@ -469,6 +470,98 @@
     const json = await r.json();
     state.trendsDays = json.days || [];
     renderTrends();
+  }
+
+  // Weekly Breakdown shares the exact same per-day CA/NW/combined data Campaign Trends uses —
+  // just re-fetched independently so this tab works correctly regardless of visit order (the
+  // server already caches the underlying computation for 5 minutes, so this is cheap).
+  async function loadWeekly() {
+    const r = await fetch('/walker-api/campaign-trends', { cache: 'no-store' });
+    const json = await r.json();
+    state.trendsDays = json.days || [];
+    renderWeekly();
+  }
+  // Monday-Sunday week label matching the reference invoice sheet's own week boundaries (e.g.
+  // "Aug 31 - Sep 6").
+  function mondayOfWeek(d) {
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    const m = new Date(d); m.setDate(d.getDate() + diff); m.setHours(0, 0, 0, 0);
+    return m;
+  }
+  function weekLabel(monday) {
+    const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+    const fmt = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return fmt(monday) + ' - ' + fmt(sunday);
+  }
+  function renderWeekly() {
+    const rows = state.trendsDays.filter((d) => {
+      const dt = parseDate(d.date.replace(/-/g, '/'));
+      if (!dt) return true;
+      if (state.range.start && toISO(dt) < state.range.start) return false;
+      if (state.range.end && toISO(dt) > state.range.end) return false;
+      return true;
+    });
+    const weeks = new Map();
+    rows.forEach((d) => {
+      const dt = parseDate(d.date.replace(/-/g, '/'));
+      if (!dt) return;
+      const monday = mondayOfWeek(dt);
+      const key = toISO(monday);
+      if (!weeks.has(key)) weeks.set(key, { monday, days: [] });
+      weeks.get(key).days.push(d[state.weeklyVertical] || d.combined);
+    });
+    const sorted = [...weeks.values()].sort((a, b) => a.monday - b.monday);
+    $('#weekly-sub').textContent = sorted.length + ' week' + (sorted.length === 1 ? '' : 's');
+
+    const sum = (days, key) => days.reduce((s, c) => s + (c[key] || 0), 0);
+    const weekRows = sorted.map((w) => {
+      const totalLeads = sum(w.days, 'totalLeads');
+      const acceptedLeads = sum(w.days, 'acceptedLeads');
+      const spend = sum(w.days, 'spend');
+      const qmvaCount = sum(w.days, 'qmvaCount');
+      const qmvaQ = sum(w.days, 'qmvaQ');
+      const qmvaDQ = sum(w.days, 'qmvaDQ');
+      const nonMvaCount = sum(w.days, 'nonMvaCount');
+      const payout = sum(w.days, 'payout');
+      const recencies = w.days.map((c) => c.recency).filter((v) => v != null).sort((a, b) => a - b);
+      const recency = recencies.length ? recencies[Math.floor(recencies.length / 2)] : null;
+      return {
+        label: weekLabel(w.monday), spend, totalLeads,
+        cpl: totalLeads ? spend / totalLeads : null,
+        acceptedLeads, costPerAcceptedLead: acceptedLeads ? spend / acceptedLeads : null,
+        acceptedLeadsPct: totalLeads ? (acceptedLeads / totalLeads) * 100 : null,
+        qmvaCount, qmvaQ, qmvaDQ, nonMvaCount,
+        conversionRateOverall: acceptedLeads ? (qmvaCount / acceptedLeads) * 100 : null,
+        recency, payout, profit: payout - spend,
+        revenuePerQmva: qmvaCount ? payout / qmvaCount : null,
+      };
+    });
+
+    const fmtPctOrDash = (n) => (n != null ? fmtPct(n) : '—');
+    const fmtNumOrDash = (n) => (n != null ? n.toFixed(1) : '—');
+    const metricRows = [
+      ['Total Spend', (r) => fmtMoney(r.spend)],
+      ['Total Raw Leads', (r) => fmtInt(r.totalLeads)],
+      ['CPL', (r) => (r.cpl != null ? fmtMoney(r.cpl) : '—')],
+      ['Total Accepted Leads', (r) => fmtInt(r.acceptedLeads)],
+      ['Cost Accepted Lead', (r) => (r.costPerAcceptedLead != null ? fmtMoney(r.costPerAcceptedLead) : '—')],
+      ['% Accepted Leads', (r) => fmtPctOrDash(r.acceptedLeadsPct)],
+      ['Total QMVAs Q', (r) => fmtInt(r.qmvaQ)],
+      ['Total QMVAs DQ', (r) => fmtInt(r.qmvaDQ)],
+      ['Total QMVAs', (r) => fmtInt(r.qmvaCount)],
+      ['Total NON MVA', (r) => fmtInt(r.nonMvaCount)],
+      ['Conversion Rate Overall', (r) => fmtPctOrDash(r.conversionRateOverall)],
+      ['Recency', (r) => fmtNumOrDash(r.recency)],
+      ['Total Payout', (r) => fmtMoney(r.payout)],
+      ['PROFIT', (r) => fmtMoney(r.profit)],
+      ['REVENUE PER QMVA', (r) => (r.revenuePerQmva != null ? fmtMoney(r.revenuePerQmva) : '—')],
+    ];
+    const thead = '<thead><tr><th></th>' + weekRows.map((r) => '<th class="th-num">' + escapeHtml(r.label) + '</th>').join('') + '</tr></thead>';
+    const tbody = '<tbody>' + metricRows.map(([label, fn]) =>
+      '<tr><td>' + escapeHtml(label) + '</td>' + weekRows.map((r) => '<td class="td-num num">' + fn(r) + '</td>').join('') + '</tr>'
+    ).join('') + '</tbody>';
+    $('#weekly-table').innerHTML = thead + tbody;
   }
   function renderTrends() {
     const rows = state.trendsDays.filter((d) => {
@@ -884,21 +977,37 @@
     state.section = name;
     document.querySelectorAll('#walker-tabs .segment-tab').forEach((b) => b.classList.toggle('is-active', b.dataset.section === name));
     document.querySelectorAll('.walker-section').forEach((s) => s.classList.toggle('is-active', s.id === 'section-' + name));
+    if (name === 'data') { await showDataTab(state.dataTab); return; }
     if (!state.loadedSections.has(name)) {
       state.loadedSections.add(name);
       if (name === 'global') await loadGlobal();
       else if (name === 'nwca') await loadNwCa();
       else if (name === 'agency') await loadAgency();
-      else if (name === 'trends') await loadTrends();
-      else if (name === 'restored') await loadRestored();
-      else if (name === 'hourly') await loadHourly();
     } else {
       if (name === 'global') renderGlobal();
       else if (name === 'nwca') renderNwCa();
       else if (name === 'agency') renderAgency();
-      else if (name === 'trends') renderTrends();
-      else if (name === 'restored') renderRestored();
-      else if (name === 'hourly') renderHourly();
+    }
+  }
+
+  // Data Analysis is one top-level tab containing 4 sub-tabs (Campaign Trends, Restored & Late
+  // QMVAs, Hourly Performance, Weekly Breakdown) — same loaded/render dispatch pattern as
+  // showSection, just one level deeper.
+  async function showDataTab(tab) {
+    state.dataTab = tab;
+    document.querySelectorAll('#data-inner-tabs .chip').forEach((b) => b.classList.toggle('is-active', b.dataset.datatab === tab));
+    ['trends', 'restored', 'hourly', 'weekly'].forEach((t) => { $('#section-' + t).style.display = t === tab ? '' : 'none'; });
+    if (!state.loadedSections.has(tab)) {
+      state.loadedSections.add(tab);
+      if (tab === 'trends') await loadTrends();
+      else if (tab === 'restored') await loadRestored();
+      else if (tab === 'hourly') await loadHourly();
+      else if (tab === 'weekly') await loadWeekly();
+    } else {
+      if (tab === 'trends') renderTrends();
+      else if (tab === 'restored') renderRestored();
+      else if (tab === 'hourly') renderHourly();
+      else if (tab === 'weekly') renderWeekly();
     }
   }
 
@@ -906,13 +1015,16 @@
     // Re-render whichever section is visible (and drop cached loads for the rest so the next
     // tab switch re-fetches with the new date range).
     state.loadedSections.clear();
-    state.loadedSections.add(state.section);
+    state.loadedSections.add(state.section === 'data' ? state.dataTab : state.section);
     if (state.section === 'global') renderGlobal();
     else if (state.section === 'nwca') renderNwCa();
     else if (state.section === 'agency') renderAgency();
-    else if (state.section === 'trends') renderTrends();
-    else if (state.section === 'restored') renderRestored();
-    else if (state.section === 'hourly') renderHourly();
+    else if (state.section === 'data') {
+      if (state.dataTab === 'trends') renderTrends();
+      else if (state.dataTab === 'restored') renderRestored();
+      else if (state.dataTab === 'hourly') renderHourly();
+      else if (state.dataTab === 'weekly') renderWeekly();
+    }
   }
 
   $('#walker-tabs').addEventListener('click', (e) => {
@@ -933,6 +1045,18 @@
     document.querySelectorAll('#trends-vertical-tabs .chip').forEach((b) => b.classList.toggle('is-active', b === btn));
     state.trendsVertical = btn.dataset.trendsVertical;
     renderTrends();
+  });
+  $('#data-inner-tabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.chip');
+    if (!btn) return;
+    showDataTab(btn.dataset.datatab);
+  });
+  $('#weekly-vertical-tabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.chip');
+    if (!btn) return;
+    document.querySelectorAll('#weekly-vertical-tabs .chip').forEach((b) => b.classList.toggle('is-active', b === btn));
+    state.weeklyVertical = btn.dataset.weeklyVertical;
+    renderWeekly();
   });
   $('#lead-search').addEventListener('input', renderLeadDetail);
 

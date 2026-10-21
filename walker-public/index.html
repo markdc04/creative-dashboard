@@ -50,9 +50,7 @@
     <button class="segment-tab is-active" data-section="global">Global PPL</button>
     <button class="segment-tab" data-section="nwca">NW &amp; CA PPL</button>
     <button class="segment-tab" data-section="agency">Agency Dashboard</button>
-    <button class="segment-tab" data-section="trends">Campaign Trends</button>
-    <button class="segment-tab" data-section="restored">Restored &amp; Late QMVAs</button>
-    <button class="segment-tab" data-section="hourly">Hourly Performance</button>
+    <button class="segment-tab" data-section="data">Data Analysis</button>
   </div>
 
   <!-- ============ GLOBAL PPL ============ -->
@@ -143,7 +141,16 @@
   </section>
 
   <!-- ============ CAMPAIGN TRENDS ============ -->
-  <section class="walker-section" id="section-trends">
+  <!-- ============ DATA ANALYSIS (container) ============ -->
+  <section class="walker-section" id="section-data">
+    <div class="chip-group" id="data-inner-tabs" style="margin-bottom:14px">
+      <button class="chip is-active" data-datatab="trends">Campaign Trends</button>
+      <button class="chip" data-datatab="restored">Restored &amp; Late QMVAs</button>
+      <button class="chip" data-datatab="hourly">Hourly Performance</button>
+      <button class="chip" data-datatab="weekly">Weekly Breakdown</button>
+    </div>
+
+  <div id="section-trends">
     <div class="chip-group" id="trends-vertical-tabs" style="margin-bottom:14px">
       <button class="chip is-active" data-trends-vertical="combined">CA + NW</button>
       <button class="chip" data-trends-vertical="CA">CA only</button>
@@ -163,10 +170,10 @@
         </table>
       </div>
     </div>
-  </section>
+  </div>
 
   <!-- ============ RESTORED & LATE QMVAS ============ -->
-  <section class="walker-section" id="section-restored">
+  <div id="section-restored" style="display:none">
     <div class="chip-group" id="restored-inner-tabs" style="margin-bottom:14px">
       <button class="chip is-active" data-rl="late">Late QMVAs</button>
       <button class="chip" data-rl="restored">Restored Leads</button>
@@ -195,10 +202,10 @@
         </table>
       </div>
     </div>
-  </section>
+  </div>
 
   <!-- ============ HOURLY PERFORMANCE (static export, not live) ============ -->
-  <section class="walker-section" id="section-hourly">
+  <div id="section-hourly" style="display:none">
     <div class="panel">
       <div class="panel-head"><h2 class="panel-title">Days from Posted to Qualified</h2></div>
       <p class="footnote footnote--inside" id="posted-subtitle">Weblead = ping-post form leads (posted, then dialed). Inbound = live calls, where the post and the call are the same event.</p>
@@ -241,6 +248,23 @@
         <div class="table-scroll" style="max-height:600px"><table id="hourly-detail-table"></table></div>
       </div>
     </div>
+  </div>
+
+  <!-- ============ WEEKLY BREAKDOWN ============ -->
+  <div id="section-weekly" style="display:none">
+    <div class="chip-group" id="weekly-vertical-tabs" style="margin-bottom:14px">
+      <button class="chip is-active" data-weekly-vertical="combined">CA + NW</button>
+      <button class="chip" data-weekly-vertical="CA">CA only</button>
+      <button class="chip" data-weekly-vertical="NW">NW only</button>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2 class="panel-title">Weekly Breakdown</h2><span class="panel-sub" id="weekly-sub"></span></div>
+      <p class="footnote footnote--inside">Monday-Sunday weeks. "Accepted" is from the Walker leads-import count; "Qualified"/"DQ" splits the QMVA count by Publisher Data's own case-qualification flag — these are two different stages, so Accepted Q/DQ isn't split the same way yet.</p>
+      <div class="table-scroll">
+        <table id="weekly-table"></table>
+      </div>
+    </div>
+  </div>
   </section>
 
 </div>

@@ -676,8 +676,10 @@ const server = http.createServer((req, res) => {
 
 pollAll();
 setInterval(pollAll, POLL_MS);
-function pollSasoonessAndSync() {
-  sasooness.pollAll();
+async function pollSasoonessAndSync() {
+  // Must await pollAll() before reading getData() — otherwise the sheet sync reads whatever was
+  // cached before this poll (empty, on the very first call after a fresh deploy).
+  await sasooness.pollAll();
   // Throttled independently (every 5 min, not every 30s poll) inside syncSasoonessSheet itself —
   // Google Sheets write quota wouldn't tolerate a write this often.
   syncSasoonessSheet(sasooness.getData()).catch(() => {});

@@ -23,7 +23,9 @@ const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
 function isSignedStatus(s) { return /^(signed|retained|active client)$/i.test((s || '').trim()); }
 function isSignedCase(l) { return isSignedStatus(l.status) || isSignedStatus(l.subStatus); }
-function programOf(l) { return l.channel === 'Lead Prosper AZ' || l.channel === 'Lead Prosper WA' ? 'agency' : (l.program || (l.channel === 'OG' ? 'ppl' : 'agency')); }
+// Same rule as programOf() in sasooness-public/app.js: only Lead Prosper WA is the PPL program —
+// OG and Lead Prosper AZ are both Agency.
+function programOf(l) { return l.channel === 'Lead Prosper WA' ? 'ppl' : 'agency'; }
 function money(n) { return '$' + (Math.round(n * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function pct(n) { return (Math.round(n * 10) / 10) + '%'; }
 

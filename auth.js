@@ -38,6 +38,7 @@ for (const [email, key] of Object.entries(EMAILS)) USERS[email] = USERS[key];
 // Nichole's work email has its own password (her first-name login keeps the PIN above).
 USERS['nichole@loudrmedia.com'] = { name: 'Nichole', role: 'admin', hash: '5b7064f6874ca0917f1f376e0b3f5cc5$6eed395b60236d39c4fefec679740a057e4f338f292a3e6da3ef6551a6d56689' };
 USERS['nik@cmosolutionsgroup.com'] = { name: 'Nik', role: 'admin', hash: 'ab082950d3f12adfd063731f014e7e3d$5062de0e3cb28972f00ea56684c82bc979da208eeea6a46d1c579ed719b25070' };
+USERS['jomar@loudrmedia.com'] = { name: 'Jomar', role: 'admin', hash: '31394be5c67807916dcc51780b78502f$20f3f2ee1e2f36a3e0e96138d102bfe5c908ad536fd32558e0513352f7e09b44' };
 
 const SESSION_MS = 30 * 24 * 60 * 60 * 1000;
 const SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');

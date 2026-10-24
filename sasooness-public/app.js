@@ -11,12 +11,25 @@
   // second $75k payment) = $117,500.
   const AD_BUDGET_TOTAL = 117500;
   const AD_BUDGET_FROM = '2026-09-09';
+  // The 10/21 top-up is new money — the first $68,750 (9/9 + 9/21 tranches) must be spent down to
+  // zero before any of it counts as "left." See fifoRemaining().
+  const AD_BUDGET_PREVIOUS = 68750;
   const PPL_PRICE_PER_LEAD = 425;
   // Two invoiced PPL (WA) payments make up one combined pool, both tracked from the same
   // PPL_BUDGET_FROM start since the per-lead rate hasn't changed: $20,000 (9/21) + $20,000
   // (10/21) = $40,000.
   const PPL_BUDGET = 40000;
   const PPL_BUDGET_FROM = '2026-09-21';
+  // The 10/21 top-up is new money — the first $20,000 (9/21 tranche) must be drawn to zero first.
+  const PPL_BUDGET_PREVIOUS = 20000;
+  // Splits a combined budget pool into what's left of the earlier tranche(s) vs. the later
+  // top-up, assuming spend draws down the earlier money first (FIFO) — so the newer tranche only
+  // starts showing a drawdown once the older one hits zero.
+  function fifoRemaining(previousPool, totalPool, spent) {
+    const previousLeft = Math.max(0, previousPool - spent);
+    const totalLeft = Math.max(0, totalPool - spent);
+    return { previousLeft, newLeft: totalLeft - previousLeft };
+  }
   const COLOR_GOOGLE = '#3987e5';
   const COLOR_META = '#d95926';
   const COLOR_LEADS = '#3987e5';
@@ -381,7 +394,12 @@
       // same pool-since-9/21 pattern as Ad Budget Left above, just against the other side of the
       // ledger.
       const pplLeadsSinceBudget = state.leads.filter((l) => programOf(l) === 'ppl' && l.createdDate >= PPL_BUDGET_FROM).length;
-      const budgetLeft = PPL_BUDGET - PPL_PRICE_PER_LEAD * pplLeadsSinceBudget;
+      const pplSpentOfBudget = PPL_PRICE_PER_LEAD * pplLeadsSinceBudget;
+      const budgetLeft = PPL_BUDGET - pplSpentOfBudget;
+      const pplSplit = fifoRemaining(PPL_BUDGET_PREVIOUS, PPL_BUDGET, pplSpentOfBudget);
+      const pplBudgetNote = pplSplit.previousLeft > 0
+        ? money(pplSplit.previousLeft) + ' left of the first $20,000 (9/21) — exhaust this before the $20,000 (10/21) top-up'
+        : 'first $20,000 (9/21) exhausted — ' + money(pplSplit.newLeft) + ' left of the $20,000 (10/21) top-up';
       const costPerCase = signed > 0 && adSpent > 0 ? adSpent / signed : 0;
       const cpcWithFee = signed > 0 ? revenue / signed : 0;
       const profit = revenue - adSpent;
@@ -397,7 +415,7 @@
         ['', 'Ad Spent', adSpent ? money(adSpent) : dash, 'already spent in Walker’s campaign on these leads', ''],
         ['', 'Profit', money(profit), pct(margin) + ' margin · revenue − ad spend', ''],
         ['', 'CPL (Cost / Lead)', cpl ? money(cpl) : dash, 'ad spend ÷ leads', ''],
-        ['', 'Budget Left', money(budgetLeft), '$40,000 invoiced − revenue', ''],
+        ['', 'Budget Left', money(budgetLeft), pplBudgetNote, ''],
         ['', 'Cost / Case', costPerCase ? money(costPerCase) : dash, signed ? 'ad spend ÷ signed cases' : 'no signed cases yet', ''],
         ['', 'CPC + Marketing Fee', cpcWithFee ? money(cpcWithFee) : dash, signed ? 'revenue ÷ signed cases' : 'no signed cases yet', ''],
       ];
@@ -434,6 +452,10 @@
       };
       const spendSinceSept = combinedAgencySpend(AD_BUDGET_FROM, budgetTo);
       const adBudgetLeft = AD_BUDGET_TOTAL - spendSinceSept;
+      const adBudgetSplit = fifoRemaining(AD_BUDGET_PREVIOUS, AD_BUDGET_TOTAL, spendSinceSept);
+      const adBudgetNote = adBudgetSplit.previousLeft > 0
+        ? money(adBudgetSplit.previousLeft) + ' left of the first $68,750 (9/9 + 9/21) — exhaust this before the $48,750 (10/21) top-up'
+        : 'first $68,750 (9/9 + 9/21) exhausted — ' + money(adBudgetSplit.newLeft) + ' left of the $48,750 (10/21) top-up';
       // September's fee is each tranche's own rate (fee ÷ that invoice's total) applied to actual
       // ad spend in its window, intersected with whatever date range is picked above (unlike Ad
       // Budget Left, which deliberately ignores the range's start) — so spend outside the visible
@@ -459,7 +481,7 @@
         ['', 'CPC (Cost / Case)', costPerCase ? money(costPerCase) : dash, !costsMeaningful ? noSplit : signed ? 'ad spend ÷ signed cases' : 'no signed cases yet', ''],
         ['__break__'],
         ['', 'Ad Spend', money(totalSpend), money(ownSpend) + ' own ads + ' + money(partnerSpend) + ' Lead Prosper', ''],
-        ['', 'Ad Budget Left', contractOk ? money(adBudgetLeft) : dash, '', ''],
+        ['', 'Ad Budget Left', contractOk ? money(adBudgetLeft) : dash, contractOk ? adBudgetNote : '', ''],
         ['', 'Marketing Fee', contractOk ? money(fee) : dash, contractOk ? 'monthly fee from the contract' : 'contract-level, not split by filter', ''],
         ['', 'Total Cost', contractOk ? money(totalCost) : dash, contractOk ? 'ad spend + marketing fee' : 'contract-level, not split by filter', ''],
         ['', 'CPC + Marketing Fee', cpcWithFee ? money(cpcWithFee) : dash, !costsMeaningful || !contractOk ? 'not split by filter' : signed ? 'total cost ÷ signed cases' : 'no signed cases yet', ''],

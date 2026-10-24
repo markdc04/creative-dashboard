@@ -167,30 +167,28 @@
       <button class="chip" data-weekly-vertical="NW">NW only</button>
     </div>
     <div class="chart-card" style="margin-bottom:14px">
-      <div class="panel-head" style="margin-bottom:0">
+      <div class="panel-head" style="margin-bottom:10px">
         <h3 style="margin:0">Weekly Trend</h3>
-        <div class="select-wrap">
-          <select id="weekly-chart-metric">
-            <option value="Total Spend">Total Spend</option>
-            <option value="Total Raw Leads">Total Raw Leads</option>
-            <option value="CPL">CPL</option>
-            <option value="Total Accepted Leads">Total Accepted Leads</option>
-            <option value="Cost Accepted Lead">Cost Accepted Lead</option>
-            <option value="% Accepted Leads">% Accepted Leads</option>
-            <option value="Total QMVAs Q">Total QMVAs Q</option>
-            <option value="Total QMVAs DQ">Total QMVAs DQ</option>
-            <option value="Total QMVAs">Total QMVAs</option>
-            <option value="Total NON MVA">Total NON MVA</option>
-            <option value="Conversion Rate Overall">Conversion Rate Overall</option>
-            <option value="Recency">Recency</option>
-            <option value="Total Payout">Total Payout</option>
-            <option value="PROFIT" selected>PROFIT</option>
-            <option value="REVENUE PER QMVA">REVENUE PER QMVA</option>
-          </select>
-          <svg class="select-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg>
-        </div>
+        <span class="panel-sub">$ metrics on the left axis, counts/% on the right</span>
       </div>
-      <div class="chart-canvas-wrap" style="height:260px"><canvas id="chart-weekly-trend"></canvas></div>
+      <div class="chip-group" id="weekly-chart-metrics" style="margin-bottom:14px">
+        <button class="chip is-active" data-weekly-metric="Total Spend">Total Spend</button>
+        <button class="chip is-active" data-weekly-metric="Total Payout">Total Payout</button>
+        <button class="chip is-active" data-weekly-metric="PROFIT">Profit</button>
+        <button class="chip is-active" data-weekly-metric="Total Raw Leads">Total Raw Leads</button>
+        <button class="chip is-active" data-weekly-metric="Total QMVAs">Total QMVAs</button>
+        <button class="chip" data-weekly-metric="CPL">CPL</button>
+        <button class="chip" data-weekly-metric="Total Accepted Leads">Total Accepted Leads</button>
+        <button class="chip" data-weekly-metric="Cost Accepted Lead">Cost Accepted Lead</button>
+        <button class="chip" data-weekly-metric="% Accepted Leads">% Accepted Leads</button>
+        <button class="chip" data-weekly-metric="Total QMVAs Q">Total QMVAs Q</button>
+        <button class="chip" data-weekly-metric="Total QMVAs DQ">Total QMVAs DQ</button>
+        <button class="chip" data-weekly-metric="Total NON MVA">Total NON MVA</button>
+        <button class="chip" data-weekly-metric="Conversion Rate Overall">Conversion Rate Overall</button>
+        <button class="chip" data-weekly-metric="Recency">Recency</button>
+        <button class="chip" data-weekly-metric="REVENUE PER QMVA">Revenue/QMVA</button>
+      </div>
+      <div class="chart-canvas-wrap" style="height:300px"><canvas id="chart-weekly-trend"></canvas></div>
     </div>
 
     <div class="panel">

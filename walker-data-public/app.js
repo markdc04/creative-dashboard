@@ -67,7 +67,8 @@
     lateQmvas: [], restoredLeads: [], correlation: [],
     restoredSub: 'late',
     posted: null, hourly: null,
-    dataTab: 'trends', weeklyVertical: 'combined', weeklyMetric: 'PROFIT',
+    dataTab: 'trends', weeklyVertical: 'combined',
+    weeklyMetrics: new Set(['Total Spend', 'Total Payout', 'PROFIT', 'Total Raw Leads', 'Total QMVAs']),
     loadedTabs: new Set(),
   };
 
@@ -264,19 +265,27 @@
     renderWeeklyTrendChart();
   }
 
+  // Dollar metrics plot on the left axis, counts/percentages on the right — so "Total Spend" and
+  // "Total QMVAs" can share one chart without one flattening the other.
+  const WEEKLY_MONEY_METRICS = new Set(['Total Spend', 'CPL', 'Cost Accepted Lead', 'Total Payout', 'PROFIT', 'REVENUE PER QMVA']);
   function renderWeeklyTrendChart() {
     const weekRows = state.weeklyRows || [];
-    const metric = WEEKLY_METRIC_ROWS.find(([label]) => label === state.weeklyMetric) || WEEKLY_METRIC_ROWS[0];
-    const [label, rawFn] = metric;
-    const values = weekRows.map(rawFn);
+    const selected = WEEKLY_METRIC_ROWS.filter(([label]) => state.weeklyMetrics.has(label));
+    const labels = weekRows.map((r) => r.label);
+    const hasMoney = selected.some(([label]) => WEEKLY_MONEY_METRICS.has(label));
+    const hasCount = selected.some(([label]) => !WEEKLY_MONEY_METRICS.has(label));
+    const dualAxis = hasMoney && hasCount;
+    const datasets = selected.map(([label, rawFn], i) => {
+      const color = PALETTE[i % PALETTE.length];
+      const isMoney = WEEKLY_MONEY_METRICS.has(label);
+      return {
+        type: 'line', label, data: weekRows.map(rawFn), borderColor: color, backgroundColor: color + '22',
+        tension: 0.3, pointRadius: 3, spanGaps: true, yAxisID: dualAxis && !isMoney ? 'y1' : 'y',
+      };
+    });
     upsertChart('chart-weekly-trend', {
-      data: {
-        labels: weekRows.map((r) => r.label),
-        datasets: [
-          { type: 'line', label, data: values, borderColor: PALETTE[0], backgroundColor: PALETTE[0] + '33', fill: true, tension: 0.3, pointRadius: 3, spanGaps: true },
-        ],
-      },
-      options: chartOptions(),
+      data: { labels, datasets },
+      options: chartOptions({ y1: dualAxis }),
     });
   }
 
@@ -729,8 +738,12 @@
     state.weeklyVertical = btn.dataset.weeklyVertical;
     renderWeekly();
   });
-  $('#weekly-chart-metric').addEventListener('change', (e) => {
-    state.weeklyMetric = e.target.value;
+  $('#weekly-chart-metrics').addEventListener('click', (e) => {
+    const btn = e.target.closest('.chip');
+    if (!btn) return;
+    const metric = btn.dataset.weeklyMetric;
+    if (state.weeklyMetrics.has(metric)) state.weeklyMetrics.delete(metric); else state.weeklyMetrics.add(metric);
+    btn.classList.toggle('is-active', state.weeklyMetrics.has(metric));
     renderWeeklyTrendChart();
   });
 

@@ -5,8 +5,11 @@
   const AZ_NEW_BUDGET = 75000;
   const MARKETING_FEE_SHARE = 0.35;
   const AZ_BUDGET_FROM = '2026-09-21';
-  // Combined ad-budget pool across both invoiced tranches: $20,000 (9/9) + $48,750 (9/21, 65% of $75k).
-  const AD_BUDGET_TOTAL = 68750;
+  // Combined ad-budget pool across all three invoiced tranches, all at the AZ_BUDGET_FROM window's
+  // 35% fee rate (open-ended, so a same-rate top-up just adds to the pool rather than needing its
+  // own tranche/window): $20,000 (9/9) + $48,750 (9/21, 65% of $75k) + $48,750 (10/21, 65% of a
+  // second $75k payment) = $117,500.
+  const AD_BUDGET_TOTAL = 117500;
   const AD_BUDGET_FROM = '2026-09-09';
   const PPL_PRICE_PER_LEAD = 425;
   const PPL_BUDGET = 20000;
@@ -413,8 +416,9 @@
       const f = state.filters;
       const contractOk = !f.status && !f.campaign && !f.platform;
       const { fee: feeBeforeSept } = contractForRange();
-      // Two invoiced tranches make up one combined ad-budget pool: $20,000 (9/9) + $48,750
-      // (9/21, 65% of $75k) = $68,750. Tracked from 9/9, the first tranche's own start, not 9/21.
+      // Three invoiced tranches make up one combined ad-budget pool: $20,000 (9/9) + $48,750
+      // (9/21, 65% of $75k) + $48,750 (10/21, 65% of a second $75k) = $117,500. Tracked from 9/9,
+      // the first tranche's own start, not 9/21.
       // A running pool, always accumulating from 9/9 regardless of the picked range's start —
       // only the range's end matters (how much is left as of that date), defaulting to today when
       // no end is picked. The range's start is irrelevant here: picking "October" shouldn't hide

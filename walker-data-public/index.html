@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data Analysis — Loudr Media</title>
+<link rel="icon" href="/walker/favicon.svg">
+<link rel="stylesheet" href="/walker/style.css">
+<link rel="stylesheet" href="/shared/sidebar.css">
+<link rel="stylesheet" href="/shared/back-to-top.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brandbar">
+    <img src="/shared/logo-loudr.png" alt="Loudr Media" class="brandlogo">
+    <div class="brandbar-right">
+      <button id="refresh-btn" class="refresh-btn" title="Refresh now" aria-label="Refresh now">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+      </button>
+      <span id="live-pill" class="live-pill">
+        <span class="live-dot"></span>
+        <span id="live-text">Live &ndash; checked just now</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="topbar">
+    <div>
+      <p class="brand-eyebrow">Walker Advertising</p>
+      <h1>Data Analysis</h1>
+      <p class="topbar-sub" id="data-range-note">&mdash;</p>
+    </div>
+    <div class="date-bar">
+      <div class="select-wrap">
+        <select id="quick-range"></select>
+        <svg class="select-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+      <div class="date-inputs">
+        <input type="date" id="range-start">
+        <span class="date-arrow">&rarr;</span>
+        <input type="date" id="range-end">
+      </div>
+      <button id="range-clear" class="clear-btn">Clear</button>
+    </div>
+  </div>
+
+  <div class="chip-group" id="data-inner-tabs" style="margin-bottom:14px">
+    <button class="chip is-active" data-datatab="trends">Campaign Trends</button>
+    <button class="chip" data-datatab="restored">Restored &amp; Late QMVAs</button>
+    <button class="chip" data-datatab="hourly">Hourly Performance</button>
+    <button class="chip" data-datatab="weekly">Weekly Breakdown</button>
+  </div>
+
+  <div id="section-trends">
+    <div class="chip-group" id="trends-vertical-tabs" style="margin-bottom:14px">
+      <button class="chip is-active" data-trends-vertical="combined">CA + NW</button>
+      <button class="chip" data-trends-vertical="CA">CA only</button>
+      <button class="chip" data-trends-vertical="NW">NW only</button>
+    </div>
+    <div class="kpi-row kpi-row--walker" id="trends-kpis" style="margin-bottom:14px"></div>
+    <div class="chart-card" style="margin-bottom:14px">
+      <h3>Leads, QMVA &amp; Ad Spend by Date</h3>
+      <div class="chart-canvas-wrap" style="height:280px"><canvas id="chart-trends"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2 class="panel-title">Campaign Trends</h2><span class="panel-sub" id="trends-sub"></span></div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Date</th><th class="th-num">Leads</th><th class="th-num">Accepted</th><th class="th-num">QMVA</th><th class="th-num">Ad Spend</th><th class="th-num">Recency (median, hrs)</th></tr></thead>
+          <tbody id="trends-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ RESTORED & LATE QMVAS ============ -->
+  <div id="section-restored" style="display:none">
+    <div class="chip-group" id="restored-inner-tabs" style="margin-bottom:14px">
+      <button class="chip is-active" data-rl="late">Late QMVAs</button>
+      <button class="chip" data-rl="restored">Restored Leads</button>
+      <button class="chip" data-rl="correlation">Spend vs Late QMVAs</button>
+    </div>
+    <div class="kpi-row kpi-row--walker" id="restored-late-kpis" style="margin-bottom:14px"></div>
+    <div class="chart-card" id="restored-late-chart-card" style="margin-bottom:14px">
+      <h3 id="restored-late-chart-title">Commission by Date</h3>
+      <div class="chart-canvas-wrap" style="height:260px"><canvas id="chart-restored-late"></canvas></div>
+    </div>
+    <div class="panel" id="restored-late-pane">
+      <div class="table-scroll">
+        <table>
+          <thead id="restored-late-head"></thead>
+          <tbody id="restored-late-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel" id="correlation-pane" hidden>
+      <p class="footnote footnote--inside">Late-QMVA revenue is attributed to the week the lead itself came in (not the later week it got invoiced in), so each week's late-QMVA % can be read against that same week's spend.</p>
+      <div class="chart-canvas-wrap" style="height:320px;margin-bottom:16px"><canvas id="chart-correlation"></canvas></div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Week</th><th class="th-num">Ad Spend</th><th class="th-num">Late QMVA Revenue</th><th class="th-num">Late QMVA %</th></tr></thead>
+          <tbody id="correlation-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ HOURLY PERFORMANCE (static export, not live) ============ -->
+  <div id="section-hourly" style="display:none">
+    <div class="panel">
+      <div class="panel-head"><h2 class="panel-title">Days from Posted to Qualified</h2></div>
+      <p class="footnote footnote--inside" id="posted-subtitle">Weblead = ping-post form leads (posted, then dialed). Inbound = live calls, where the post and the call are the same event.</p>
+      <p class="panel-sub" id="posted-note"></p>
+      <div class="table-scroll"><table id="posted-table"></table></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2 class="panel-title">Walker CA vs Walker NW &mdash; Hourly Performance</h2></div>
+      <p class="footnote footnote--inside">QMVA and Revenue from Loudr_Posted_to_Qualified, joined by Call ID to the Real Time Publisher Portal for each lead's actual payout. Spend from the Google/Meta Ad Spend Per Hour sheet. No total-lead-volume source exists, so there's no CPL/CVR here.</p>
+      <p class="panel-sub" id="hourly-note"></p>
+      <div class="chip-group" id="hourly-inner-tabs" style="margin-bottom:14px">
+        <button class="chip is-active" data-innertab="summary">Hourly Summary</button>
+        <button class="chip" data-innertab="detail">Lead Detail</button>
+      </div>
+      <div id="hourly-summary-pane">
+        <div class="chart-canvas-wrap" style="margin-bottom:16px"><canvas id="chart-hourly"></canvas></div>
+        <div class="table-scroll"><table id="hourly-table"></table></div>
+      </div>
+      <div id="hourly-detail-pane" style="display:none">
+        <div class="hour-detail-filter-by">
+          <span>Filter the date range above by:</span>
+          <label><input type="radio" name="hourlyDetailDateField" value="posted" checked /> Posted date</label>
+          <label><input type="radio" name="hourlyDetailDateField" value="converted" /> Converted date</label>
+        </div>
+        <div class="hour-detail-filter-by">
+          <span>Campaign:</span>
+          <label><input type="radio" name="hourlyDetailGroup" value="all" checked /> All</label>
+          <label><input type="radio" name="hourlyDetailGroup" value="nwa" /> Loudr NWA</label>
+          <label><input type="radio" name="hourlyDetailGroup" value="nwaib" /> NWA IB</label>
+          <label><input type="radio" name="hourlyDetailGroup" value="agency" /> Agency</label>
+        </div>
+        <div class="hour-detail-filter-by">
+          <span>Show leads:</span>
+          <label><input type="radio" name="hourlyDetailDq" value="nondq" checked /> Non DQ (qualified)</label>
+          <label><input type="radio" name="hourlyDetailDq" value="dq" /> DQ only</label>
+          <label><input type="radio" name="hourlyDetailDq" value="all" /> All leads</label>
+        </div>
+        <p class="panel-sub" id="hourly-detail-head"></p>
+        <div class="table-scroll" style="max-height:600px"><table id="hourly-detail-table"></table></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ WEEKLY BREAKDOWN ============ -->
+  <div id="section-weekly" style="display:none">
+    <div class="chip-group" id="weekly-vertical-tabs" style="margin-bottom:14px">
+      <button class="chip is-active" data-weekly-vertical="combined">CA + NW</button>
+      <button class="chip" data-weekly-vertical="CA">CA only</button>
+      <button class="chip" data-weekly-vertical="NW">NW only</button>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2 class="panel-title">Weekly Breakdown</h2><span class="panel-sub" id="weekly-sub"></span></div>
+      <p class="footnote footnote--inside">Monday-Sunday weeks. "Accepted" is from the Walker leads-import count; "Qualified"/"DQ" splits the QMVA count by Publisher Data's own case-qualification flag — these are two different stages, so Accepted Q/DQ isn't split the same way yet.</p>
+      <div class="table-scroll">
+        <table id="weekly-table"></table>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script src="app.js"></script>
+<script src="/shared/sidebar.js" data-active="walker-data"></script>
+<script src="/shared/back-to-top.js"></script>
+</body>
+</html>

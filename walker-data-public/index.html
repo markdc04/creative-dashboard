@@ -160,6 +160,33 @@
       <button class="chip" data-weekly-vertical="CA">CA only</button>
       <button class="chip" data-weekly-vertical="NW">NW only</button>
     </div>
+    <div class="chart-card" style="margin-bottom:14px">
+      <div class="panel-head" style="margin-bottom:0">
+        <h3 style="margin:0">Weekly Trend</h3>
+        <div class="select-wrap">
+          <select id="weekly-chart-metric">
+            <option value="Total Spend">Total Spend</option>
+            <option value="Total Raw Leads">Total Raw Leads</option>
+            <option value="CPL">CPL</option>
+            <option value="Total Accepted Leads">Total Accepted Leads</option>
+            <option value="Cost Accepted Lead">Cost Accepted Lead</option>
+            <option value="% Accepted Leads">% Accepted Leads</option>
+            <option value="Total QMVAs Q">Total QMVAs Q</option>
+            <option value="Total QMVAs DQ">Total QMVAs DQ</option>
+            <option value="Total QMVAs">Total QMVAs</option>
+            <option value="Total NON MVA">Total NON MVA</option>
+            <option value="Conversion Rate Overall">Conversion Rate Overall</option>
+            <option value="Recency">Recency</option>
+            <option value="Total Payout">Total Payout</option>
+            <option value="PROFIT" selected>PROFIT</option>
+            <option value="REVENUE PER QMVA">REVENUE PER QMVA</option>
+          </select>
+          <svg class="select-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+      </div>
+      <div class="chart-canvas-wrap" style="height:260px"><canvas id="chart-weekly-trend"></canvas></div>
+    </div>
+
     <div class="panel">
       <div class="panel-head"><h2 class="panel-title">Weekly Breakdown</h2><span class="panel-sub" id="weekly-sub"></span></div>
       <p class="footnote footnote--inside">Monday-Sunday weeks. "Accepted" is from the Walker leads-import count; "Qualified"/"DQ" splits the QMVA count by Publisher Data's own case-qualification flag — these are two different stages, so Accepted Q/DQ isn't split the same way yet. Each row is color-scaled red-to-green across the weeks shown (green = the better end for that metric; cost and recency rows run lower-is-greener).</p>

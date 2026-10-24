@@ -67,9 +67,32 @@
     lateQmvas: [], restoredLeads: [], correlation: [],
     restoredSub: 'late',
     posted: null, hourly: null,
-    dataTab: 'trends', weeklyVertical: 'combined',
+    dataTab: 'trends', weeklyVertical: 'combined', weeklyMetric: 'PROFIT',
     loadedTabs: new Set(),
   };
+
+  // Shared by the Weekly Breakdown table and the Weekly Trend chart's metric picker — direction:
+  // 'up' = higher is better (green at the high end), 'down' = lower is better (green at the low
+  // end), null = left uncolored (no clear "better" direction).
+  const fmtPctOrDash = (n) => (n != null ? fmtPct(n) : '—');
+  const fmtNumOrDash = (n) => (n != null ? n.toFixed(1) : '—');
+  const WEEKLY_METRIC_ROWS = [
+    ['Total Spend', (r) => r.spend, (r) => fmtMoney(r.spend), null],
+    ['Total Raw Leads', (r) => r.totalLeads, (r) => fmtInt(r.totalLeads), 'up'],
+    ['CPL', (r) => r.cpl, (r) => (r.cpl != null ? fmtMoney(r.cpl) : '—'), 'down'],
+    ['Total Accepted Leads', (r) => r.acceptedLeads, (r) => fmtInt(r.acceptedLeads), 'up'],
+    ['Cost Accepted Lead', (r) => r.costPerAcceptedLead, (r) => (r.costPerAcceptedLead != null ? fmtMoney(r.costPerAcceptedLead) : '—'), 'down'],
+    ['% Accepted Leads', (r) => r.acceptedLeadsPct, (r) => fmtPctOrDash(r.acceptedLeadsPct), 'up'],
+    ['Total QMVAs Q', (r) => r.qmvaQ, (r) => fmtInt(r.qmvaQ), 'up'],
+    ['Total QMVAs DQ', (r) => r.qmvaDQ, (r) => fmtInt(r.qmvaDQ), 'down'],
+    ['Total QMVAs', (r) => r.qmvaCount, (r) => fmtInt(r.qmvaCount), 'up'],
+    ['Total NON MVA', (r) => r.nonMvaCount, (r) => fmtInt(r.nonMvaCount), null],
+    ['Conversion Rate Overall', (r) => r.conversionRateOverall, (r) => fmtPctOrDash(r.conversionRateOverall), 'up'],
+    ['Recency', (r) => r.recency, (r) => fmtNumOrDash(r.recency), 'down'],
+    ['Total Payout', (r) => r.payout, (r) => fmtMoney(r.payout), 'up'],
+    ['PROFIT', (r) => r.profit, (r) => fmtMoney(r.profit), 'up'],
+    ['REVENUE PER QMVA', (r) => r.revenuePerQmva, (r) => (r.revenuePerQmva != null ? fmtMoney(r.revenuePerQmva) : '—'), 'up'],
+  ];
 
   const PALETTE = ['#7ea6f7', '#e0a92d', '#4dd6a0', '#b48af0', '#f06c9b', '#f0965d', '#5cc8e0', '#c98af0', '#e0d15c'];
   function chartOptions(extra) {
@@ -212,31 +235,10 @@
       };
     });
 
-    const fmtPctOrDash = (n) => (n != null ? fmtPct(n) : '—');
-    const fmtNumOrDash = (n) => (n != null ? n.toFixed(1) : '—');
-    // direction: 'up' = higher is better (green at the high end), 'down' = lower is better
-    // (green at the low end), null = left uncolored (no clear "better" direction).
-    const metricRows = [
-      ['Total Spend', (r) => r.spend, (r) => fmtMoney(r.spend), null],
-      ['Total Raw Leads', (r) => r.totalLeads, (r) => fmtInt(r.totalLeads), 'up'],
-      ['CPL', (r) => r.cpl, (r) => (r.cpl != null ? fmtMoney(r.cpl) : '—'), 'down'],
-      ['Total Accepted Leads', (r) => r.acceptedLeads, (r) => fmtInt(r.acceptedLeads), 'up'],
-      ['Cost Accepted Lead', (r) => r.costPerAcceptedLead, (r) => (r.costPerAcceptedLead != null ? fmtMoney(r.costPerAcceptedLead) : '—'), 'down'],
-      ['% Accepted Leads', (r) => r.acceptedLeadsPct, (r) => fmtPctOrDash(r.acceptedLeadsPct), 'up'],
-      ['Total QMVAs Q', (r) => r.qmvaQ, (r) => fmtInt(r.qmvaQ), 'up'],
-      ['Total QMVAs DQ', (r) => r.qmvaDQ, (r) => fmtInt(r.qmvaDQ), 'down'],
-      ['Total QMVAs', (r) => r.qmvaCount, (r) => fmtInt(r.qmvaCount), 'up'],
-      ['Total NON MVA', (r) => r.nonMvaCount, (r) => fmtInt(r.nonMvaCount), null],
-      ['Conversion Rate Overall', (r) => r.conversionRateOverall, (r) => fmtPctOrDash(r.conversionRateOverall), 'up'],
-      ['Recency', (r) => r.recency, (r) => fmtNumOrDash(r.recency), 'down'],
-      ['Total Payout', (r) => r.payout, (r) => fmtMoney(r.payout), 'up'],
-      ['PROFIT', (r) => r.profit, (r) => fmtMoney(r.profit), 'up'],
-      ['REVENUE PER QMVA', (r) => r.revenuePerQmva, (r) => (r.revenuePerQmva != null ? fmtMoney(r.revenuePerQmva) : '—'), 'up'],
-    ];
     const thead = '<thead><tr><th></th>' + weekRows.map((r) =>
       '<th class="th-num">' + escapeHtml(r.label) + (r.ongoing ? ' <span class="week-ongoing-badge" title="Week still in progress — totals are partial">&#9679;</span>' : '') + '</th>'
     ).join('') + '</tr></thead>';
-    const tbody = '<tbody>' + metricRows.map(([label, rawFn, fmtFn, direction]) => {
+    const tbody = '<tbody>' + WEEKLY_METRIC_ROWS.map(([label, rawFn, fmtFn, direction]) => {
       const colors = heatRowColors(weekRows.map(rawFn), direction);
       const cells = weekRows.map((r, i) => {
         const bg = colors[i];
@@ -248,6 +250,25 @@
     $('#weekly-table').innerHTML = thead + tbody;
     const anyOngoing = weekRows.some((r) => r.ongoing);
     $('#weekly-ongoing-note').style.display = anyOngoing ? '' : 'none';
+
+    state.weeklyRows = weekRows;
+    renderWeeklyTrendChart();
+  }
+
+  function renderWeeklyTrendChart() {
+    const weekRows = state.weeklyRows || [];
+    const metric = WEEKLY_METRIC_ROWS.find(([label]) => label === state.weeklyMetric) || WEEKLY_METRIC_ROWS[0];
+    const [label, rawFn] = metric;
+    const values = weekRows.map(rawFn);
+    upsertChart('chart-weekly-trend', {
+      data: {
+        labels: weekRows.map((r) => r.label),
+        datasets: [
+          { type: 'line', label, data: values, borderColor: PALETTE[0], backgroundColor: PALETTE[0] + '33', fill: true, tension: 0.3, pointRadius: 3, spanGaps: true },
+        ],
+      },
+      options: chartOptions(),
+    });
   }
 
   // ---- heatmap coloring for the Weekly Breakdown table, matching the reference invoice sheet's
@@ -698,6 +719,10 @@
     document.querySelectorAll('#weekly-vertical-tabs .chip').forEach((b) => b.classList.toggle('is-active', b === btn));
     state.weeklyVertical = btn.dataset.weeklyVertical;
     renderWeekly();
+  });
+  $('#weekly-chart-metric').addEventListener('change', (e) => {
+    state.weeklyMetric = e.target.value;
+    renderWeeklyTrendChart();
   });
 
   $('#quick-range').addEventListener('change', (e) => {

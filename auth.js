@@ -12,7 +12,7 @@ const USERS = {
   'jaypro': { name: 'Jay Pro', role: 'admin', hash: 'a26ee6f3598c9d9f5244d5c2cdd6ff13$5706e650a71d3a80b569dca990e0c011996931e64ec28d3fd5ad56e506721bc5' },
   'brandon': { name: 'Brandon', role: 'admin', hash: '496d7429e6ff53512d4f5e662209290d$bb708f120d8c326800e98333086566e73ef981981a373b50e8c1141a94e1a900' },
   'nichole': { name: 'Nichole', role: 'admin', hash: '46a15057753413aa8cc285c06863d06c$c58cfda8519131e07ba5ac16c895e8fbfa9204554d4c60ba28f0beb54782be47' },
-  'alexander': { name: 'Alexander', role: 'admin', hash: 'bbd947259681161154dea49e4fdf12e2$8256b5ea6a5cf9fcd5db9c37e82b46e69e2f6a0cff1007eec1c82486cb09c94e' },
+  'alexander': { name: 'Alexander', role: 'admin', hash: '6c5898b7a71cec9ca1598f66bde66e4c$f621cd18110ecea48b2a95bc970c74a58423ff00dc146aab1081a79111254aa4' },
   'christian': { name: 'Christian', role: 'admin', hash: '40ef3eebed2c9acae2e85c0dc3f74481$922da03305826b8c55595b335c61ecd26497dce55bb09de9ffe70465603448db' },
   'zeke': { name: 'Zeke', role: 'admin', hash: '3af14ca169ff676e7d646ebbdc07f310$b78582bba88441fbecf409bdbafd0f1a1f6804695097a01e8536238652ad7540' },
   'rouise': { name: 'Rouise', role: 'admin', hash: '4125cde80ff489c5bcd4ded6455618e2$a2ab0905a8ee7e529c611a03b466a68631150f41aaba061d3cfcceee18e5d930' },

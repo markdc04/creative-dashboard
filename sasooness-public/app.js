@@ -398,8 +398,8 @@
       const budgetLeft = PPL_BUDGET - pplSpentOfBudget;
       const pplSplit = fifoRemaining(PPL_BUDGET_PREVIOUS, PPL_BUDGET, pplSpentOfBudget);
       const pplBudgetNote = pplSplit.previousLeft > 0
-        ? money(pplSplit.previousLeft) + ' left of the first $20,000 (9/21) — exhaust this before the $20,000 (10/21) top-up'
-        : 'first $20,000 (9/21) exhausted — ' + money(pplSplit.newLeft) + ' left of the $20,000 (10/21) top-up';
+        ? money(pplSplit.previousLeft) + ' left to exhaust first'
+        : 'previous exhausted — ' + money(pplSplit.newLeft) + ' new budget left';
       const costPerCase = signed > 0 && adSpent > 0 ? adSpent / signed : 0;
       const cpcWithFee = signed > 0 ? revenue / signed : 0;
       const profit = revenue - adSpent;
@@ -454,8 +454,8 @@
       const adBudgetLeft = AD_BUDGET_TOTAL - spendSinceSept;
       const adBudgetSplit = fifoRemaining(AD_BUDGET_PREVIOUS, AD_BUDGET_TOTAL, spendSinceSept);
       const adBudgetNote = adBudgetSplit.previousLeft > 0
-        ? money(adBudgetSplit.previousLeft) + ' left of the first $68,750 (9/9 + 9/21) — exhaust this before the $48,750 (10/21) top-up'
-        : 'first $68,750 (9/9 + 9/21) exhausted — ' + money(adBudgetSplit.newLeft) + ' left of the $48,750 (10/21) top-up';
+        ? money(adBudgetSplit.previousLeft) + ' left to exhaust first'
+        : 'previous exhausted — ' + money(adBudgetSplit.newLeft) + ' new budget left';
       // September's fee is each tranche's own rate (fee ÷ that invoice's total) applied to actual
       // ad spend in its window, intersected with whatever date range is picked above (unlike Ad
       // Budget Left, which deliberately ignores the range's start) — so spend outside the visible

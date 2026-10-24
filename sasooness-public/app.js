@@ -12,7 +12,10 @@
   const AD_BUDGET_TOTAL = 117500;
   const AD_BUDGET_FROM = '2026-09-09';
   const PPL_PRICE_PER_LEAD = 425;
-  const PPL_BUDGET = 20000;
+  // Two invoiced PPL (WA) payments make up one combined pool, both tracked from the same
+  // PPL_BUDGET_FROM start since the per-lead rate hasn't changed: $20,000 (9/21) + $20,000
+  // (10/21) = $40,000.
+  const PPL_BUDGET = 40000;
   const PPL_BUDGET_FROM = '2026-09-21';
   const COLOR_GOOGLE = '#3987e5';
   const COLOR_META = '#d95926';
@@ -394,7 +397,7 @@
         ['', 'Ad Spent', adSpent ? money(adSpent) : dash, 'already spent in Walker’s campaign on these leads', ''],
         ['', 'Profit', money(profit), pct(margin) + ' margin · revenue − ad spend', ''],
         ['', 'CPL (Cost / Lead)', cpl ? money(cpl) : dash, 'ad spend ÷ leads', ''],
-        ['', 'Budget Left', money(budgetLeft), '$20,000 invoice − revenue', ''],
+        ['', 'Budget Left', money(budgetLeft), '$40,000 invoiced − revenue', ''],
         ['', 'Cost / Case', costPerCase ? money(costPerCase) : dash, signed ? 'ad spend ÷ signed cases' : 'no signed cases yet', ''],
         ['', 'CPC + Marketing Fee', cpcWithFee ? money(cpcWithFee) : dash, signed ? 'revenue ÷ signed cases' : 'no signed cases yet', ''],
       ];

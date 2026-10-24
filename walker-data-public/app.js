@@ -130,12 +130,21 @@
     $('#trends-sub').textContent = rows.length + ' days';
     $('#trends-body').innerHTML = rows.slice().reverse().map((d) => {
       const c = d[state.trendsVertical] || d.combined;
+      const dash = (n) => (n != null ? n : null);
       return '<tr><td>' + escapeHtml(d.date) + '</td>' +
+        '<td class="td-num num">' + fmtMoney(c.spend) + '</td>' +
         '<td class="td-num num">' + fmtInt(c.totalLeads) + '</td>' +
+        '<td class="td-num num">' + (dash(c.cpl) != null ? fmtMoney(c.cpl) : '—') + '</td>' +
         '<td class="td-num num">' + fmtInt(c.acceptedLeads) + '</td>' +
         '<td class="td-num num">' + fmtInt(c.qmvaCount) + '</td>' +
-        '<td class="td-num num">' + fmtMoney(c.spend) + '</td>' +
-        '<td class="td-num num">' + (c.recency != null ? c.recency.toFixed(1) : '—') + '</td></tr>';
+        '<td class="td-num num">' + fmtInt(c.nonMvaCount || 0) + '</td>' +
+        '<td class="td-num num">' + (dash(c.costPerAcceptedLead) != null ? fmtMoney(c.costPerAcceptedLead) : '—') + '</td>' +
+        '<td class="td-num num">' + (dash(c.acceptedLeadsPct) != null ? fmtPct(c.acceptedLeadsPct) : '—') + '</td>' +
+        '<td class="td-num num">' + (dash(c.conversionRate) != null ? fmtPct(c.conversionRate) : '—') + '</td>' +
+        '<td class="td-num num">' + (c.recency != null ? c.recency.toFixed(1) : '—') + '</td>' +
+        '<td class="td-num num">' + fmtMoney(c.payout || 0) + '</td>' +
+        '<td class="td-num num">' + fmtMoney(c.profit != null ? c.profit : (c.payout || 0) - c.spend) + '</td>' +
+        '<td class="td-num num">' + (dash(c.revenuePerQmva) != null ? fmtMoney(c.revenuePerQmva) : '—') + '</td></tr>';
     }).join('');
 
     const metrics = rows.map((d) => d[state.trendsVertical] || d.combined);

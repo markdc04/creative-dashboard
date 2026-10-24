@@ -66,9 +66,15 @@
     </div>
     <div class="panel">
       <div class="panel-head"><h2 class="panel-title">Campaign Trends</h2><span class="panel-sub" id="trends-sub"></span></div>
+      <p class="footnote footnote--inside">Daily performance patterns and cost inflections: Total Spend, Total Leads, CPL, Accepted Leads, QMVAs (MVA leads only), Non-MVA QMVAs, Cost per Accepted Lead, Accepted Leads %, Conversion Rate, Recency, Payout, Profit, and Revenue per QMVA.</p>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Date</th><th class="th-num">Leads</th><th class="th-num">Accepted</th><th class="th-num">QMVA</th><th class="th-num">Ad Spend</th><th class="th-num">Recency (median, hrs)</th></tr></thead>
+          <thead><tr>
+            <th>Date</th><th class="th-num">Total Spend</th><th class="th-num">Total Leads</th><th class="th-num">CPL</th>
+            <th class="th-num">Accepted Leads</th><th class="th-num">QMVAs</th><th class="th-num">Non-MVA QMVAs</th>
+            <th class="th-num">Cost/Accepted Lead</th><th class="th-num">Accepted Leads %</th><th class="th-num">Conversion Rate</th>
+            <th class="th-num">Recency</th><th class="th-num">Payout</th><th class="th-num">Profit</th><th class="th-num">Revenue/QMVA</th>
+          </tr></thead>
           <tbody id="trends-body"></tbody>
         </table>
       </div>

@@ -76,6 +76,14 @@
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
+  // Restricted to mark@loudrmedia.com only, per request — everyone else never sees the button at
+  // all (not just hidden via CSS; it's never mounted).
+  fetch('/api/me', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((me) => {
+    if (!me || me.name !== 'Mark') return;
+    mount();
+  }).catch(() => {});
+
+  function mount() {
   const btn = document.createElement('button');
   btn.className = 'ask-widget-btn';
   btn.type = 'button';
@@ -116,4 +124,5 @@
       ).join('');
     }
   });
+  }
 })();

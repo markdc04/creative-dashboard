@@ -186,6 +186,7 @@
     const sorted = [...weeks.values()].sort((a, b) => a.monday - b.monday);
     $('#weekly-sub').textContent = sorted.length + ' week' + (sorted.length === 1 ? '' : 's');
 
+    const today = pacificToday();
     const sum = (days, key) => days.reduce((s, c) => s + (c[key] || 0), 0);
     const weekRows = sorted.map((w) => {
       const totalLeads = sum(w.days, 'totalLeads');
@@ -198,8 +199,9 @@
       const payout = sum(w.days, 'payout');
       const recencies = w.days.map((c) => c.recency).filter((v) => v != null).sort((a, b) => a - b);
       const recency = recencies.length ? recencies[Math.floor(recencies.length / 2)] : null;
+      const sunday = addDays(w.monday, 6);
       return {
-        label: weekLabel(w.monday), spend, totalLeads,
+        label: weekLabel(w.monday), ongoing: sunday >= today, spend, totalLeads,
         cpl: totalLeads ? spend / totalLeads : null,
         acceptedLeads, costPerAcceptedLead: acceptedLeads ? spend / acceptedLeads : null,
         acceptedLeadsPct: totalLeads ? (acceptedLeads / totalLeads) * 100 : null,
@@ -212,28 +214,67 @@
 
     const fmtPctOrDash = (n) => (n != null ? fmtPct(n) : '—');
     const fmtNumOrDash = (n) => (n != null ? n.toFixed(1) : '—');
+    // direction: 'up' = higher is better (green at the high end), 'down' = lower is better
+    // (green at the low end), null = left uncolored (no clear "better" direction).
     const metricRows = [
-      ['Total Spend', (r) => fmtMoney(r.spend)],
-      ['Total Raw Leads', (r) => fmtInt(r.totalLeads)],
-      ['CPL', (r) => (r.cpl != null ? fmtMoney(r.cpl) : '—')],
-      ['Total Accepted Leads', (r) => fmtInt(r.acceptedLeads)],
-      ['Cost Accepted Lead', (r) => (r.costPerAcceptedLead != null ? fmtMoney(r.costPerAcceptedLead) : '—')],
-      ['% Accepted Leads', (r) => fmtPctOrDash(r.acceptedLeadsPct)],
-      ['Total QMVAs Q', (r) => fmtInt(r.qmvaQ)],
-      ['Total QMVAs DQ', (r) => fmtInt(r.qmvaDQ)],
-      ['Total QMVAs', (r) => fmtInt(r.qmvaCount)],
-      ['Total NON MVA', (r) => fmtInt(r.nonMvaCount)],
-      ['Conversion Rate Overall', (r) => fmtPctOrDash(r.conversionRateOverall)],
-      ['Recency', (r) => fmtNumOrDash(r.recency)],
-      ['Total Payout', (r) => fmtMoney(r.payout)],
-      ['PROFIT', (r) => fmtMoney(r.profit)],
-      ['REVENUE PER QMVA', (r) => (r.revenuePerQmva != null ? fmtMoney(r.revenuePerQmva) : '—')],
+      ['Total Spend', (r) => r.spend, (r) => fmtMoney(r.spend), null],
+      ['Total Raw Leads', (r) => r.totalLeads, (r) => fmtInt(r.totalLeads), 'up'],
+      ['CPL', (r) => r.cpl, (r) => (r.cpl != null ? fmtMoney(r.cpl) : '—'), 'down'],
+      ['Total Accepted Leads', (r) => r.acceptedLeads, (r) => fmtInt(r.acceptedLeads), 'up'],
+      ['Cost Accepted Lead', (r) => r.costPerAcceptedLead, (r) => (r.costPerAcceptedLead != null ? fmtMoney(r.costPerAcceptedLead) : '—'), 'down'],
+      ['% Accepted Leads', (r) => r.acceptedLeadsPct, (r) => fmtPctOrDash(r.acceptedLeadsPct), 'up'],
+      ['Total QMVAs Q', (r) => r.qmvaQ, (r) => fmtInt(r.qmvaQ), 'up'],
+      ['Total QMVAs DQ', (r) => r.qmvaDQ, (r) => fmtInt(r.qmvaDQ), 'down'],
+      ['Total QMVAs', (r) => r.qmvaCount, (r) => fmtInt(r.qmvaCount), 'up'],
+      ['Total NON MVA', (r) => r.nonMvaCount, (r) => fmtInt(r.nonMvaCount), null],
+      ['Conversion Rate Overall', (r) => r.conversionRateOverall, (r) => fmtPctOrDash(r.conversionRateOverall), 'up'],
+      ['Recency', (r) => r.recency, (r) => fmtNumOrDash(r.recency), 'down'],
+      ['Total Payout', (r) => r.payout, (r) => fmtMoney(r.payout), 'up'],
+      ['PROFIT', (r) => r.profit, (r) => fmtMoney(r.profit), 'up'],
+      ['REVENUE PER QMVA', (r) => r.revenuePerQmva, (r) => (r.revenuePerQmva != null ? fmtMoney(r.revenuePerQmva) : '—'), 'up'],
     ];
-    const thead = '<thead><tr><th></th>' + weekRows.map((r) => '<th class="th-num">' + escapeHtml(r.label) + '</th>').join('') + '</tr></thead>';
-    const tbody = '<tbody>' + metricRows.map(([label, fn]) =>
-      '<tr><td>' + escapeHtml(label) + '</td>' + weekRows.map((r) => '<td class="td-num num">' + fn(r) + '</td>').join('') + '</tr>'
-    ).join('') + '</tbody>';
+    const thead = '<thead><tr><th></th>' + weekRows.map((r) =>
+      '<th class="th-num">' + escapeHtml(r.label) + (r.ongoing ? ' <span class="week-ongoing-badge" title="Week still in progress — totals are partial">&#9679;</span>' : '') + '</th>'
+    ).join('') + '</tr></thead>';
+    const tbody = '<tbody>' + metricRows.map(([label, rawFn, fmtFn, direction]) => {
+      const colors = heatRowColors(weekRows.map(rawFn), direction);
+      const cells = weekRows.map((r, i) => {
+        const bg = colors[i];
+        const style = bg ? ' style="background:' + bg + ';color:#15201a"' : '';
+        return '<td class="td-num num"' + style + '>' + fmtFn(r) + '</td>';
+      }).join('');
+      return '<tr><td>' + escapeHtml(label) + '</td>' + cells + '</tr>';
+    }).join('') + '</tbody>';
     $('#weekly-table').innerHTML = thead + tbody;
+    const anyOngoing = weekRows.some((r) => r.ongoing);
+    $('#weekly-ongoing-note').style.display = anyOngoing ? '' : 'none';
+  }
+
+  // ---- heatmap coloring for the Weekly Breakdown table, matching the reference invoice sheet's
+  // own red/yellow/green conditional-format scale, scaled per row across the visible weeks ----
+  function heatColor(t) {
+    t = Math.max(0, Math.min(1, t));
+    const stops = [[224, 102, 102], [255, 217, 102], [87, 187, 138]]; // red -> yellow -> green
+    const seg = t < 0.5 ? 0 : 1;
+    const localT = t < 0.5 ? t / 0.5 : (t - 0.5) / 0.5;
+    const a = stops[seg], b = stops[seg + 1];
+    const r = Math.round(a[0] + (b[0] - a[0]) * localT);
+    const g = Math.round(a[1] + (b[1] - a[1]) * localT);
+    const bl = Math.round(a[2] + (b[2] - a[2]) * localT);
+    return 'rgb(' + r + ',' + g + ',' + bl + ')';
+  }
+  function heatRowColors(values, direction) {
+    if (!direction) return values.map(() => null);
+    const nums = values.filter((v) => v != null && isFinite(v));
+    if (nums.length < 2) return values.map(() => null);
+    const min = Math.min(...nums), max = Math.max(...nums);
+    if (max === min) return values.map(() => null);
+    return values.map((v) => {
+      if (v == null || !isFinite(v)) return null;
+      let t = (v - min) / (max - min);
+      if (direction === 'down') t = 1 - t;
+      return heatColor(t);
+    });
   }
 
   // ---- Restored & Late QMVAs ----

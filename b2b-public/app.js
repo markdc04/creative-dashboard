@@ -87,7 +87,7 @@
     state.leads = json.leads || [];
     state.leadsDaily = json.leadsDaily || [];
     state.adSpendDaily = json.adSpendDaily || [];
-    state.adSpendByAd = json.adSpendByAd || [];
+    state.adSpendByAdName = json.adSpendByAdName || [];
     renderAll();
   }
 
@@ -138,17 +138,18 @@
     renderLeadDetail();
   }
 
+  // Joined by ad NAME (UTM Content <-> Meta's Ad Name) — UTM Term never matches a real Ad ID for
+  // B2B leads (see b2b.js), so name is the only attribution path that actually works.
   function renderLeadsByAd(leads) {
     const el = $('#b2b-leads-by-ad');
-    const spendByAdId = new Map(state.adSpendByAd.map((r) => [r.adId, r]));
-    const leadsByTerm = new Map();
-    leads.forEach((l) => { if (l.utmTerm) leadsByTerm.set(l.utmTerm, (leadsByTerm.get(l.utmTerm) || 0) + 1); });
-    const adIds = new Set([...spendByAdId.keys(), ...leadsByTerm.keys()]);
-    const combined = Array.from(adIds).map((adId) => {
-      const spendInfo = spendByAdId.get(adId);
-      const leadsN = leadsByTerm.get(adId) || 0;
-      const spend = spendInfo ? spendInfo.spend : 0;
-      return { adName: spendInfo ? spendInfo.adName : '(unmatched ad ID)', leads: leadsN, spend, cpl: leadsN ? spend / leadsN : 0 };
+    const spendByName = new Map(state.adSpendByAdName.map((r) => [r.adName, r.spend]));
+    const leadsByName = new Map();
+    leads.forEach((l) => { if (l.utmContent) leadsByName.set(l.utmContent, (leadsByName.get(l.utmContent) || 0) + 1); });
+    const names = new Set([...spendByName.keys(), ...leadsByName.keys()]);
+    const combined = Array.from(names).map((adName) => {
+      const leadsN = leadsByName.get(adName) || 0;
+      const spend = spendByName.get(adName) || 0;
+      return { adName, leads: leadsN, spend, cpl: leadsN ? spend / leadsN : 0 };
     }).filter((r) => r.leads > 0 || r.spend > 0).sort((a, b) => b.leads - a.leads).slice(0, 30);
 
     if (!combined.length) { el.innerHTML = '<p style="padding:16px;opacity:0.7">No data for the current filters.</p>'; return; }
@@ -163,7 +164,7 @@
   function renderLeadDetail() {
     const filtered = state.leads.filter((l) => inRange(l.date)).sort((a, b) => (a.date < b.date ? 1 : -1));
     const term = ($('#lead-search').value || '').trim().toLowerCase();
-    const searched = term ? filtered.filter((l) => [l.name, l.firmName, l.state, l.adName, l.stage, l.status].join(' ').toLowerCase().includes(term)) : filtered;
+    const searched = term ? filtered.filter((l) => [l.name, l.firmName, l.state, l.utmContent, l.stage, l.status].join(' ').toLowerCase().includes(term)) : filtered;
     $('#lead-count').textContent = searched.length.toLocaleString() + ' leads' + (term ? ' (filtered from ' + filtered.length.toLocaleString() + ')' : '');
     const shown = searched.slice(0, 500);
     $('#lead-detail-body').innerHTML = shown.map((l) =>
@@ -171,7 +172,7 @@
       '<td>' + escapeHtml(l.name) + '</td>' +
       '<td>' + escapeHtml(l.firmName) + '</td>' +
       '<td>' + escapeHtml(l.state) + '</td>' +
-      '<td>' + escapeHtml(l.adName) + '</td>' +
+      '<td>' + escapeHtml(l.utmContent) + '</td>' +
       '<td>' + escapeHtml(l.stage) + '</td>' +
       '<td>' + escapeHtml(l.status) + '</td></tr>'
     ).join('');

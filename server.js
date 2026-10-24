@@ -8,6 +8,7 @@ const sasooness = require('./sasooness');
 const { syncSasoonessSheet } = require('./sasooness-sheet-sync');
 const km = require('./km');
 const bryan = require('./bryan');
+const b2b = require('./b2b');
 const clientView = require('./client-view');
 const layoutStore = require('./layout-store');
 const walker = require('./walker');
@@ -610,6 +611,13 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Admin-only, no client view — internal report, same as Walker.
+  if (url.pathname === '/b2b-api/data') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(b2b.getData()));
+    return;
+  }
+
   // Admin-only (no client view) — a straight port of the Walker PPL/Agency dashboard, each tab
   // keyed the same way its own /api/data?tab= was.
   if (url.pathname === '/walker-api/data') {
@@ -646,9 +654,11 @@ const server = http.createServer((req, res) => {
   if (rel === '/bryan') { res.writeHead(301, { Location: '/bryan/' }); res.end(); return; }
   if (rel === '/walker') { res.writeHead(301, { Location: '/walker/' }); res.end(); return; }
   if (rel === '/walker-data') { res.writeHead(301, { Location: '/walker-data/' }); res.end(); return; }
+  if (rel === '/b2b') { res.writeHead(301, { Location: '/b2b/' }); res.end(); return; }
   if (rel.startsWith('/dashboard/')) { root = 'public'; rel = rel.slice('/dashboard'.length); }
   if (rel.startsWith('/walker-data/')) { root = 'walker-data-public'; rel = rel.slice('/walker-data'.length); }
   else if (rel.startsWith('/walker/')) { root = 'walker-public'; rel = rel.slice('/walker'.length); }
+  else if (rel.startsWith('/b2b/')) { root = 'b2b-public'; rel = rel.slice('/b2b'.length); }
   // A client-role session gets the shared, limited client-view app for any of the three client
   // dashboards instead of the internal one admins/creative see at the same URL — one small static
   // app that reads which client it's for from the URL path at runtime (see client-public/app.js).
@@ -692,6 +702,8 @@ km.pollAll();
 setInterval(km.pollAll, POLL_MS);
 bryan.pollAll();
 setInterval(bryan.pollAll, POLL_MS);
+b2b.pollAll();
+setInterval(b2b.pollAll, POLL_MS);
 // Walker is NOT polled on a background timer, unlike every dashboard above — its combined tabs
 // (tens of thousands of rows each, held across a dozen-plus caches at once) pushed this process
 // past its 512MB heap limit and crash-looped the whole shared server when it ran continuously in

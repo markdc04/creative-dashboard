@@ -7,6 +7,7 @@ const META_GID = '1511968771';
 const TTL_MS = 20000;
 
 let cached = null; // { at, promise }
+let cachedB2B = null; // { at, promise }
 
 // Only the first block (columns A-G: Day, Campaign ID, Campaign Name, Ad ID, Ad Name, Amount
 // Spent, Account Name) is ever read — the second block is a different client with identical
@@ -59,4 +60,19 @@ async function metaAdCampaignsFor(pattern) {
   return byAdName;
 }
 
-module.exports = { metaDailyFor, metaCampaignDailyFor, metaAdCampaignsFor };
+// The B2B block sits to the right of the first block, in the same sheet/row — same header text
+// pattern as the first block's comment above explains, just columns H-M (Day, Campaign ID,
+// Campaign Name, Ad ID, Ad Name, Amount Spent) instead of A-F. Cached separately from
+// getMetaRows() rather than reusing its cache, so a bug in one block's shape can never affect
+// the other.
+async function getB2BMetaRows() {
+  if (cachedB2B && Date.now() - cachedB2B.at < TTL_MS) return cachedB2B.promise;
+  const promise = fetchText(csvUrl(META_GID, META_DOC_ID)).then((csv) =>
+    parseCSVRows(csv).slice(2).map((row) => ({ date: toISODate(row[7]), campaign: row[9] || '', campaignId: (row[8] || '').trim(), adId: (row[10] || '').trim(), adName: (row[11] || '').trim(), spend: num(row[12]) }))
+  );
+  cachedB2B = { at: Date.now(), promise };
+  promise.catch(() => { cachedB2B = null; });
+  return promise;
+}
+
+module.exports = { metaDailyFor, metaCampaignDailyFor, metaAdCampaignsFor, getB2BMetaRows };

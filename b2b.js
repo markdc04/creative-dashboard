@@ -1,11 +1,14 @@
 // B2B Dashboard — leads come from two sheets, merged by GHL Contact ID:
 //   - "B2B Only" tab inside the shared "Getloud Active Client" workbook (same workbook KM Law
-//     and Sasooness already read from) — 643+ rows, the more complete lead list, but has no
+//     and Sasooness already read from) — 649+ rows, the larger lead list, but has no
 //     Stage/Status/State columns.
 //   - The standalone "B2B Sales pipeline" sheet — fewer rows, but has Stage/Status/State/Firm
 //     Name, which the user confirmed are important to keep showing.
-// "B2B Only" is the base list; each lead is enriched with Stage/Status/State/Firm Name from the
-// pipeline sheet when its GHL Contact ID is found there.
+// "B2B Only" is the base list, enriched with Stage/Status/State/Firm Name from the pipeline sheet
+// when its GHL Contact ID is found there. But the two lists are NOT a strict superset/subset —
+// confirmed 15 leads (including every "Quick Chat - Loudr Media" one) exist ONLY in the pipeline
+// sheet and nowhere in "B2B Only". So any pipeline row whose GHL Contact ID isn't already in
+// "B2B Only" is added as its own lead too, built straight from the pipeline sheet's own columns.
 //
 // Ad spend comes from the B2B block of the same shared Meta export every other dashboard here
 // reads from (see meta-spend.js). Ad attribution joins by AD NAME (UTM Content <-> Ad Name), not
@@ -23,44 +26,51 @@ const PIPELINE_GID = '0';
 
 let cache = { leads: [], leadsDaily: [], adSpendDaily: [], adSpendByAdName: [], updatedAt: null };
 
-// Keyed by GHL Contact ID -> { firmName, stage, status, state }, only the fields "B2B Only"
-// doesn't have.
-function parsePipelineEnrichment(csv) {
+// Keyed by GHL Contact ID -> the raw pipeline row, so it can be used both as enrichment (for IDs
+// also present in "B2B Only") and as a standalone lead (for IDs only present here).
+function parsePipelineById(csv) {
   const byId = new Map();
   for (const r of parseCSV(csv)) {
     const id = (r['GHL Contact ID'] || '').trim();
     if (!id) continue;
-    byId.set(id, {
-      firmName: (r['Firm Name'] || '').trim(),
-      stage: (r['Stage'] || '').trim(),
-      status: (r['Status'] || '').trim(),
-      state: (r['State'] || '').trim(),
-    });
+    byId.set(id, r);
   }
   return byId;
 }
 
 // No email/phone kept here — the dashboard only needs counts, ad attribution, status, and
 // cost-per-lead, not contact details.
-function parseLeads(csv, enrichmentById) {
+function leadFromRow(r, pipelineRow) {
+  return {
+    date: toISODate(r['Date']),
+    name: (r['Name'] || '').trim(),
+    firmName: ((pipelineRow && pipelineRow['Firm Name']) || r['Law Firms'] || '').trim(),
+    utmContent: (r['UTM Content'] || '').trim(), // the ad's name — this is what actually joins to spend
+    utmCampaign: (r['UTM Campaign'] || '').trim(),
+    source: (r['Contact Source (survey)'] || '').trim(),
+    stage: ((pipelineRow && pipelineRow['Stage']) || '').trim(),
+    status: ((pipelineRow && pipelineRow['Status']) || '').trim(),
+    state: ((pipelineRow && pipelineRow['State']) || '').trim(),
+  };
+}
+
+function parseLeads(b2bOnlyCsv, pipelineById) {
   const leads = [];
-  for (const r of parseCSV(csv)) {
-    const date = toISODate(r['Date']);
-    if (!date) continue;
+  const seenIds = new Set();
+  for (const r of parseCSV(b2bOnlyCsv)) {
     const id = (r['GHL Contact ID'] || '').trim();
-    const enrich = (id && enrichmentById.get(id)) || {};
-    leads.push({
-      date,
-      name: (r['Name'] || '').trim(),
-      firmName: enrich.firmName || (r['Law Firms'] || '').trim(),
-      utmContent: (r['UTM Content'] || '').trim(), // the ad's name — this is what actually joins to spend
-      utmCampaign: (r['UTM Campaign'] || '').trim(),
-      source: (r['Contact Source (survey)'] || '').trim(),
-      stage: enrich.stage || '',
-      status: enrich.status || '',
-      state: enrich.state || '',
-    });
+    if (id) seenIds.add(id);
+    const lead = leadFromRow(r, id && pipelineById.get(id));
+    if (!lead.date) continue;
+    leads.push(lead);
   }
+  // Pipeline-only leads: not in "B2B Only" at all, so built straight from the pipeline row.
+  pipelineById.forEach((row, id) => {
+    if (seenIds.has(id)) return;
+    const lead = leadFromRow(row, row);
+    if (!lead.date) return;
+    leads.push(lead);
+  });
   return leads;
 }
 
@@ -77,12 +87,12 @@ async function pollAll() {
       fetchText(csvUrl(PIPELINE_GID, PIPELINE_DOC_ID)),
       getB2BMetaRows(),
     ]);
-    const enrichmentById = parsePipelineEnrichment(pipelineCsv);
-    const leads = parseLeads(b2bOnlyCsv, enrichmentById);
+    const pipelineById = parsePipelineById(pipelineCsv);
+    const leads = parseLeads(b2bOnlyCsv, pipelineById);
     // A broken export (sharing turned off, formula error) comes back tiny or as HTML — keep the
     // last good data rather than blanking the page.
     if (leads.length >= 20) cache.leads = leads;
-    else console.warn(`[${new Date().toISOString()}] B2B Only tab looks broken (${leads.length}) — keeping last known-good`);
+    else console.warn(`[${new Date().toISOString()}] B2B leads look broken (${leads.length}) — keeping last known-good`);
 
     cache.leadsDaily = dailyCounts(cache.leads);
 

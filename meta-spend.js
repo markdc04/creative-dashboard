@@ -60,16 +60,25 @@ async function metaAdCampaignsFor(pattern) {
   return byAdName;
 }
 
-// The B2B block sits to the right of the first block, in the same sheet/row — same header text
-// pattern as the first block's comment above explains, just columns H-M (Day, Campaign ID,
-// Campaign Name, Ad ID, Ad Name, Amount Spent) instead of A-F. Cached separately from
-// getMetaRows() rather than reusing its cache, so a bug in one block's shape can never affect
-// the other.
+// B2B ad spend actually lives in TWO separate blocks in this sheet:
+//   - "B2B META DATA" at columns H-M (Day, Campaign ID, Campaign Name, Ad ID, Ad Name, Amount
+//     Spent) — the original block this function read.
+//   - "NEW BUSINESS PORTFOLIO META AD SPENT" at columns O-U (same 6 fields, plus an Account Name
+//     at U mixing B2B and B2C rows together) — a newer block added later. Confirmed zero Ad ID
+//     overlap between the two blocks (genuinely additional spend, not a duplicate), so both are
+//     combined here, the second one filtered to Account Name === "B2B Loudr Media" only.
+// Cached separately from getMetaRows() rather than reusing its cache, so a bug in one block's
+// shape can never affect the other.
 async function getB2BMetaRows() {
   if (cachedB2B && Date.now() - cachedB2B.at < TTL_MS) return cachedB2B.promise;
-  const promise = fetchText(csvUrl(META_GID, META_DOC_ID)).then((csv) =>
-    parseCSVRows(csv).slice(2).map((row) => ({ date: toISODate(row[7]), campaign: row[9] || '', campaignId: (row[8] || '').trim(), adId: (row[10] || '').trim(), adName: (row[11] || '').trim(), spend: num(row[12]) }))
-  );
+  const promise = fetchText(csvUrl(META_GID, META_DOC_ID)).then((csv) => {
+    const rows = parseCSVRows(csv).slice(2);
+    const original = rows.map((row) => ({ date: toISODate(row[7]), campaign: row[9] || '', campaignId: (row[8] || '').trim(), adId: (row[10] || '').trim(), adName: (row[11] || '').trim(), spend: num(row[12]) }));
+    const newPortfolio = rows
+      .filter((row) => (row[20] || '').trim() === 'B2B Loudr Media')
+      .map((row) => ({ date: toISODate(row[14]), campaign: row[16] || '', campaignId: (row[15] || '').trim(), adId: (row[17] || '').trim(), adName: (row[18] || '').trim(), spend: num(row[19]) }));
+    return [...original, ...newPortfolio];
+  });
   cachedB2B = { at: Date.now(), promise };
   promise.catch(() => { cachedB2B = null; });
   return promise;

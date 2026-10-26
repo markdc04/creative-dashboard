@@ -217,7 +217,6 @@
       weeks.get(key).days.push(d[state.weeklyVertical] || d.combined);
     });
     const sorted = [...weeks.values()].sort((a, b) => a.monday - b.monday);
-    $('#weekly-sub').textContent = sorted.length + ' week' + (sorted.length === 1 ? '' : 's');
 
     const today = pacificToday();
     const sum = (days, key) => days.reduce((s, c) => s + (c[key] || 0), 0);
@@ -244,6 +243,12 @@
         revenuePerQmva: qmvaCount ? payout / qmvaCount : null,
       };
     });
+
+    // Drop leading weeks with no data at all (spend and leads both 0) — the underlying sheets
+    // carry placeholder date entries stretching back before Walker's real data actually starts,
+    // which otherwise show as a wall of empty $0/0 weeks.
+    while (weekRows.length && !weekRows[0].spend && !weekRows[0].totalLeads) weekRows.shift();
+    $('#weekly-sub').textContent = weekRows.length + ' week' + (weekRows.length === 1 ? '' : 's');
 
     const thead = '<thead><tr><th></th>' + weekRows.map((r) =>
       '<th class="th-num">' + escapeHtml(r.label) + (r.ongoing ? ' <span class="week-ongoing-badge" title="Week still in progress — totals are partial">&#9679;</span>' : '') + '</th>'

@@ -1360,11 +1360,12 @@ async function getLeadLookups(token) {
 // inflections day to day. Read-only, same pattern as computeLateQmvaCorrelation.
 async function computeCampaignTrends(getAccessToken) {
   const token = await getAccessToken();
-  const [qmvaPayouts, rtpp, leadCounts, lookups, nwCopyValues, caCopyValues, nwLive, caLive] = await Promise.all([
+  const [qmvaPayouts, rtpp, leadCounts, lookups, nwCopyValues, caCopyValues, nwLive, caLive, invoicePeriods] = await Promise.all([
     getQmvaPayouts(token), getRealTimePublisherPortal(token), getLeadsImportCounts(token), getLeadLookups(token),
     getValues(token, 'COPY', 'A2:S10000'), getValues(token, 'COPY OF', 'A2:S10000'),
     getLiveGoogleSpendByDate(token, (c) => c.includes('PPL') && c.includes('TEXAS')),
     getLiveGoogleSpendByDate(token, (c) => c.includes('LOUDRCA')),
+    getInvoicePeriods(token),
   ]);
   const publisher = await getPublisherLeads(token, qmvaPayouts, rtpp);
   const { lawTypeByDateKey, recencyByPhone, qualifiedByDateKey } = lookups;
@@ -1377,6 +1378,23 @@ async function computeCampaignTrends(getAccessToken) {
   for (const [live, ytByDate, spendByDate] of [[nwLive, nwYt, nwSpendByDate], [caLive, caYt, caSpendByDate]]) {
     for (const [date, amount] of Object.entries(live)) {
       if (amount >= 1 && (ytByDate[date] || 0) < 1) spendByDate[date] = (spendByDate[date] || 0) + amount;
+    }
+  }
+  // This raw COPY/COPY OF spend is the exact same data refreshCampaignSnapshots() reconciles
+  // against the real invoice ledger before it ever reaches Global PPL/NW & CA PPL (via
+  // computeSpendAdjustments) — but Campaign Trends/Weekly Breakdown never applied that same
+  // reconciliation, so it kept showing the raw, overcounted figure for already-settled periods.
+  // Confirmed concretely for Feb 9 - Mar 15, 2026: CA's ad spend here was counting dollars tagged
+  // to "LoudrCA"-named campaigns that hadn't actually launched yet (LoudrCA started March 16) —
+  // real spend for that window was only the AZ/GA/IL and other already-running PPL campaigns.
+  // Applying the same adjustment here brings Weekly Breakdown's spend in line with Global PPL's
+  // already-correct, invoice-reconciled numbers instead of maintaining a second, diverging figure.
+  const paidPeriods = invoicePeriods.filter((p) => p.status === 'PAID');
+  const spendAdjustments = computeSpendAdjustments({ NW: nwSpendByDate, CA: caSpendByDate }, paidPeriods, { NW: nwLive, CA: caLive });
+  for (const vertical of ['NW', 'CA']) {
+    const spendByDate = vertical === 'NW' ? nwSpendByDate : caSpendByDate;
+    for (const [date, amount] of Object.entries(spendAdjustments[vertical])) {
+      spendByDate[date] = (spendByDate[date] || 0) + amount;
     }
   }
 

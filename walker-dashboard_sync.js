@@ -1384,11 +1384,12 @@ async function computeCampaignTrends(getAccessToken) {
   // against the real invoice ledger before it ever reaches Global PPL/NW & CA PPL (via
   // computeSpendAdjustments) — but Campaign Trends/Weekly Breakdown never applied that same
   // reconciliation, so it kept showing the raw, overcounted figure for already-settled periods.
-  // Confirmed concretely for Feb 9 - Mar 15, 2026: CA's ad spend here was counting dollars tagged
-  // to "LoudrCA"-named campaigns that hadn't actually launched yet (LoudrCA started March 16) —
-  // real spend for that window was only the AZ/GA/IL and other already-running PPL campaigns.
   // Applying the same adjustment here brings Weekly Breakdown's spend in line with Global PPL's
   // already-correct, invoice-reconciled numbers instead of maintaining a second, diverging figure.
+  // In practice this has turned out to be a no-op for Feb-Mar 2026 specifically (confirmed live:
+  // zero change) — getInvoicePeriods' PAID rows don't cover that window, which is exactly why
+  // HISTORICAL_SPEND_CORRECTIONS below exists as a direct, already-validated fallback for it. Kept
+  // anyway since it's harmless and does correctly reconcile whatever periods ARE marked PAID.
   const paidPeriods = invoicePeriods.filter((p) => p.status === 'PAID');
   const spendAdjustments = computeSpendAdjustments({ NW: nwSpendByDate, CA: caSpendByDate }, paidPeriods, { NW: nwLive, CA: caLive });
   for (const vertical of ['NW', 'CA']) {
@@ -1396,6 +1397,35 @@ async function computeCampaignTrends(getAccessToken) {
     for (const [date, amount] of Object.entries(spendAdjustments[vertical])) {
       spendByDate[date] = (spendByDate[date] || 0) + amount;
     }
+  }
+  // Direct port of walker-public/app.js's HISTORICAL_SPEND_CORRECTIONS (same values, already
+  // validated against the "Walker INVOICE Weekly" ledger for Global PPL/NW & CA PPL) — CA's
+  // computed ad spend here is up to 2.6x the actual invoiced amount for these five early, already
+  // -PAID weeks (confirmed: $247,648.83 computed vs. $95,280.02 invoiced for March 1-15 alone), a
+  // pre-existing data issue the invoice-period reconciliation above doesn't reach. CA PPL hadn't
+  // even launched yet for the first three of the five weeks, so 100% of the overcount sits on the
+  // CA side — never applied to NW. Distributed proportionally across each correction's own date
+  // range (weighted by that date's existing raw CA spend share), not dumped on one day, so weekly
+  // aggregation below lands the right amount in the right week even when a range crosses a
+  // Monday-Sunday week boundary (e.g. 3/16-3/23 spans two weeks).
+  const HISTORICAL_SPEND_CORRECTIONS = [
+    { from: '2026-02-09', to: '2026-02-15', amount: 8791.25 },
+    { from: '2026-02-16', to: '2026-02-28', amount: 44308.45 },
+    { from: '2026-03-01', to: '2026-03-15', amount: 152368.81 },
+    { from: '2026-03-16', to: '2026-03-23', amount: 7907.36 },
+    { from: '2026-03-24', to: '2026-03-29', amount: 2292.08 },
+  ];
+  const isoToTuple = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso); return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null; };
+  for (const c of HISTORICAL_SPEND_CORRECTIONS) {
+    const from = isoToTuple(c.from), to = isoToTuple(c.to);
+    if (!from || !to) continue;
+    const datesInRange = Object.keys(caSpendByDate).filter((date) => {
+      const t = dateKeyToTuple(date);
+      return t && dateLte(from, t) && dateLte(t, to);
+    });
+    const total = datesInRange.reduce((s, date) => s + caSpendByDate[date], 0);
+    if (total <= 0) continue;
+    for (const date of datesInRange) caSpendByDate[date] -= c.amount * (caSpendByDate[date] / total);
   }
 
   // Bucketed per date AND per vertical (CA/NW) so the frontend can filter to one vertical or show

@@ -11,7 +11,7 @@
   // Prorated by day-overlap with whatever range is selected, same as Sasooness/KM's monthly fee.
   // $10,000 invoice per 25-lead month, of which $350 × 25 = $8,750 is revenue; the rest is the
   // marketing fee. The retainer amount per calendar month (months not listed aren't billed).
-  const MARKETING_FEE_BY_MONTH = { '2026-08': 1250, '2026-09': 1250, '2026-10': 1500 };
+  const MARKETING_FEE_BY_MONTH = { '2026-08': 1250, '2026-09': 1250, '2026-10': 1250 };
 
   const NO_CAMPAIGN = 'Not traced to a campaign';
   const STATUSES = ['Signed', 'Rejected', 'Reviewing'];

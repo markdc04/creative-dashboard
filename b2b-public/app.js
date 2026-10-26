@@ -8,6 +8,11 @@
   function startOfMonth(y, m) { return new Date(y, m - 1, 1); }
   function endOfMonth(y, m) { return new Date(y, m, 0); }
   function mondayOf(d) { const day = d.getDay(); const diff = day === 0 ? -6 : 1 - day; return addDays(d, diff); }
+  function weekLabel(monday) {
+    const sunday = addDays(monday, 6);
+    const fmt = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return fmt(monday) + ' - ' + fmt(sunday);
+  }
   function pacificToday() {
     const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
     const get = (t) => Number(parts.find((p) => p.type === t).value);
@@ -55,7 +60,10 @@
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
-  const state = { range: { start: null, end: null }, leads: [], leadsDaily: [], adSpendDaily: [], adSpendByAd: [] };
+  const state = {
+    range: { start: null, end: null }, leads: [], leadsDaily: [], adSpendDaily: [], adSpendByAd: [],
+    weeklyMetrics: new Set(['Total Leads', 'Total Ad Spend']),
+  };
 
   function inRange(dateStr) {
     if (state.range.start && dateStr < state.range.start) return false;
@@ -134,8 +142,96 @@
         '<td class="td-num num">' + (dayLeads ? fmtMoney(dayCpl) : '—') + '</td></tr>';
     }).join('');
 
+    renderWeekly(leadsByDate, spendByDate);
     renderLeadsByAd(leads);
     renderLeadDetail();
+  }
+
+  // ---- heatmap coloring for the Weekly Breakdown table (same red-to-green scale used on the
+  // Walker Data Analysis Weekly Breakdown) ----
+  function heatColor(t) {
+    t = Math.max(0, Math.min(1, t));
+    const stops = [[224, 102, 102], [255, 217, 102], [87, 187, 138]]; // red -> yellow -> green
+    const seg = t < 0.5 ? 0 : 1;
+    const localT = t < 0.5 ? t / 0.5 : (t - 0.5) / 0.5;
+    const a = stops[seg], b = stops[seg + 1];
+    const r = Math.round(a[0] + (b[0] - a[0]) * localT);
+    const g = Math.round(a[1] + (b[1] - a[1]) * localT);
+    const bl = Math.round(a[2] + (b[2] - a[2]) * localT);
+    return 'rgb(' + r + ',' + g + ',' + bl + ')';
+  }
+  function heatRowColors(values, direction) {
+    if (!direction) return values.map(() => null);
+    const nums = values.filter((v) => v != null && isFinite(v));
+    if (nums.length < 2) return values.map(() => null);
+    const min = Math.min(...nums), max = Math.max(...nums);
+    if (max === min) return values.map(() => null);
+    return values.map((v) => {
+      if (v == null || !isFinite(v)) return null;
+      let t = (v - min) / (max - min);
+      if (direction === 'down') t = 1 - t;
+      return heatColor(t);
+    });
+  }
+
+  const WEEKLY_MONEY_METRICS = new Set(['Total Ad Spend', 'Cost Per Lead']);
+  const WEEKLY_METRIC_ROWS = [
+    ['Total Leads', (r) => r.leads, (r) => fmtInt(r.leads), 'up'],
+    ['Total Ad Spend', (r) => r.spend, (r) => fmtMoney(r.spend), null],
+    ['Cost Per Lead', (r) => r.cpl, (r) => (r.cpl != null ? fmtMoney(r.cpl) : '—'), 'down'],
+  ];
+  function renderWeekly(leadsByDate, spendByDate) {
+    const dates = [...new Set([...leadsByDate.keys(), ...spendByDate.keys()])];
+    const weeks = new Map();
+    dates.forEach((dateStr) => {
+      const d = new Date(dateStr + 'T00:00:00');
+      if (isNaN(d)) return;
+      const monday = mondayOf(d);
+      const key = toISO(monday);
+      if (!weeks.has(key)) weeks.set(key, { monday, leads: 0, spend: 0 });
+      const w = weeks.get(key);
+      w.leads += leadsByDate.get(dateStr) || 0;
+      w.spend += spendByDate.get(dateStr) || 0;
+    });
+    const weekRows = [...weeks.values()].sort((a, b) => a.monday - b.monday).map((w) => ({
+      label: weekLabel(w.monday), leads: w.leads, spend: w.spend, cpl: w.leads ? w.spend / w.leads : null,
+    }));
+    $('#b2b-weekly-sub').textContent = weekRows.length + ' week' + (weekRows.length === 1 ? '' : 's');
+
+    const thead = '<thead><tr><th></th>' + weekRows.map((r) => '<th class="th-num">' + escapeHtml(r.label) + '</th>').join('') + '</tr></thead>';
+    const tbody = '<tbody>' + WEEKLY_METRIC_ROWS.map(([label, rawFn, fmtFn, direction]) => {
+      const colors = heatRowColors(weekRows.map(rawFn), direction);
+      const cells = weekRows.map((r, i) => {
+        const bg = colors[i];
+        const style = bg ? ' style="background:' + bg + ';color:#15201a"' : '';
+        return '<td class="td-num num"' + style + '>' + fmtFn(r) + '</td>';
+      }).join('');
+      return '<tr><td>' + escapeHtml(label) + '</td>' + cells + '</tr>';
+    }).join('') + '</tbody>';
+    $('#b2b-weekly-table').innerHTML = thead + tbody;
+
+    state.weeklyRows = weekRows;
+    renderWeeklyTrendChart();
+  }
+  function renderWeeklyTrendChart() {
+    const weekRows = state.weeklyRows || [];
+    const selected = WEEKLY_METRIC_ROWS.filter(([label]) => state.weeklyMetrics.has(label));
+    const labels = weekRows.map((r) => r.label);
+    const hasMoney = selected.some(([label]) => WEEKLY_MONEY_METRICS.has(label));
+    const hasCount = selected.some(([label]) => !WEEKLY_MONEY_METRICS.has(label));
+    const dualAxis = hasMoney && hasCount;
+    const datasets = selected.map(([label, rawFn], i) => {
+      const color = PALETTE[i % PALETTE.length];
+      const isMoney = WEEKLY_MONEY_METRICS.has(label);
+      return {
+        type: 'line', label, data: weekRows.map(rawFn), borderColor: color, backgroundColor: color + '22',
+        tension: 0.3, pointRadius: 3, spanGaps: true, yAxisID: dualAxis && !isMoney ? 'y1' : 'y',
+      };
+    });
+    upsertChart('chart-b2b-weekly-trend', {
+      data: { labels, datasets },
+      options: chartOptions({ y1: dualAxis }),
+    });
   }
 
   // Joined by ad NAME (UTM Content <-> Meta's Ad Name) — UTM Term never matches a real Ad ID for
@@ -178,6 +274,15 @@
       '<td>' + escapeHtml(l.status) + '</td></tr>'
     ).join('');
   }
+
+  $('#b2b-weekly-metrics').addEventListener('click', (e) => {
+    const btn = e.target.closest('.chip');
+    if (!btn) return;
+    const metric = btn.dataset.weeklyMetric;
+    if (state.weeklyMetrics.has(metric)) state.weeklyMetrics.delete(metric); else state.weeklyMetrics.add(metric);
+    btn.classList.toggle('is-active', state.weeklyMetrics.has(metric));
+    renderWeeklyTrendChart();
+  });
 
   $('#lead-search').addEventListener('input', renderLeadDetail);
   $('#quick-range').addEventListener('change', (e) => {

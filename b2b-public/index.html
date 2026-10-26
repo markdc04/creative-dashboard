@@ -56,6 +56,27 @@
     </div>
   </div>
 
+  <div class="chart-card" style="margin-bottom:14px">
+    <div class="panel-head" style="margin-bottom:10px">
+      <h3 style="margin:0">Weekly Trend</h3>
+      <span class="panel-sub">$ metrics on the left axis, counts on the right</span>
+    </div>
+    <div class="chip-group" id="b2b-weekly-metrics" style="margin-bottom:14px">
+      <button class="chip is-active" data-weekly-metric="Total Leads">Total Leads</button>
+      <button class="chip is-active" data-weekly-metric="Total Ad Spend">Total Ad Spend</button>
+      <button class="chip" data-weekly-metric="Cost Per Lead">Cost Per Lead</button>
+    </div>
+    <div class="chart-canvas-wrap" style="height:280px"><canvas id="chart-b2b-weekly-trend"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2 class="panel-title">Weekly Breakdown</h2><span class="panel-sub" id="b2b-weekly-sub"></span></div>
+    <p class="footnote footnote--inside">Monday-Sunday weeks, same leads and ad spend as the Daily Breakdown table below, just aggregated.</p>
+    <div class="table-scroll">
+      <table id="b2b-weekly-table"></table>
+    </div>
+  </div>
+
   <div class="panel">
     <div class="panel-head"><h2 class="panel-title">Daily Breakdown</h2><span class="panel-sub" id="b2b-daily-sub"></span></div>
     <p class="footnote footnote--inside">Leads from the B2B Sales pipeline sheet; ad spend from the B2B block of the shared Meta export. Cost per lead is that day's ad spend &divide; that day's leads.</p>

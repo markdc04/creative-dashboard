@@ -216,7 +216,10 @@
       if (!weeks.has(key)) weeks.set(key, { monday, days: [] });
       weeks.get(key).days.push(d[state.weeklyVertical] || d.combined);
     });
-    const sorted = [...weeks.values()].sort((a, b) => a.monday - b.monday);
+    // Walker's own real data starts the week of Feb 9, 2026 — weeks before that carry lead counts
+    // from placeholder/legacy rows with no real spend or payout behind them, so they're dropped.
+    const WEEKLY_FLOOR = '2026-02-09';
+    const sorted = [...weeks.values()].filter((w) => toISO(w.monday) >= WEEKLY_FLOOR).sort((a, b) => a.monday - b.monday);
 
     const today = pacificToday();
     const sum = (days, key) => days.reduce((s, c) => s + (c[key] || 0), 0);
@@ -244,10 +247,6 @@
       };
     });
 
-    // Drop leading weeks with no data at all (spend and leads both 0) — the underlying sheets
-    // carry placeholder date entries stretching back before Walker's real data actually starts,
-    // which otherwise show as a wall of empty $0/0 weeks.
-    while (weekRows.length && !weekRows[0].spend && !weekRows[0].totalLeads) weekRows.shift();
     $('#weekly-sub').textContent = weekRows.length + ' week' + (weekRows.length === 1 ? '' : 's');
 
     const thead = '<thead><tr><th></th>' + weekRows.map((r) =>

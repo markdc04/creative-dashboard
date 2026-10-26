@@ -164,7 +164,7 @@
   function renderLeadDetail() {
     const filtered = state.leads.filter((l) => inRange(l.date)).sort((a, b) => (a.date < b.date ? 1 : -1));
     const term = ($('#lead-search').value || '').trim().toLowerCase();
-    const searched = term ? filtered.filter((l) => [l.name, l.firmName, l.state, l.utmContent, l.stage, l.status].join(' ').toLowerCase().includes(term)) : filtered;
+    const searched = term ? filtered.filter((l) => [l.name, l.firmName, l.state, l.source, l.utmContent, l.stage, l.status].join(' ').toLowerCase().includes(term)) : filtered;
     $('#lead-count').textContent = searched.length.toLocaleString() + ' leads' + (term ? ' (filtered from ' + filtered.length.toLocaleString() + ')' : '');
     const shown = searched.slice(0, 500);
     $('#lead-detail-body').innerHTML = shown.map((l) =>
@@ -172,6 +172,7 @@
       '<td>' + escapeHtml(l.name) + '</td>' +
       '<td>' + escapeHtml(l.firmName) + '</td>' +
       '<td>' + escapeHtml(l.state) + '</td>' +
+      '<td>' + escapeHtml(l.source) + '</td>' +
       '<td>' + escapeHtml(l.utmContent) + '</td>' +
       '<td>' + escapeHtml(l.stage) + '</td>' +
       '<td>' + escapeHtml(l.status) + '</td></tr>'

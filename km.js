@@ -33,9 +33,16 @@ function parseCases(csv) {
   const byEmail = new Map();
   for (const r of parseCSVRows(csv).slice(2)) {
     const [intake, conversion, name, email, , , ad] = r;
-    const key = (email || '').trim().toLowerCase();
-    if (!key || !toISODate(conversion)) continue;
-    const c = { name: (name || '').trim(), email: key, intakeDate: toISODate(intake), conversionDate: toISODate(conversion), ad: (ad || '').trim() };
+    const rawKey = (email || '').trim().toLowerCase();
+    if (!rawKey || !toISODate(conversion)) continue;
+    // Some rows carry a placeholder like "Not in body" instead of a real email — several
+    // different people can share that exact placeholder, and deduping on it as if it were a real
+    // email silently collapses distinct signed cases into one (confirmed: "vize Rogers" and
+    // "Elianna Elizabeth Gregio-Philpot..." both had "Not in body", undercounting signed cases by
+    // 1). Only dedupe on values that actually look like an email; anything else is scoped to this
+    // row's own name + conversion date so it never collides with a different person's placeholder.
+    const key = rawKey.includes('@') ? rawKey : rawKey + '|' + (name || '').trim().toLowerCase() + '|' + toISODate(conversion);
+    const c = { name: (name || '').trim(), email: rawKey, intakeDate: toISODate(intake), conversionDate: toISODate(conversion), ad: (ad || '').trim() };
     const prev = byEmail.get(key);
     if (!prev || c.conversionDate < prev.conversionDate) byEmail.set(key, c);
   }

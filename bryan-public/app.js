@@ -222,7 +222,7 @@
     // Bryan is actually invoiced), minus what was spent on his ads.
     const profit = revenue + fee - spend;
     const margin = revenue + fee > 0 ? (profit / (revenue + fee)) * 100 : 0;
-    const cpcWithFee = fee && signed > 0 ? (spend + fee) / signed : 0;
+    const cpcWithFee = signed > 0 ? (revenue + fee) / signed : 0;
     const dash = '—';
 
     const hasFilter = state.filters.status || state.filters.campaign;
@@ -241,7 +241,7 @@
       ],
       [
       ['Marketing Fee', fee ? money(fee) : dash, contractOk ? '' : 'not split by filter'],
-      ['Cost / Case + Fee', cpcWithFee ? money(cpcWithFee) : dash, fee ? (cpcWithFee ? 'total cost (ad spend + fee) ÷ signed cases' : 'no signed cases yet') : ''],
+      ['CPC + Marketing Fee', cpcWithFee ? money(cpcWithFee) : dash, signed ? 'revenue + fee ÷ signed cases' : 'no signed cases yet'],
       ],
     ];
     const tileHtml = ([label, value, sub, key]) =>

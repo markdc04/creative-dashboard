@@ -302,7 +302,11 @@ async function getRealTimePublisherPortal(token) {
 const MAX_LEAD_COMMISSION = 10000;
 
 async function getPublisherLeads(token, qmvaPayouts, rtpp) {
-  const rows = await getValues(token, 'Publisher Data CA/TX', 'A2:V30000', PUBLISHER_DOC);
+  // Open-ended (no row cap) — this sheet is sorted newest-first and has grown past 30000 rows,
+  // which was silently dropping every row older than that cutoff (confirmed: Payout showing
+  // $0.00 for Feb 9 - Mar 15, 2026 in the Weekly Breakdown, while a reference comparison sheet
+  // showed real nonzero payout for those same weeks — this is the fix for that).
+  const rows = await getValues(token, 'Publisher Data CA/TX', 'A2:V', PUBLISHER_DOC);
   const totals = { CA: {}, NW: {} };
   const counts = { CA: {}, NW: {} };
   const leads = { CA: [], NW: [] };
@@ -1126,7 +1130,7 @@ async function trackLateAndRestored(token) {
     ensureSheetExists(token, RESTORED_SHEET, LEAD_HEADER, 3000),
     getInvoicedPeriods(token),
     getInvoiceLateQmvaPhones(token),
-    getValues(token, 'Publisher Data CA/TX', 'A2:Q30000', PUBLISHER_DOC),
+    getValues(token, 'Publisher Data CA/TX', 'A2:Q', PUBLISHER_DOC),
   ]);
   const snapshotRows = snapshotRowsRaw || [];
   const snapshot = {};
@@ -1333,7 +1337,7 @@ async function getLeadLookups(token) {
   // (same reasoning as this function's own header comment) so it can never affect revenue/QMVA
   // totals anywhere else.
   const qualifiedByDateKey = {};
-  for (const row of (await getValues(token, 'Publisher Data CA/TX', 'A2:V40000', PUBLISHER_DOC)) || []) {
+  for (const row of (await getValues(token, 'Publisher Data CA/TX', 'A2:V', PUBLISHER_DOC)) || []) {
     const phone = normPhone(row[5]) || normPhone(row[6]);
     const date = normPublisherDate(row[0]);
     if (phone && date && row[9]) lawTypeByDateKey[`${phone}|${date}`] = row[9];

@@ -1185,6 +1185,7 @@
       }
       return '<tr>' +
         '<td><div class="name-cell">' + escapeHtml(l.name || '(no name)') + '</div><div class="email-cell">' + escapeHtml(l.email || l.phone || '') + (l.email && l.phone ? ' &middot; ' + escapeHtml(l.phone) : '') + '</div></td>' +
+        '<td>' + escapeHtml(l.contactMethod || dash) + '</td>' +
         '<td>' + escapeHtml(l.createdDate || dash) + '' + '</td>' +
         '<td><span class="status-pill ' + statusClass(l.status) + '">' + escapeHtml(l.status || dash) + '</span>' + (l.subStatus ? '<div class="kpi-sub" style="margin-top:4px">' + escapeHtml(l.subStatus) + '</div>' : '') + '</td>' +
         '<td>' + escapeHtml(l.signedUpDate || dash) + '</td>' +

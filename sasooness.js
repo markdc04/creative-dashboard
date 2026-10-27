@@ -122,6 +122,9 @@ function mergeLeads(intakeSets, rowsB) {
       severity: r['Severity Level'] || '',
       caseGrade: r['Case Grade'] || '',
       marketingSource: r['Marketing Source'] || '',
+      // How the lead reached out — "Email" or "IB Call" (inbound call) — only tracked on the CRM
+      // sheet's own "Contact" column, not on the intake tabs.
+      contactMethod: r['Contact'] || '',
       opportunityId: '',
       channel: '',
       source: 'crm',

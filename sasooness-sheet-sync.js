@@ -93,14 +93,14 @@ function buildSummaryRows(leads, program, data) {
 
 // Lead Details — same columns the dashboard's own lead table shows, including the converting ad.
 function buildLeadDetailRows(leads) {
-  const rows = [['Date', 'Name', 'Email', 'Phone', 'Status', 'Campaign', 'Converting Ad', 'Contact Source', 'Channel']];
+  const rows = [['Date', 'Name', 'Email', 'Phone', 'Contact', 'Status', 'Campaign', 'Converting Ad', 'Contact Source', 'Channel']];
   leads
     .slice()
     .sort((a, b) => (b.createdDate || '').localeCompare(a.createdDate || ''))
     .forEach((l) => {
       const o = l.origin || {};
       rows.push([
-        l.createdDate || '', l.name || '', l.email || '', l.phone || '', l.status || '',
+        l.createdDate || '', l.name || '', l.email || '', l.phone || '', l.contactMethod || '', l.status || '',
         o.campaignName || l.campaign || '', o.adName || '', o.contactSource || '', l.channel || '',
       ]);
     });

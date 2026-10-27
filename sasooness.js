@@ -68,11 +68,21 @@ function mergeLeads(intakeSets, rowsB) {
 
   function place(lead) {
     const phone = phone10(lead.phone);
-    const existing = (lead.email && byEmail.get(lead.email)) || (phone && byPhone.get(phone)) || null;
+    const emailMatch = lead.email ? byEmail.get(lead.email) : null;
+    // A matching email doesn't make these the same person when both sides also carry a real,
+    // different phone number — that's bad data (a wrong/reused email), not a real duplicate.
+    // Confirmed: Zantrez Phillips and Jocelyn Nicole Green, two different signed Sasooness
+    // clients, were entered with the exact same email in Lead Tracker; their phones differ, so
+    // this distrusts the email match instead of silently merging two real signed cases into one.
+    const emailContradicted = emailMatch && phone && phone10(emailMatch.phone) && phone10(emailMatch.phone) !== phone;
+    const existing = emailContradicted ? ((phone && byPhone.get(phone)) || null) : (emailMatch || (phone && byPhone.get(phone)) || null);
     if (!existing) {
       lead.emails = lead.email ? [lead.email] : [];
       people.push(lead);
-      if (lead.email) byEmail.set(lead.email, lead);
+      // Don't register a contradicted email in the map — leave it pointing at the person it
+      // actually (probably) belongs to, so a third row sharing this same bad email doesn't merge
+      // with this one instead.
+      if (lead.email && !emailContradicted) byEmail.set(lead.email, lead);
       if (phone) byPhone.set(phone, lead);
       return lead;
     }

@@ -478,6 +478,7 @@
         ['leads', 'Total Leads', total.toLocaleString('en-US'), rejected ? rejected.toLocaleString('en-US') + ' rejected' : '', 'Click to clear the filters'],
         ['', 'Cost / Lead', cpl ? money(cpl) : dash, costsMeaningful ? 'ad spend ÷ leads' : noSplit, ''],
         ['signed', 'Signed Cases', signed.toLocaleString('en-US'), 'of ' + total.toLocaleString('en-US') + ' leads', 'Click to show only signed cases'],
+        ['', 'Conversion Rate', pct(conversionRate), 'signed ÷ leads', ''],
         ['', 'CPC (Cost / Case)', costPerCase ? money(costPerCase) : dash, !costsMeaningful ? noSplit : signed ? 'ad spend ÷ signed cases' : 'no signed cases yet', ''],
         ['__break__'],
         ['', 'Ad Spend', money(totalSpend), money(ownSpend) + ' own ads + ' + money(partnerSpend) + ' Lead Prosper', ''],

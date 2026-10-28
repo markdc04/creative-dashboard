@@ -24,7 +24,7 @@ const B2B_ONLY_GID = '825238244';
 const PIPELINE_DOC_ID = '1sJod1nVa3bA6sQiQtVMhi2mWvmlQVNwAZZBQFLiJ2J0';
 const PIPELINE_GID = '0';
 
-let cache = { leads: [], leadsDaily: [], adSpendDaily: [], adSpendByAdName: [], updatedAt: null };
+let cache = { leads: [], leadsDaily: [], adSpendDaily: [], adSpendByAdName: [], adSpendByAdNameDaily: [], updatedAt: null };
 
 // Keyed by GHL Contact ID -> the raw pipeline row, so it can be used both as enrichment (for IDs
 // also present in "B2B Only") and as a standalone lead (for IDs only present here).
@@ -98,12 +98,21 @@ async function pollAll() {
 
     const spendByDate = new Map();
     const spendByAdName = new Map();
+    // Also kept per (ad name, date) — adSpendByAdName alone is a lifetime total, which doesn't
+    // match the leads count once the dashboard's date range is narrowed, so "Which Ads Generated
+    // Them" needs this to filter spend by the same range as the leads.
+    const spendByAdNameDate = new Map();
     for (const r of metaRows) {
       if (r.date && r.spend) spendByDate.set(r.date, (spendByDate.get(r.date) || 0) + r.spend);
       if (r.adName && r.spend) spendByAdName.set(r.adName, (spendByAdName.get(r.adName) || 0) + r.spend);
+      if (r.adName && r.date && r.spend) {
+        const key = r.adName + '|' + r.date;
+        spendByAdNameDate.set(key, { adName: r.adName, date: r.date, spend: (spendByAdNameDate.get(key)?.spend || 0) + r.spend });
+      }
     }
     cache.adSpendDaily = [...spendByDate.entries()].map(([date, spend]) => ({ date, spend: Math.round(spend * 100) / 100 })).sort((a, b) => (a.date < b.date ? -1 : 1));
     cache.adSpendByAdName = [...spendByAdName.entries()].map(([adName, spend]) => ({ adName, spend: Math.round(spend * 100) / 100 }));
+    cache.adSpendByAdNameDaily = [...spendByAdNameDate.values()].map((r) => ({ ...r, spend: Math.round(r.spend * 100) / 100 }));
     cache.updatedAt = Date.now();
   } catch (err) {
     console.error('B2B poll error:', err.message);
@@ -111,7 +120,10 @@ async function pollAll() {
 }
 
 function getData() {
-  return { leads: cache.leads, leadsDaily: cache.leadsDaily, adSpendDaily: cache.adSpendDaily, adSpendByAdName: cache.adSpendByAdName, updatedAt: cache.updatedAt };
+  return {
+    leads: cache.leads, leadsDaily: cache.leadsDaily, adSpendDaily: cache.adSpendDaily,
+    adSpendByAdName: cache.adSpendByAdName, adSpendByAdNameDaily: cache.adSpendByAdNameDaily, updatedAt: cache.updatedAt,
+  };
 }
 
 module.exports = { pollAll, getData };

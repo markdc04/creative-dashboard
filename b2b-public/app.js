@@ -96,6 +96,7 @@
     state.leadsDaily = json.leadsDaily || [];
     state.adSpendDaily = json.adSpendDaily || [];
     state.adSpendByAdName = json.adSpendByAdName || [];
+    state.adSpendByAdNameDaily = json.adSpendByAdNameDaily || [];
     renderAll();
   }
 
@@ -238,7 +239,12 @@
   // B2B leads (see b2b.js), so name is the only attribution path that actually works.
   function renderLeadsByAd(leads) {
     const el = $('#b2b-leads-by-ad');
-    const spendByName = new Map(state.adSpendByAdName.map((r) => [r.adName, r.spend]));
+    // Spend filtered to the same date range as `leads` — adSpendByAdName alone is a lifetime
+    // total and would overstate spend (and Cost/Lead) whenever a range is picked.
+    const spendByName = new Map();
+    state.adSpendByAdNameDaily.filter((r) => inRange(r.date)).forEach((r) => {
+      spendByName.set(r.adName, (spendByName.get(r.adName) || 0) + r.spend);
+    });
     const leadsByName = new Map();
     leads.forEach((l) => { if (l.utmContent) leadsByName.set(l.utmContent, (leadsByName.get(l.utmContent) || 0) + 1); });
     const names = new Set([...spendByName.keys(), ...leadsByName.keys()]);

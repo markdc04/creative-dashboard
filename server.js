@@ -351,7 +351,14 @@ async function fetchViewCount(ytId) {
 }
 
 // Only these dashboard files are readable without a login (the login page borrows its look from them).
-const PUBLIC_ASSETS = new Set(['/dashboard/style.css', '/dashboard/logo-loudr.png', '/dashboard/favicon.svg']);
+const PUBLIC_ASSETS = new Set([
+  '/dashboard/style.css', '/dashboard/logo-loudr.png', '/dashboard/favicon.svg',
+  // The PWA install assets: the login page (the only page a logged-out visitor can reach) links
+  // all of these, and the manifest/service worker must themselves be fetchable without a session
+  // for "Add to Home Screen" to work before a user has ever logged in.
+  '/sw.js', '/shared/manifest.json', '/shared/pwa.js',
+  '/shared/icon-192.png', '/shared/icon-512.png', '/shared/apple-touch-icon.png',
+]);
 const LEADERBOARD_API = new Set(['/api/data', '/api/views', '/api/refresh', '/api/events']);
 const LOGIN_HTML = fs.readFileSync(path.join(__dirname, 'login.html'), 'utf8');
 

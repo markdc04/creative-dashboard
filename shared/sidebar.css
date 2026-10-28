@@ -1,6 +1,11 @@
 :root{--side-w:244px;--side-w-collapsed:72px;}
-body.has-sidebar{padding-left:var(--side-w);transition:padding-left .2s ease;}
-body.has-sidebar.side-collapsed{padding-left:var(--side-w-collapsed);}
+/* Keyed off <html>, not <body> — each page's own <head> has a small inline script (right after
+   the viewport meta) that sets this class on <html> before first paint, reserving the sidebar's
+   width immediately. Keying it off body instead meant this rule couldn't apply until sidebar.js
+   had already run partway through body parsing, so the page visibly rendered full-width first and
+   then jumped/overlapped once the sidebar was inserted. */
+html.has-sidebar body{padding-left:var(--side-w);transition:padding-left .2s ease;}
+html.has-sidebar.side-collapsed body{padding-left:var(--side-w-collapsed);}
 .side-nav{
   position:fixed;top:0;left:0;bottom:0;width:var(--side-w);z-index:120;display:flex;flex-direction:column;
   padding:20px 14px 16px;background:#0b0f1c;border-right:1px solid var(--border,#252d49);
@@ -39,7 +44,7 @@ body.has-sidebar.side-collapsed{padding-left:var(--side-w-collapsed);}
 .side-collapsed .side-collapse span{display:none;}
 
 @media (max-width:820px){
-  body.has-sidebar,body.has-sidebar.side-collapsed{padding-left:0;padding-top:58px;}
+  html.has-sidebar body{padding-left:0;padding-top:58px;}
   .side-nav,.side-collapsed .side-nav{
     width:auto;right:0;bottom:auto;height:58px;flex-direction:row;align-items:center;gap:6px;padding:8px 10px;
     border-right:none;border-bottom:1px solid var(--border,#252d49);

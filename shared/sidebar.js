@@ -35,11 +35,16 @@
     '<button class="side-collapse" id="side-collapse" type="button" title="Collapse">' + icons.collapse + '<span>Collapse</span></button>';
 
   document.body.prepend(nav);
-  document.body.classList.add('has-sidebar');
-  if (collapsed) document.body.classList.add('side-collapsed');
+  // A blocking inline script in <head> (see pwa-shell.js) already set these on <html> before the
+  // page's first paint, so the sidebar's width is reserved from frame one instead of the layout
+  // jumping once this script finishes running — this is just keeping <html> in sync as the
+  // source of truth for the rest of this file (the collapse toggle, the client-role removal
+  // below) rather than re-deciding anything.
+  document.documentElement.classList.add('has-sidebar');
+  if (collapsed) document.documentElement.classList.add('side-collapsed');
 
   document.getElementById('side-collapse').addEventListener('click', () => {
-    const now = document.body.classList.toggle('side-collapsed');
+    const now = document.documentElement.classList.toggle('side-collapsed');
     try { localStorage.setItem('loudr_sidebar_collapsed', now ? '1' : '0'); } catch (err) { /* ignore */ }
   });
 
@@ -53,7 +58,7 @@
     if (!me) return;
     if (me.role === 'client' && me.scope !== 'creative') {
       nav.remove();
-      document.body.classList.remove('has-sidebar', 'side-collapsed');
+      document.documentElement.classList.remove('has-sidebar', 'side-collapsed');
       return;
     }
     if (me.role === 'client' && me.scope === 'creative') {

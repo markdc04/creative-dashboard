@@ -2,6 +2,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 const auth = require('./auth');
 const { csvUrl: sharedCsvUrl, fetchText, parseCSV, num, toISODate } = require('./csv-utils');
 const sasooness = require('./sasooness');
@@ -379,7 +380,39 @@ function sendLogin(res, { username = '', next = '/dashboard/', error = '' } = {}
   res.end(html);
 }
 
+// Gzips every compressible response (JSON API payloads, HTML, JS, CSS, SVG) transparently, without
+// touching any of the ~70 individual res.writeHead/res.end call sites below. The Walker and Data
+// Analysis API responses in particular run into the hundreds of KB of JSON on a cold cache, so this
+// is a real transfer-time win, not just a static-asset nicety. /api/events (the SSE stream) is left
+// completely alone — it writes multiple chunks over a connection that never calls res.end, which
+// this wrapper (correctly) only hooks into.
+const COMPRESSIBLE_CONTENT_TYPE = /json|javascript|css|html|svg\+xml|text\/plain/;
+function enableCompression(req, res) {
+  if (req.url && req.url.startsWith('/api/events')) return;
+  if (!/\bgzip\b/.test(req.headers['accept-encoding'] || '')) return;
+  const rawWriteHead = res.writeHead.bind(res);
+  const rawEnd = res.end.bind(res);
+  let status = 200, headers = null;
+  res.writeHead = (code, hdrs) => { status = code; headers = hdrs || {}; return res; };
+  res.end = (body) => {
+    const contentType = (headers && headers['Content-Type']) || '';
+    if (!headers || !body || (typeof body !== 'string' && !Buffer.isBuffer(body)) || !COMPRESSIBLE_CONTENT_TYPE.test(contentType)) {
+      if (headers) rawWriteHead(status, headers);
+      return rawEnd(body);
+    }
+    zlib.gzip(body, (err, compressed) => {
+      if (err) { rawWriteHead(status, headers); rawEnd(body); return; }
+      headers['Content-Encoding'] = 'gzip';
+      headers['Vary'] = 'Accept-Encoding';
+      rawWriteHead(status, headers);
+      rawEnd(compressed);
+    });
+    return res;
+  };
+}
+
 const server = http.createServer((req, res) => {
+  enableCompression(req, res);
   const url = new URL(req.url, `http://${req.headers.host}`);
 
   // The leaderboard's data feed lives under /lb-api/ but is really just the same /api/ feed the
@@ -688,7 +721,15 @@ const server = http.createServer((req, res) => {
   fs.readFile(filePath, (err, data) => {
     if (err) { res.writeHead(404); res.end('Not found'); return; }
     const ext = path.extname(filePath);
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
+    // index.html itself must always be revalidated (it's what wires up every other asset below),
+    // but nothing here has a cache-busted filename, so a long max-age on JS/CSS risks serving a
+    // stale script after the next deploy — short-lived but still cuts refetches when someone
+    // bounces between dashboards within the same few minutes. Images/icons change far less often
+    // and are safe to hold onto longer.
+    const cacheControl = rel === '/' ? 'no-cache'
+      : (ext === '.png' || ext === '.svg' || ext === '.ico') ? 'public, max-age=86400'
+      : 'public, max-age=300';
+    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': cacheControl });
     res.end(data);
   });
 });

@@ -43,10 +43,14 @@ body.has-sidebar.side-collapsed{padding-left:var(--side-w-collapsed);}
   .side-nav,.side-collapsed .side-nav{
     width:auto;right:0;bottom:auto;height:58px;flex-direction:row;align-items:center;gap:6px;padding:8px 10px;
     border-right:none;border-bottom:1px solid var(--border,#252d49);
+    /* More workspace items than fit across a phone's width — scroll the bar sideways instead of
+       the desktop rule's overflow:hidden, which just clipped everything past the screen edge. */
+    overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;
   }
-  .side-logo,.side-collapsed .side-logo{height:26px;margin:0 8px 0 0;}
+  .side-nav::-webkit-scrollbar{display:none;}
+  .side-logo,.side-collapsed .side-logo{height:26px;margin:0 8px 0 0;flex:none;}
   .side-divider,.side-label,.side-spacer,.side-collapse{display:none;}
-  .side-item{margin:0;padding:8px 10px;font-size:12.5px;}
+  .side-item{margin:0;padding:8px 10px;font-size:12.5px;flex:none;}
   .side-collapsed .side-text{display:inline;}
   .side-collapsed .side-item{justify-content:flex-start;padding:8px 10px;}
   .side-user,.side-collapsed .side-user{display:none;}

@@ -70,7 +70,7 @@
 
   const CLIENTS = [
     {
-      key: 'sasooness', name: 'Sasooness Law Group, APC', sub: 'PI — Auto / MVA', href: '/sasooness/', initials: 'SL',
+      key: 'sasooness', name: 'Sasooness Law Group, APC', href: '/sasooness/', initials: 'SL',
       url: '/sasooness-api/data', type: 'legal',
       metrics: (d, range) => {
         const leads = filterByDate(d.leads, 'createdDate', range.from, range.to);
@@ -86,7 +86,7 @@
       },
     },
     {
-      key: 'km', name: 'KM Law Firm PLLC', sub: 'PI — Auto / MVA', href: '/km/', initials: 'KM',
+      key: 'km', name: 'KM Law Firm PLLC', href: '/km/', initials: 'KM',
       url: '/km-api/data', type: 'legal',
       metrics: (d, range) => {
         const leadsDaily = filterByDate(d.leadsDaily, 'date', range.from, range.to);
@@ -104,7 +104,7 @@
       },
     },
     {
-      key: 'bryan', name: 'Bryan Rodriguez', sub: 'Agency', href: '/bryan/', initials: 'BR',
+      key: 'bryan', name: 'Bryan Rodriguez', href: '/bryan/', initials: 'BR',
       url: '/bryan-api/data', type: 'legal',
       metrics: (d, range) => {
         const leads = filterByDate(d.leads, 'createdDate', range.from, range.to);
@@ -121,8 +121,14 @@
       },
     },
     {
-      key: 'walker', name: 'Walker PPL / Agency', sub: 'Pay Per Lead', href: '/walker/', initials: 'WA',
+      key: 'walker', name: 'Walker PPL / Agency', href: '/walker/', initials: 'WA',
       url: '/walker-api/data?tab=ca-nw', type: 'ppl',
+      // Walker isn't background-polled like the other four (see walker.js's own comments — its
+      // live fetch was the single biggest lever behind a past out-of-memory crash, which is why
+      // it was pulled off the background timer and made on-demand per request instead). Auto-
+      // fetching it here on every Clients page load reintroduces that same expensive hit for
+      // everyone, every time, so it's loaded on click instead.
+      lazy: true,
       metrics: (d) => {
         const rows = d.rows || [];
         const revenue = sum(rows, 'revenue');
@@ -134,7 +140,7 @@
       },
     },
     {
-      key: 'b2b', name: 'Loudr Media B2B', sub: 'Sales Pipeline', href: '/b2b/', initials: 'B2',
+      key: 'b2b', name: 'Loudr Media B2B', href: '/b2b/', initials: 'B2',
       url: '/b2b-api/data', type: 'pipeline',
       metrics: (d, range) => {
         const leadsDaily = filterByDate(d.leadsDaily, 'date', range.from, range.to);
@@ -187,30 +193,38 @@
         '<div class="client-card-head">' +
           '<div class="client-id">' +
             '<div class="client-badge">' + c.initials + '</div>' +
-            '<div><p class="client-name">' + c.name + '</p><p class="client-sub">' + c.sub + '</p></div>' +
+            '<p class="client-name">' + c.name + '</p>' +
           '</div>' +
-          '<span class="client-status client-status--loading" id="status-' + c.key + '">Loading…</span>' +
+          '<span class="client-status client-status--loading" id="status-' + c.key + '">' + (c.lazy ? 'Not loaded' : 'Loading…') + '</span>' +
         '</div>' +
-        '<div id="body-' + c.key + '"></div>' +
+        '<div id="body-' + c.key + '">' + (c.lazy ? lazyBody(c) : '') + '</div>' +
         '<div class="client-card-foot"><a class="client-open-btn" href="' + c.href + '">Open dashboard →</a></div>' +
       '</div>'
+    );
+  }
+
+  function lazyBody(c) {
+    return (
+      '<p class="client-card-note">This one isn’t cached in the background (see the Walker dashboard) — loading it live can take a while.</p>' +
+      '<button class="client-open-btn" id="load-' + c.key + '" type="button">Load stats</button>'
     );
   }
 
   const bodyRenderers = { legal: legalCardBody, ppl: pplCardBody, pipeline: pipelineCardBody };
 
   async function loadOne(c) {
+    const statusEl = $('#status-' + c.key);
+    statusEl.textContent = 'Loading…';
+    statusEl.className = 'client-status client-status--loading';
     try {
       const res = await fetch(c.url, { cache: 'no-store' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       const m = c.metrics(data, state.range);
       $('#body-' + c.key).innerHTML = bodyRenderers[c.type](c, m);
-      const statusEl = $('#status-' + c.key);
       statusEl.textContent = 'Live';
       statusEl.className = 'client-status';
     } catch (err) {
-      const statusEl = $('#status-' + c.key);
       statusEl.textContent = 'Unavailable';
       statusEl.className = 'client-status client-status--error';
     }
@@ -218,7 +232,10 @@
 
   function load() {
     $('#client-grid').innerHTML = CLIENTS.map(cardShell).join('');
-    return Promise.all(CLIENTS.map(loadOne));
+    CLIENTS.filter((c) => c.lazy).forEach((c) => {
+      $('#load-' + c.key).addEventListener('click', () => loadOne(c));
+    });
+    return Promise.all(CLIENTS.filter((c) => !c.lazy).map(loadOne));
   }
 
   $('#refresh-btn').addEventListener('click', () => {

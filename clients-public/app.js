@@ -1,5 +1,55 @@
 (function () {
   const $ = (sel) => document.querySelector(sel);
+
+  // ---- quick-range dropdown — same preset math as every other dashboard here ----
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function toISO(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function addDays(d, n) { const nd = new Date(d); nd.setDate(nd.getDate() + n); return nd; }
+  function startOfMonth(y, m) { return new Date(y, m - 1, 1); }
+  function endOfMonth(y, m) { return new Date(y, m, 0); }
+  function mondayOf(d) { const day = d.getDay(); const diff = day === 0 ? -6 : 1 - day; return addDays(d, diff); }
+  function pacificToday() {
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+    const get = (t) => Number(parts.find((p) => p.type === t).value);
+    return new Date(get('year'), get('month') - 1, get('day'));
+  }
+  function computeRange(key) {
+    const today = pacificToday();
+    switch (key) {
+      case 'all': return { start: null, end: null };
+      case 'today': return { start: toISO(today), end: toISO(today) };
+      case 'yesterday': { const y = addDays(today, -1); return { start: toISO(y), end: toISO(y) }; }
+      case 'wtd': return { start: toISO(mondayOf(today)), end: toISO(addDays(today, -1)) };
+      case 'lastweek': { const lastMon = addDays(mondayOf(today), -7); const lastSun = addDays(lastMon, 6); return { start: toISO(lastMon), end: toISO(lastSun) }; }
+      default: {
+        const m = /^(\d{4})-(\d{2})$/.exec(key);
+        if (m) { const y = Number(m[1]), mo = Number(m[2]); return { start: toISO(startOfMonth(y, mo)), end: toISO(endOfMonth(y, mo)) }; }
+        return { start: null, end: null };
+      }
+    }
+  }
+  function buildQuickRangeOptions(floorYear, floorMonth) {
+    const sel = $('#quick-range');
+    const today = pacificToday();
+    const names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const idxToKey = (idx) => { const y = Math.floor((idx - 1) / 12); return y + '-' + pad(idx - y * 12); };
+    const idxToName = (idx) => { const y = Math.floor((idx - 1) / 12); return names[idx - y * 12 - 1] + ' ' + y; };
+    const thisIdx = today.getFullYear() * 12 + (today.getMonth() + 1);
+    const lastIdx = thisIdx - 1;
+    const floorIdx = floorYear * 12 + floorMonth;
+    const mkOpt = (value, label) => { const o = document.createElement('option'); o.value = value; o.textContent = label; return o; };
+    sel.innerHTML = '';
+    sel.appendChild(mkOpt('all', 'All time'));
+    sel.appendChild(mkOpt('today', 'Today'));
+    sel.appendChild(mkOpt('yesterday', 'Yesterday'));
+    sel.appendChild(mkOpt('wtd', 'This week'));
+    sel.appendChild(mkOpt('lastweek', 'Last week'));
+    sel.appendChild(mkOpt(idxToKey(thisIdx), 'This month'));
+    sel.appendChild(mkOpt(idxToKey(lastIdx), 'Last month'));
+    for (let idx = lastIdx - 1; idx >= floorIdx; idx--) sel.appendChild(mkOpt(idxToKey(idx), idxToName(idx)));
+    return idxToKey(thisIdx);
+  }
+
   const money = (n) => '$' + Math.round(n || 0).toLocaleString('en-US');
   const int = (n) => (n || 0).toLocaleString('en-US');
   const dash = '—';
@@ -175,13 +225,29 @@
     $('#refresh-btn').classList.add('is-spinning');
     load().finally(() => setTimeout(() => $('#refresh-btn').classList.remove('is-spinning'), 400));
   });
-  $('#range-from').addEventListener('change', (e) => { state.range.from = e.target.value; load(); });
-  $('#range-to').addEventListener('change', (e) => { state.range.to = e.target.value; load(); });
+  $('#quick-range').addEventListener('change', (e) => {
+    const { start, end } = computeRange(e.target.value);
+    state.range = { from: start || '', to: end || '' };
+    $('#range-from').value = start || '';
+    $('#range-to').value = end || '';
+    load();
+  });
+  function applyCustomRange() {
+    state.range = { from: $('#range-from').value || '', to: $('#range-to').value || '' };
+    $('#quick-range').value = '';
+    load();
+  }
+  $('#range-from').addEventListener('change', applyCustomRange);
+  $('#range-to').addEventListener('change', applyCustomRange);
   $('#range-clear').addEventListener('click', () => {
     state.range = { from: '', to: '' };
     $('#range-from').value = ''; $('#range-to').value = '';
+    $('#quick-range').value = 'all';
     load();
   });
+
+  buildQuickRangeOptions(2026, 1);
+  $('#quick-range').value = 'all';
 
   load();
 })();

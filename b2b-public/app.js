@@ -320,7 +320,8 @@
     fetchData().finally(() => setTimeout(() => $('#refresh-btn').classList.remove('is-spinning'), 400));
   });
 
-  const defaultKey = buildQuickRangeOptions(2026, 1);
+  buildQuickRangeOptions(2026, 1);
+  const defaultKey = 'all';
   const initial = computeRange(defaultKey);
   state.range = initial;
   $('#quick-range').value = defaultKey;

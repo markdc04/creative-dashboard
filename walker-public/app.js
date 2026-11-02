@@ -527,7 +527,8 @@
   // Walker's own data floor (per the source dashboard's month-option generator) is August 2026 —
   // but Global PPL's history goes back further (the "WALKER - AGENCY PROFIT DASHBOARD" workbook),
   // so default to January 2026 same as Sasooness/KM's floor for consistency across the site.
-  const defaultKey = buildQuickRangeOptions(2026, 1);
+  buildQuickRangeOptions(2026, 1);
+  const defaultKey = 'all';
   const initial = computeRange(defaultKey);
   state.range = initial;
   $('#quick-range').value = defaultKey;

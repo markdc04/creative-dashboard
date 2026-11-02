@@ -564,7 +564,8 @@
     fetchData().finally(() => setTimeout(() => $('#refresh-btn').classList.remove('is-spinning'), 400));
   });
 
-  defaultRangeKey = buildQuickRangeOptions(2026, 1);
+  buildQuickRangeOptions(2026, 1);
+  defaultRangeKey = 'all';
   clearRange();
   fetchData();
   setInterval(fetchData, 30000);

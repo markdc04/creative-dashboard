@@ -597,7 +597,8 @@
   });
 
   // Bryan's own history only starts August 2026, so that's the floor for "previous months".
-  const defaultRangeKey = buildQuickRangeOptions(2026, 8);
+  buildQuickRangeOptions(2026, 8);
+  const defaultRangeKey = 'all';
   { const { start, end } = computeRange(defaultRangeKey); setRange(defaultRangeKey, start, end); }
   fetchData();
   setInterval(fetchData, 30000);

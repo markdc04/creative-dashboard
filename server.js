@@ -695,10 +695,12 @@ const server = http.createServer((req, res) => {
   if (rel === '/walker') { res.writeHead(301, { Location: '/walker/' }); res.end(); return; }
   if (rel === '/walker-data') { res.writeHead(301, { Location: '/walker-data/' }); res.end(); return; }
   if (rel === '/b2b') { res.writeHead(301, { Location: '/b2b/' }); res.end(); return; }
+  if (rel === '/clients') { res.writeHead(301, { Location: '/clients/' }); res.end(); return; }
   if (rel.startsWith('/dashboard/')) { root = 'public'; rel = rel.slice('/dashboard'.length); }
   if (rel.startsWith('/walker-data/')) { root = 'walker-data-public'; rel = rel.slice('/walker-data'.length); }
   else if (rel.startsWith('/walker/')) { root = 'walker-public'; rel = rel.slice('/walker'.length); }
   else if (rel.startsWith('/b2b/')) { root = 'b2b-public'; rel = rel.slice('/b2b'.length); }
+  else if (rel.startsWith('/clients/')) { root = 'clients-public'; rel = rel.slice('/clients'.length); }
   // A client-role session gets the shared, limited client-view app for any of the three client
   // dashboards instead of the internal one admins/creative see at the same URL — one small static
   // app that reads which client it's for from the URL path at runtime (see client-public/app.js).

@@ -186,8 +186,8 @@
   }
   function kpiTiles(k) {
     return [
-      ['REVENUE', fmtMoney(k.revenue), true, false],
-      ['AD SPENT', fmtMoney(k.totalSpent), true, false],
+      ['REVENUE', fmtMoney(k.revenue), false, false],
+      ['AD SPENT', fmtMoney(k.totalSpent), false, false],
       ['PROFIT', (k.profit < 0 ? '⚠ ' : '') + fmtMoney(k.profit), true, k.profit < 0],
       ['PROFIT MARGIN', fmtPct(k.profitMargin), true, k.profitMargin < 0],
       ['CONVERSION RATE', fmtPct(k.conversionRate), false, false],

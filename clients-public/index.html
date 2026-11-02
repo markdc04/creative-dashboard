@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>(function(){try{if(localStorage.getItem("loudr_sidebar_collapsed")==="1")document.documentElement.classList.add("side-collapsed");}catch(e){}document.documentElement.classList.add("has-sidebar");})();</script>
+<title>Clients — Loudr Media</title>
+<link rel="icon" href="/walker/favicon.svg">
+<link rel="manifest" href="/shared/manifest.json">
+<meta name="theme-color" content="#0a0e1a">
+<link rel="apple-touch-icon" href="/shared/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<script src="/shared/pwa.js" defer></script>
+<link rel="stylesheet" href="/walker/style.css">
+<link rel="stylesheet" href="/shared/sidebar.css">
+<link rel="stylesheet" href="/shared/back-to-top.css">
+<link rel="stylesheet" href="/clients/style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brandbar">
+    <img src="/shared/logo-loudr.png" alt="Loudr Media" class="brandlogo">
+    <div class="brandbar-right">
+      <button id="refresh-btn" class="refresh-btn" title="Refresh now" aria-label="Refresh now">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+      </button>
+      <span id="live-pill" class="live-pill">
+        <span class="live-dot"></span>
+        <span id="live-text">Live &ndash; checked just now</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="topbar">
+    <div>
+      <p class="brand-eyebrow">All Clients</p>
+      <h1>Clients</h1>
+      <p class="topbar-sub">Lifetime leads &amp; ad spend across every client dashboard</p>
+    </div>
+  </div>
+
+  <div class="kpi-row" id="summary-kpis"></div>
+
+  <div class="client-grid" id="client-grid"></div>
+
+</div>
+<script src="/shared/sidebar.js" data-active="clients"></script>
+<script src="/shared/back-to-top.js"></script>
+<script src="/clients/app.js"></script>
+</body>
+</html>

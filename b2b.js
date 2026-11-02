@@ -10,14 +10,16 @@
 // sheet and nowhere in "B2B Only". So any pipeline row whose GHL Contact ID isn't already in
 // "B2B Only" is added as its own lead too, built straight from the pipeline sheet's own columns.
 //
-// Ad spend comes from the B2B block of the same shared Meta export every other dashboard here
-// reads from (see meta-spend.js). Ad attribution joins by AD NAME (UTM Content <-> Ad Name), not
-// by UTM Term/Ad ID — spot-checked ~100+ leads and UTM Term never matches a real Ad ID in the
+// Ad spend comes from two sources, combined into one set of totals: the B2B block of the shared
+// Meta export every other dashboard here reads from (see meta-spend.js), and the "X AD SPENT" tab
+// for X/Twitter ads (see x-spend.js). Ad attribution joins by AD NAME (UTM Content <-> Ad Name),
+// not by UTM Term/Ad ID — spot-checked ~100+ leads and UTM Term never matches a real Ad ID in the
 // spend sheet (it looks like GHL captures a different Meta object ID into that field), while the
 // ad name consistently does match, just sometimes under more than one Ad ID (A/B duplicates), so
 // spend is summed across every Ad ID sharing that name.
 const { csvUrl, fetchText, parseCSV, toISODate } = require('./csv-utils');
 const { getB2BMetaRows } = require('./meta-spend');
+const { getB2BXRows } = require('./x-spend');
 
 const WORKBOOK_ID = '1rYN9P0oVlEwlxpk53ZqDDGIcZ9154bm-k709KUMIT_A';
 const B2B_ONLY_GID = '825238244';
@@ -82,10 +84,11 @@ function dailyCounts(leads) {
 
 async function pollAll() {
   try {
-    const [b2bOnlyCsv, pipelineCsv, metaRows] = await Promise.all([
+    const [b2bOnlyCsv, pipelineCsv, metaRows, xRows] = await Promise.all([
       fetchText(csvUrl(B2B_ONLY_GID, WORKBOOK_ID)),
       fetchText(csvUrl(PIPELINE_GID, PIPELINE_DOC_ID)),
       getB2BMetaRows(),
+      getB2BXRows(),
     ]);
     const pipelineById = parsePipelineById(pipelineCsv);
     const leads = parseLeads(b2bOnlyCsv, pipelineById);
@@ -102,7 +105,7 @@ async function pollAll() {
     // match the leads count once the dashboard's date range is narrowed, so "Which Ads Generated
     // Them" needs this to filter spend by the same range as the leads.
     const spendByAdNameDate = new Map();
-    for (const r of metaRows) {
+    for (const r of [...metaRows, ...xRows]) {
       if (r.date && r.spend) spendByDate.set(r.date, (spendByDate.get(r.date) || 0) + r.spend);
       if (r.adName && r.spend) spendByAdName.set(r.adName, (spendByAdName.get(r.adName) || 0) + r.spend);
       if (r.adName && r.date && r.spend) {

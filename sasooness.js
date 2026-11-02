@@ -33,6 +33,13 @@ const ALL_CASES_GID = '722868032';
 // (UTM Campaign = Google campaign ID, UTM Term = Google ad ID). Read by tab name.
 const WALKER_DOC_ID = '1vKenNfW_B8c_438CeF7LukFPNqzPjflJTFo9zB_3Knw';
 const WALKER_LOG_TAB = 'Walker agency ppl 6 states';
+// The "6 states" tab above is meant to be a rollup of the per-state intake tabs below, but it
+// silently drops some rows (confirmed: 3 leads present on "Sasoones WA" with full UTM data never
+// made it into the rollup, so they showed no Campaign/Ad/CPL on the dashboard even though their
+// raw data was intact). Read directly as well and unioned with the rollup so a dropped row still
+// resolves. Same column layout as the rollup tab (Contact Source/UTM Campaign/UTM Term/etc, just
+// in a different column order), so parseWalkerLog() works on these unchanged.
+const WALKER_STATE_TABS = ['Sasoones AZ', 'Sasoones WA'];
 
 // Loose on purpose: the same client is spelled "Sasooness" and "Sassooness" across campaigns.
 const CAMPAIGN_PATTERN = /sas+oo?n/i;
@@ -345,13 +352,14 @@ function campaignResolver() {
 
 async function pollAll() {
   try {
-    const [intakeCsvs, csvB, allLeadsCsv, tabCsv, casesCsv, walkerCsv, metaDaily, metaCampaignDaily, metaAdCampaigns] = await Promise.all([
+    const [intakeCsvs, csvB, allLeadsCsv, tabCsv, casesCsv, walkerCsv, walkerStateCsvs, metaDaily, metaCampaignDaily, metaAdCampaigns] = await Promise.all([
       Promise.all(INTAKE_TABS.map((t) => fetchText(csvUrl(t.gid, INTAKE_DOC_ID)))),
       fetchText(csvUrl(LEADS_B_GID, LEADS_B_DOC_ID)),
       fetchText(csvUrl(ALL_LEADS_GID, WORKBOOK_ID)),
       fetchText(csvUrl(SASOONESS_TAB_GID, WORKBOOK_ID)),
       fetchText(csvUrl(ALL_CASES_GID, WORKBOOK_ID)),
       fetchText('https://docs.google.com/spreadsheets/d/' + WALKER_DOC_ID + '/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent(WALKER_LOG_TAB)),
+      Promise.all(WALKER_STATE_TABS.map((tab) => fetchText('https://docs.google.com/spreadsheets/d/' + WALKER_DOC_ID + '/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent(tab)))),
       metaDailyFor(CAMPAIGN_PATTERN),
       metaCampaignDailyFor(CAMPAIGN_PATTERN),
       metaAdCampaignsFor(CAMPAIGN_PATTERN),
@@ -369,7 +377,19 @@ async function pollAll() {
     if (schedule.length >= 3) cache.schedule = schedule; else console.warn(`[${new Date().toISOString()}] Sasooness fee/budget schedule not found (${schedule.length} months) — keeping last known-good`);
     const dropped = parseDropped(casesCsv);
     if (casesCsv.trimStart().startsWith('<')) console.warn(`[${new Date().toISOString()}] Sasooness signed-cases tab not readable — keeping last known-good dropped list`); else cache.droppedEmails = dropped;
-    const walkerLog = parseWalkerLog(walkerCsv);
+    // Union the rollup with the per-state tabs, deduped on (person, date, campaign, ad) — a lead
+    // present in both isn't double-counted, but one only in a state tab (dropped by the rollup)
+    // still gets in.
+    const walkerLogRollup = parseWalkerLog(walkerCsv);
+    const walkerLogStates = walkerStateCsvs.flatMap((csv) => parseWalkerLog(csv));
+    const seenWalkerRows = new Set();
+    const walkerLog = [];
+    for (const r of [...walkerLogRollup, ...walkerLogStates]) {
+      const key = [r.email, r.phone, r.date, r.campaignId, r.adId].join('|');
+      if (seenWalkerRows.has(key)) continue;
+      seenWalkerRows.add(key);
+      walkerLog.push(r);
+    }
     if (walkerLog.length >= 100) cache.walkerLog = walkerLog; else console.warn(`[${new Date().toISOString()}] Walker lead log looks broken (${walkerLog.length} rows) — keeping last known-good`);
     cache.metaDaily = metaDaily;
     cache.metaCampaignDaily = metaCampaignDaily;

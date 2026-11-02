@@ -24,7 +24,6 @@
     '<div class="side-divider"></div>' +
     '<div class="side-label">Workspace</div>' +
     '<a class="side-item' + (active === 'leaderboard' ? ' is-active' : '') + '" href="/" title="Creative Leaderboard">' + icons.board + '<span class="side-text">Creative Leaderboard</span></a>' +
-    '<a class="side-item' + (active === 'clients' ? ' is-active' : '') + '" href="/clients/" title="Clients">' + icons.clients + '<span class="side-text">Clients</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
     '<a class="side-item' + (active === 'dashboard' ? ' is-active' : '') + '" href="/dashboard/" title="Creative Dashboard">' + icons.dash + '<span class="side-text">Creative Dashboard</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
     '<a class="side-item' + (active === 'sasooness' ? ' is-active' : '') + '" href="/sasooness/" title="Sasooness Law Group, APC">' + icons.scale + '<span class="side-text">Sasooness Law Group, APC</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
     '<a class="side-item' + (active === 'km' ? ' is-active' : '') + '" href="/km/" title="KM Law Firm PLLC">' + icons.brief + '<span class="side-text">KM Law Firm PLLC</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
@@ -32,6 +31,7 @@
     '<a class="side-item' + (active === 'walker' ? ' is-active' : '') + '" href="/walker/" title="Walker PPL / Agency">' + icons.walker + '<span class="side-text">Walker PPL / Agency</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
     '<a class="side-item' + (active === 'walker-data' ? ' is-active' : '') + '" href="/walker-data/" title="Data Analysis">' + icons.data + '<span class="side-text">Data Analysis</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
     '<a class="side-item' + (active === 'b2b' ? ' is-active' : '') + '" href="/b2b/" title="B2B Dashboard">' + icons.b2b + '<span class="side-text">B2B Dashboard</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
+    '<a class="side-item' + (active === 'clients' ? ' is-active' : '') + '" href="/clients/" title="Clients">' + icons.clients + '<span class="side-text">Clients</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
     '<div class="side-spacer"></div>' +
     '<div class="side-user" id="side-user" hidden><strong id="side-user-name"></strong><a href="/logout">Log out</a></div>' +
     '<button class="side-collapse" id="side-collapse" type="button" title="Collapse">' + icons.collapse + '<span>Collapse</span></button>';

@@ -37,11 +37,17 @@
     <div>
       <p class="brand-eyebrow">All Clients</p>
       <h1>Clients</h1>
-      <p class="topbar-sub">Lifetime leads &amp; ad spend across every client dashboard</p>
+      <p class="topbar-sub">Signed cases &amp; cost per case across every client dashboard</p>
+    </div>
+    <div class="date-bar">
+      <div class="date-inputs">
+        <input type="date" id="range-from" aria-label="From date">
+        <span class="date-arrow">&rarr;</span>
+        <input type="date" id="range-to" aria-label="To date">
+      </div>
+      <button class="clear-btn" id="range-clear" type="button">Clear</button>
     </div>
   </div>
-
-  <div class="kpi-row" id="summary-kpis"></div>
 
   <div class="client-grid" id="client-grid"></div>
 

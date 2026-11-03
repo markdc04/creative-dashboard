@@ -64,9 +64,12 @@ let cache = {
 // per the user directly checking the live sheet (2026-11-04). An earlier version of this also
 // checked SubStatus for "Signed Up"/"Client", based on a one-time count that's since turned out
 // to not hold up against the live data.
+// Only Lead Tracker's own "Signed Up" counts (per the user, 2026-11-04: Lead Tracker is the
+// source of truth for signed cases). The intake tabs' "Client" lead status no longer counts —
+// it disagreed with Lead Tracker on several leads (Referred/Dropped there, "Client" on intake).
 function statusIs(v, target) { return (v || '').trim() === target; }
 function isSigned(l) {
-  return statusIs(l.status, 'Signed Up') || statusIs(l.status, 'Client');
+  return l.source === 'crm' && statusIs(l.status, 'Signed Up');
 }
 function normEmail(v) { return String(v || '').trim().toLowerCase(); }
 
@@ -78,6 +81,7 @@ function mergeLeads(intakeSets, rowsB) {
   const people = [];
   const byEmail = new Map();
   const byPhone = new Map();
+  // Lead Tracker's record always beats an intake-tab one, so its Status is the one shown.
   const rank = (l) => (isSigned(l) ? 2 : l.source === 'crm' ? 1 : 0);
 
   function place(lead) {
@@ -464,7 +468,9 @@ function getData() {
     if (w.phone) (wByPhone.get(w.phone) || wByPhone.set(w.phone, []).get(w.phone)).push(w);
   }
   const leads = cache.leads.map(({ emails, ...l }) => {
-    const dropped = isSigned(l) && (emails || [l.email]).some((e) => cache.droppedEmails.has(e));
+    // Off: Lead Tracker's Status is the source of truth for signed cases (user, 2026-11-04), so a
+    // lead it says is "Signed Up" stays signed even when ALL CLIENT CASES marks it dropped.
+    const dropped = false && isSigned(l) && (emails || [l.email]).some((e) => cache.droppedEmails.has(e));
     const partner = l.channel === 'Lead Prosper AZ' || l.channel === 'Lead Prosper WA';
     const tags = tagsFor({ emails, email: l.email, phone: l.phone });
     // The ALL LEADS tab sometimes records the ad but leaves UTM Campaign blank for that row —

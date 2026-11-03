@@ -211,7 +211,8 @@
   }
   // Matches a raw status VALUE (used for the donut/legend, which groups strictly by the literal
   // CRM status text) — not "is this lead a signed case" (see isSignedCase below for that).
-  function isSignedStatus(status) { return (status || '').trim() === 'Signed Up' || (status || '').trim() === 'Client'; }
+  // Only Lead Tracker's "Signed Up" — the intake tabs' "Client" no longer counts as signed.
+  function isSignedStatus(status) { return (status || '').trim() === 'Signed Up'; }
   // Signed is Status alone — SubStatus never carries a real signed marker (confirmed against the
   // live Lead Tracker sheet, 2026-11-04); an earlier version also checked SubStatus, based on a
   // one-time count that's since turned out to not hold up against the live data.

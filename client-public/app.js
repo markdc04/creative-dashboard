@@ -55,6 +55,13 @@
       case 'lastweek': { const lastMon = addDays(mondayOf(today), -7); const lastSun = addDays(lastMon, 6); return { start: toISO(lastMon), end: toISO(lastSun) }; }
       case 'all': return { start: null, end: null };
       default: {
+        // Sasooness's period keys: y-2026 (year), q-2026-4 (quarter), w-2026-10-26_2026-10-31 (a 2026-tab week).
+        const yr = /^y-(\d{4})$/.exec(key);
+        if (yr) return { start: yr[1] + '-01-01', end: yr[1] + '-12-31' };
+        const qt = /^q-(\d{4})-([1-4])$/.exec(key);
+        if (qt) { const y = Number(qt[1]), q = Number(qt[2]); return { start: toISO(startOfMonth(y, q * 3 - 2)), end: toISO(endOfMonth(y, q * 3)) }; }
+        const wk = /^w-(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})$/.exec(key);
+        if (wk) return { start: wk[1], end: wk[2] };
         const m = /^(\d{4})-(\d{2})$/.exec(key);
         if (m) { const y = Number(m[1]), mo = Number(m[2]); return { start: toISO(startOfMonth(y, mo)), end: toISO(endOfMonth(y, mo)) }; }
         return { start: null, end: null };
@@ -85,6 +92,39 @@
     sel.appendChild(mkOpt(idxToKey(lastIdx), 'Last month'));
     for (let idx = lastIdx - 1; idx >= floorIdx; idx--) sel.appendChild(mkOpt(idxToKey(idx), idxToName(idx)));
     return idxToKey(thisIdx);
+  }
+
+  // Sasooness only: All time, then Year / Quarter / Month / Week groups, newest first. Weeks are
+  // the 2026 tab's own week rows (so a week's tiles match the sheet exactly), up to today.
+  // Rebuilt whenever new data arrives, keeping whatever is selected.
+  function buildSasoonessOptions() {
+    const sel = $('#quick-range');
+    const keep = state.range.key;
+    const today = pacificToday();
+    const todayISO = toISO(today);
+    const names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const short = (iso) => names[Number(iso.slice(5, 7)) - 1].slice(0, 3) + ' ' + Number(iso.slice(8, 10));
+    const mkOpt = (value, label) => { const o = document.createElement('option'); o.value = value; o.textContent = label; return o; };
+    const group = (label, opts) => { if (!opts.length) return; const g = document.createElement('optgroup'); g.label = label; opts.forEach((o) => g.appendChild(o)); sel.appendChild(g); };
+    const y0 = 2026, yNow = today.getFullYear(), mNow = today.getMonth() + 1;
+    sel.innerHTML = '';
+    sel.appendChild(mkOpt('all', 'All time'));
+    const years = [], quarters = [], months = [];
+    for (let y = yNow; y >= y0; y--) {
+      years.push(mkOpt('y-' + y, String(y)));
+      for (let q = (y === yNow ? Math.ceil(mNow / 3) : 4); q >= 1; q--) quarters.push(mkOpt('q-' + y + '-' + q, 'Q' + q + ' ' + y));
+      for (let m = (y === yNow ? mNow : 12); m >= 1; m--) months.push(mkOpt(y + '-' + pad(m), names[m - 1] + ' ' + y));
+    }
+    const seen = new Set();
+    const weeks = (state.weeks || [])
+      .filter((w) => w.start <= todayISO && !seen.has(w.start) && seen.add(w.start))
+      .sort((a, b) => b.start.localeCompare(a.start))
+      .map((w) => mkOpt('w-' + w.start + '_' + w.end, short(w.start) + ' – ' + (w.start.slice(5, 7) === w.end.slice(5, 7) ? Number(w.end.slice(8, 10)) : short(w.end)) + ', ' + w.start.slice(0, 4)));
+    group('Year', years);
+    group('Quarter', quarters);
+    group('Month', months);
+    group('Week', weeks);
+    sel.value = sel.querySelector('option[value="' + keep + '"]') ? keep : 'all';
   }
 
   function inRange(dateStr) {
@@ -120,6 +160,7 @@
       state.leads = d.leads || [];
       state.financials = d.financials || null;
       state.weeks = d.weeks || null;
+      if (scope === 'sasooness') buildSasoonessOptions();
       setLive(true);
     } catch (err) {
       setLive(false);
@@ -294,6 +335,8 @@
   // Bryan's own history only starts August 2026; Sasooness and KM go back to January 2026.
   // Sasooness opens on all time (no date filter); the others open on this month.
   const thisMonthKey = buildQuickRangeOptions(2026, scope === 'bryan' ? 8 : 1);
+  // Sasooness picks only from fixed periods, so the free date boxes are hidden there.
+  if (scope === 'sasooness') { buildSasoonessOptions(); $('.date-inputs').style.display = 'none'; }
   const defaultRangeKey = scope === 'sasooness' ? 'all' : thisMonthKey;
   { const { start, end } = computeRange(defaultRangeKey); setRange(defaultRangeKey, start, end); }
 

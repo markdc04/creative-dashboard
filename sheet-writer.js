@@ -128,4 +128,39 @@ async function setBasicFilter(spreadsheetId, sheetId, rowCount, colCount) {
   }]);
 }
 
-module.exports = { writeSheetTab, batchUpdate, upsertLineChart, setBasicFilter };
+// Bolds specific data rows (0-based, not counting the header) across a tab's full written
+// width, out of `totalDataRows` total. Rows are re-sorted and the row count changes on every
+// sync, so a row bolded last time can easily be a different, non-matching lead this time —
+// always un-bolds the whole data range first (`values:clear` only clears cell contents, never
+// formatting, so skipping this would let stale bold stick to the wrong rows) and only then
+// bolds the current matches, in that order within one batch so the reset can never race a
+// later sync's own bolding.
+async function boldRows(spreadsheetId, sheetId, rowIndices, totalDataRows, colCount) {
+  const resetRequest = {
+    repeatCell: {
+      range: { sheetId, startRowIndex: 1, endRowIndex: totalDataRows + 1, startColumnIndex: 0, endColumnIndex: colCount },
+      cell: { userEnteredFormat: { textFormat: { bold: false } } },
+      fields: 'userEnteredFormat.textFormat.bold',
+    },
+  };
+  if (!rowIndices.length) return batchUpdate(spreadsheetId, [resetRequest]);
+  const sorted = [...rowIndices].sort((a, b) => a - b);
+  const ranges = [];
+  let start = sorted[0], prev = sorted[0];
+  for (let i = 1; i <= sorted.length; i++) {
+    const cur = sorted[i];
+    if (cur === prev + 1) { prev = cur; continue; }
+    ranges.push([start, prev]);
+    start = cur; prev = cur;
+  }
+  const boldRequests = ranges.map(([from, to]) => ({
+    repeatCell: {
+      range: { sheetId, startRowIndex: from + 1, endRowIndex: to + 2, startColumnIndex: 0, endColumnIndex: colCount },
+      cell: { userEnteredFormat: { textFormat: { bold: true } } },
+      fields: 'userEnteredFormat.textFormat.bold',
+    },
+  }));
+  return batchUpdate(spreadsheetId, [resetRequest, ...boldRequests]);
+}
+
+module.exports = { writeSheetTab, batchUpdate, upsertLineChart, setBasicFilter, boldRows };

@@ -7,7 +7,7 @@
 // monthly fee/budget-tranche proration (contractForRange/windowSpend in app.js) — that logic is
 // calendar-schedule-dependent and date-range-sensitive in a way that doesn't map cleanly onto a
 // single always-current snapshot; the live dashboard remains the source of truth for that.
-const { writeSheetTab, upsertLineChart, setBasicFilter } = require('./sheet-writer');
+const { writeSheetTab, upsertLineChart, setBasicFilter, boldRows } = require('./sheet-writer');
 
 const SPREADSHEET_ID = '1PCSysjKer16YHJOvLMiG8flEu4ymVjja0dxFHEYB0J0';
 const SHEET_IDS = {
@@ -92,19 +92,25 @@ function buildSummaryRows(leads, program, data) {
 }
 
 // Lead Details — same columns the dashboard's own lead table shows, including the converting ad.
+// Also reports which data-row indices (0-based, not counting the header) are signed cases, so the
+// caller can bold them — a lead can be a signed case via SubStatus alone (see isSignedCase), which
+// doesn't have its own column here, so the row index has to travel with the computed boolean
+// rather than a sheet formula re-deriving it from the Status cell text.
 function buildLeadDetailRows(leads) {
   const rows = [['Date', 'Name', 'Email', 'Phone', 'Contact', 'Status', 'Campaign', 'Converting Ad', 'Contact Source', 'Channel']];
+  const signedRowIndices = [];
   leads
     .slice()
     .sort((a, b) => (b.createdDate || '').localeCompare(a.createdDate || ''))
     .forEach((l) => {
       const o = l.origin || {};
+      if (isSignedCase(l)) signedRowIndices.push(rows.length - 1);
       rows.push([
         l.createdDate || '', l.name || '', l.email || '', l.phone || '', l.contactMethod || '', l.status || '',
         o.campaignName || l.campaign || '', o.adName || '', o.contactSource || '', l.channel || '',
       ]);
     });
-  return rows;
+  return { rows, signedRowIndices };
 }
 
 // Monday-start week-of-month, same numbering as Walker's weekOfMonthRange: the days before a
@@ -168,10 +174,12 @@ async function syncTrendsTab(sheetTitle, rows, leftCols, rightCols) {
   }
 }
 
-async function syncLeadDetailTab(sheetTitle, rows) {
+async function syncLeadDetailTab(sheetTitle, { rows, signedRowIndices }) {
   await writeSheetTab(SPREADSHEET_ID, sheetTitle, rows);
   await setBasicFilter(SPREADSHEET_ID, SHEET_IDS[sheetTitle], rows.length, rows[0].length)
     .catch((err) => console.error(`[${new Date().toISOString()}] filter set failed (${sheetTitle}):`, err.message));
+  await boldRows(SPREADSHEET_ID, SHEET_IDS[sheetTitle], signedRowIndices, rows.length - 1, rows[0].length)
+    .catch((err) => console.error(`[${new Date().toISOString()}] bold formatting failed (${sheetTitle}):`, err.message));
 }
 
 let lastSyncAt = 0;

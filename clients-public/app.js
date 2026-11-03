@@ -57,10 +57,9 @@
   const inRange = (date, from, to) => (!date || ((!from || date >= from) && (!to || date <= to)));
   const filterByDate = (rows, field, from, to) => (rows || []).filter((r) => inRange(r[field], from, to));
 
-  // Sasooness's own exact definition (sasooness.js / sasooness-public/app.js) — a lead counts as
-  // signed if its Status OR SubStatus says so (a referred-out lead can still sign elsewhere, e.g.
-  // Status="Referred" + SubStatus="Signed Up").
-  const sasoonessSigned = (l) => ['status', 'subStatus'].some((f) => { const v = (l[f] || '').trim(); return v === 'Signed Up' || v === 'Client'; });
+  // Sasooness's own exact definition (sasooness.js / sasooness-public/app.js) — Status alone,
+  // never SubStatus (confirmed against the live Lead Tracker sheet, 2026-11-04).
+  const sasoonessSigned = (l) => { const v = (l.status || '').trim(); return v === 'Signed Up' || v === 'Client'; };
   const bryanSigned = (l) => l.status === 'Signed';
   const BRYAN_PRICE_PER_LEAD = 350; // bryan-public/app.js's PRICE_PER_LEAD — keep in sync.
   const BRYAN_FEE_BY_MONTH = { '2026-08': 1250, '2026-09': 1250, '2026-10': 1250 }; // bryan-public/app.js's MARKETING_FEE_BY_MONTH — keep in sync.
@@ -77,7 +76,9 @@
         const spend = sum(filterByDate(d.googleDaily, 'date', range.from, range.to), 'spend')
           + sum(filterByDate(d.metaDaily, 'date', range.from, range.to), 'spend')
           + sum(filterByDate(d.walker && d.walker.spendDaily, 'date', range.from, range.to), 'spend');
-        const signed = leads.filter(sasoonessSigned).length;
+        // Signed cases are counted by SIGNED UP DATE, not created date — a lead created outside
+        // the range can still have signed inside it, and vice versa.
+        const signed = filterByDate(d.leads, 'signedUpDate', range.from, range.to).filter(sasoonessSigned).length;
         return {
           totalLeads: leads.length, cpl: leads.length ? spend / leads.length : 0, signed,
           cpc: signed ? spend / signed : 0, cpcLabel: 'CPC (no fee)',

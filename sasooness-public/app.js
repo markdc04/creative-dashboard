@@ -212,10 +212,10 @@
   // Matches a raw status VALUE (used for the donut/legend, which groups strictly by the literal
   // CRM status text) — not "is this lead a signed case" (see isSignedCase below for that).
   function isSignedStatus(status) { return (status || '').trim() === 'Signed Up' || (status || '').trim() === 'Client'; }
-  // A lead counts as a signed case if its own Status says so, OR if it was referred out but its
-  // SubStatus says "Signed Up"/"Client" — confirmed against the live sheet: 41 Status="Signed Up"
-  // + 9 Status="Referred"/SubStatus="Signed Up" = 50 real signed cases, not 41.
-  function isSignedCase(l) { return isSignedStatus(l.status) || isSignedStatus(l.subStatus); }
+  // Signed is Status alone — SubStatus never carries a real signed marker (confirmed against the
+  // live Lead Tracker sheet, 2026-11-04); an earlier version also checked SubStatus, based on a
+  // one-time count that's since turned out to not hold up against the live data.
+  function isSignedCase(l) { return isSignedStatus(l.status); }
   // The CRM's raw status column has a dozen+ values (Referred, Lost, Hold, Chase, AZ Chase,
   // Existing Client, blank, ...) that don't matter day to day — collapsed to the three that do.
   function statusBucket(l) {
@@ -377,7 +377,11 @@
 
   function renderKpis(leads, spendRows) {
     const total = leads.length;
-    const signed = leads.filter((l) => isSignedCase(l)).length;
+    // Signed counts by SIGNED UP DATE, not Created Date — a lead created outside the picked range
+    // can still have signed inside it (and vice versa), so this is a separately date-filtered set
+    // from `leads` above (which stays Created-Date-based for everything else: Total Leads,
+    // Rejected, spend/budget windows).
+    const signed = leadsFor(undefined, true).filter((l) => isSignedCase(l) && inRange(l.signedUpDate)).length;
     const rejected = leads.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
     const conversionRate = total > 0 ? (signed / total) * 100 : 0;
     const program = state.filters.program;
@@ -768,13 +772,18 @@
       '<span class="legend-item"><span class="legend-swatch" style="background:' + COLOR_CASES + '"></span>Signed Cases</span>';
 
     // Months outside the chosen dates stay on screen (dimmed) so another month is one click away.
+    // Leads bucket by Created Date (when the lead came in); signed cases bucket by Signed Up Date
+    // (when it actually signed) — a lead created in one month can sign in a later one, so these
+    // are two independently-keyed passes over the same month map, not one pass sharing a key.
     const byMonth = new Map();
-    for (const l of leadsFor(null, true)) {
-      if (!l.createdDate) continue;
-      const key = l.createdDate.slice(0, 7);
+    const bump = (key, field) => {
+      if (!key) return;
       if (!byMonth.has(key)) byMonth.set(key, { leads: 0, cases: 0 });
-      byMonth.get(key).leads++;
-      if (isSignedCase(l)) byMonth.get(key).cases++;
+      byMonth.get(key)[field]++;
+    };
+    for (const l of leadsFor(null, true)) {
+      if (l.createdDate) bump(l.createdDate.slice(0, 7), 'leads');
+      if (isSignedCase(l) && l.signedUpDate) bump(l.signedUpDate.slice(0, 7), 'cases');
     }
     const months = [...byMonth.keys()].sort();
     if (!months.length) { container.innerHTML = '<div class="empty-msg">No leads for this selection.</div>'; return; }
@@ -955,12 +964,17 @@
   // ================= leads by program (OG / Agency / PPL) =================
   function renderPrograms() {
     const leads = leadsFor('program');
+    // Signed, same as renderKpis: by Signed Up Date, ignoring the Created Date range, but still
+    // split per program.
+    const signedLeads = leadsFor('program', true).filter((l) => isSignedCase(l) && inRange(l.signedUpDate));
+    const signedGroups = new Map(PROGRAMS.map((p) => [p.key, []]));
+    for (const l of signedLeads) signedGroups.get(programOf(l)).push(l);
     const selected = state.filters.program;
     const groups = new Map(PROGRAMS.map((p) => [p.key, []]));
     for (const l of leads) groups.get(programOf(l)).push(l);
     const cls = (key, empty) => 'is-clickable' + (empty ? ' row-muted' : '') + (selected === key ? ' is-selected' : selected ? ' is-dim' : '');
     const line = (key, list) => {
-      const signed = list.filter((l) => isSignedCase(l)).length;
+      const signed = signedGroups.get(key).length;
       const rejected = list.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
       return '<tr class="' + cls(key, list.length === 0) + '" data-program="' + key + '"><td class="name-cell">' + escapeHtml(programLabel(key)) + '</td>' +
         '<td class="td-num num">' + list.length.toLocaleString('en-US') + '</td>' +
@@ -970,7 +984,7 @@
     };
     let html = '';
     for (const [key, list] of groups) html += line(key, list);
-    const signedAll = leads.filter((l) => isSignedCase(l)).length;
+    const signedAll = signedLeads.length;
     const rejectedAll = leads.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
     html += '<tr class="row-total"><td>Total</td><td class="td-num num">' + leads.length.toLocaleString('en-US') + '</td><td class="td-num num">' + signedAll.toLocaleString('en-US') + '</td><td class="td-num num">' + (leads.length ? pct((signedAll / leads.length) * 100) : '—') + '</td><td class="td-num num">' + rejectedAll.toLocaleString('en-US') + '</td></tr>';
     $('#source-body').innerHTML = html;
@@ -1004,7 +1018,8 @@
   function agencyFinancialsForWindow(win) {
     const leads = state.leads.filter((l) => programOf(l) === 'agency' && l.createdDate >= win.start && l.createdDate <= win.end);
     const total = leads.length;
-    const signed = leads.filter((l) => isSignedCase(l)).length;
+    // Signed by Signed Up Date within the window, not Created Date — same rule as renderKpis.
+    const signed = state.leads.filter((l) => programOf(l) === 'agency' && isSignedCase(l) && l.signedUpDate >= win.start && l.signedUpDate <= win.end).length;
     const rejected = leads.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
     const ownSpend = state.campaignSpend.filter((r) => r.date >= win.start && r.date <= win.end).reduce((a, r) => a + r.spend, 0);
     const partnerSpend = partnerDeduction(leads).total;
@@ -1036,7 +1051,8 @@
   function pplFinancialsForWindow(win) {
     const leads = state.leads.filter((l) => programOf(l) === 'ppl' && l.createdDate >= win.start && l.createdDate <= win.end);
     const total = leads.length;
-    const signed = leads.filter((l) => isSignedCase(l)).length;
+    // Signed by Signed Up Date within the window, not Created Date — same rule as renderKpis.
+    const signed = state.leads.filter((l) => programOf(l) === 'ppl' && isSignedCase(l) && l.signedUpDate >= win.start && l.signedUpDate <= win.end).length;
     const rejected = leads.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
     const open = leads.filter((l) => !(l.status || '').trim()).length;
     const adSpent = partnerDeduction(leads).total;

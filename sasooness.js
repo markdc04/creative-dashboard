@@ -53,13 +53,14 @@ let cache = {
   campaignTags: { byEmail: new Map(), byPhone: new Map() }, schedule: [], droppedEmails: new Set(), walkerLog: [], agencySpend: [], adNames: new Map(), campaignNames: new Map(), adCampaign: new Map(), metaAdCampaigns: new Map(), updatedAt: null,
 };
 
-// A lead's own Status says "Signed Up"/"Client" most of the time, but a case that was referred
-// out can carry Status "Referred" with SubStatus "Signed Up" instead — it's still a real signed
-// case (confirmed against the live sheet: 41 "Signed Up" + 9 "Referred"/"Signed Up" = 50), so
-// both fields count.
+// Signed is Status alone (column I on the Lead Tracker CRM sheet) — SubStatus (column J) holds
+// unrelated things like call-attempt counts and rejection reasons, never a real signed marker,
+// per the user directly checking the live sheet (2026-11-04). An earlier version of this also
+// checked SubStatus for "Signed Up"/"Client", based on a one-time count that's since turned out
+// to not hold up against the live data.
 function statusIs(v, target) { return (v || '').trim() === target; }
 function isSigned(l) {
-  return statusIs(l.status, 'Signed Up') || statusIs(l.status, 'Client') || statusIs(l.subStatus, 'Signed Up') || statusIs(l.subStatus, 'Client');
+  return statusIs(l.status, 'Signed Up') || statusIs(l.status, 'Client');
 }
 function normEmail(v) { return String(v || '').trim().toLowerCase(); }
 

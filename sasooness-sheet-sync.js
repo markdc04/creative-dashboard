@@ -21,8 +21,10 @@ const SHEET_IDS = {
 const PPL_PRICE_PER_LEAD = 425;
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
+// Signed is Status alone — SubStatus never carries a real signed marker (confirmed against the
+// live Lead Tracker sheet, 2026-11-04).
 function isSignedStatus(s) { return /^(signed|retained|active client)$/i.test((s || '').trim()); }
-function isSignedCase(l) { return isSignedStatus(l.status) || isSignedStatus(l.subStatus); }
+function isSignedCase(l) { return isSignedStatus(l.status); }
 // Same rule as programOf() in sasooness-public/app.js: only Lead Prosper WA is the PPL program —
 // OG and Lead Prosper AZ are both Agency.
 function programOf(l) { return l.channel === 'Lead Prosper WA' ? 'ppl' : 'agency'; }
@@ -93,9 +95,7 @@ function buildSummaryRows(leads, program, data) {
 
 // Lead Details — same columns the dashboard's own lead table shows, including the converting ad.
 // Also reports which data-row indices (0-based, not counting the header) are signed cases, so the
-// caller can bold them — a lead can be a signed case via SubStatus alone (see isSignedCase), which
-// doesn't have its own column here, so the row index has to travel with the computed boolean
-// rather than a sheet formula re-deriving it from the Status cell text.
+// caller can bold them.
 function buildLeadDetailRows(leads) {
   const rows = [['Date', 'Name', 'Email', 'Phone', 'Contact', 'Status', 'Campaign', 'Converting Ad', 'Contact Source', 'Channel']];
   const signedRowIndices = [];

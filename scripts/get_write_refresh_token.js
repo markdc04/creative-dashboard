@@ -6,10 +6,10 @@
 // credentials isolated (a bug in the write path can never touch the read-only token) without
 // needing a whole new Google Cloud OAuth client.
 //
-// Run locally (never on the server, never paste secrets into chat):
-//   OAUTH_CLIENT_ID=... OAUTH_CLIENT_SECRET=... node scripts/get_write_refresh_token.js
-// (Get those two values from Render → loudrdash → Environment → the eye icon next to
-// OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET — the existing read-only ones, reused here.)
+// Run locally — just: node scripts/get_write_refresh_token.js
+// It'll ask you to paste two values (Render → loudrdash → Environment → the eye icon next to
+// OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET — the existing read-only ones, reused here). Nothing you
+// paste here ever needs to be shown to anyone else, including in chat.
 //
 // This opens a tiny local server, prints a Google consent URL to visit, and once you approve it
 // (as whichever Google account should own write access to the Sasooness Dashboard spreadsheet),
@@ -19,18 +19,33 @@
 // though they're the same underlying OAuth client).
 const http = require('http');
 const https = require('https');
+const readline = require('readline');
 const { URL, URLSearchParams } = require('url');
 
-const CLIENT_ID = process.env.OAUTH_CLIENT_ID;
-const CLIENT_SECRET = process.env.OAUTH_CLIENT_SECRET;
+function ask(question) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => rl.question(question, (answer) => { rl.close(); resolve(answer.trim()); }));
+}
+
+async function getCredentials() {
+  if (process.env.OAUTH_CLIENT_ID && process.env.OAUTH_CLIENT_SECRET) {
+    return { id: process.env.OAUTH_CLIENT_ID, secret: process.env.OAUTH_CLIENT_SECRET };
+  }
+  console.log('Paste the two values from Render → loudrdash → Environment (the eye icon reveals them).\n');
+  const id = await ask('OAUTH_CLIENT_ID: ');
+  const secret = await ask('OAUTH_CLIENT_SECRET: ');
+  return { id, secret };
+}
+
+getCredentials().then(({ id, secret }) => {
+  if (!id || !secret) { console.error('Both values are required.'); process.exit(1); }
+  main(id, secret);
+});
+
+function main(CLIENT_ID, CLIENT_SECRET) {
 const PORT = 53682;
 const REDIRECT_URI = `http://127.0.0.1:${PORT}`;
 const SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
-
-if (!CLIENT_ID || !CLIENT_SECRET) {
-  console.error('Set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET (the existing read-only ones from Render) before running this.');
-  process.exit(1);
-}
 
 function exchangeCodeForToken(code) {
   const body = new URLSearchParams({
@@ -93,3 +108,4 @@ server.listen(PORT, () => {
   console.log(authUrl + '\n');
   console.log('Waiting for you to finish in the browser...');
 });
+}

@@ -1643,9 +1643,9 @@
     render();
   });
 
-  // Opens on the new AZ budget's start (9/21) through yesterday (Pacific), not all time.
+  // Opens on all time, with no date filter.
   buildQuickRangeOptions(2026, 1);
-  setRange('custom', '2026-09-21', toISO(addDays(pacificToday(), -1)));
+  setRange('all', null, null);
   fetchData();
   setInterval(fetchData, 30000);
   fetchMe().then(render);

@@ -27,13 +27,25 @@ function ask(question) {
   return new Promise((resolve) => rl.question(question, (answer) => { rl.close(); resolve(answer.trim()); }));
 }
 
+// A pasted clipboard mix-up (an old URL, an empty paste) is easy to do by hand and shouldn't mean
+// starting the whole script over — just rejects anything that obviously isn't this value and asks
+// again instead of failing.
+async function askUntilValid(question, looksRight, hint) {
+  for (;;) {
+    const answer = await ask(question);
+    if (looksRight(answer)) return answer;
+    console.log(`That doesn't look right (${hint}) — try pasting it again.\n`);
+  }
+}
+
 async function getCredentials() {
   if (process.env.OAUTH_CLIENT_ID && process.env.OAUTH_CLIENT_SECRET) {
     return { id: process.env.OAUTH_CLIENT_ID, secret: process.env.OAUTH_CLIENT_SECRET };
   }
   console.log('Paste the two values from Render → loudrdash → Environment (the eye icon reveals them).\n');
-  const id = await ask('OAUTH_CLIENT_ID: ');
-  const secret = await ask('OAUTH_CLIENT_SECRET: ');
+  const notAUrl = (v) => v.length > 0 && !/^https?:\/\//i.test(v);
+  const id = await askUntilValid('OAUTH_CLIENT_ID: ', notAUrl, 'should end in .apps.googleusercontent.com, not a URL');
+  const secret = await askUntilValid('OAUTH_CLIENT_SECRET: ', notAUrl, 'should start with GOCSPX-, not a URL');
   return { id, secret };
 }
 

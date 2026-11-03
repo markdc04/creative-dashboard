@@ -727,7 +727,12 @@ const server = http.createServer((req, res) => {
     // stale script after the next deploy — short-lived but still cuts refetches when someone
     // bounces between dashboards within the same few minutes. Images/icons change far less often
     // and are safe to hold onto longer.
+    // /sasooness/, /km/ and /bryan/ serve two different apps at the same URLs (internal, or the
+    // client view when previewing/logged in as the client), so the browser must never reuse a
+    // cached copy there — a cached client app.js on the internal page crashes it, and vice versa.
+    const sharedUrl = root === 'client-public' || root === 'sasooness-public' || root === 'km-public' || root === 'bryan-public';
     const cacheControl = rel === '/' ? 'no-cache'
+      : sharedUrl ? 'no-store'
       : (ext === '.png' || ext === '.svg' || ext === '.ico') ? 'public, max-age=86400'
       : 'public, max-age=300';
     res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': cacheControl });

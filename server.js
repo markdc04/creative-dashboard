@@ -630,8 +630,7 @@ const server = http.createServer((req, res) => {
   const wantsClientView = !!session && (session.role === 'client' || clientPreview);
 
   if (url.pathname === '/sasooness-api/data') {
-    const sData = sasooness.getData();
-    const data = wantsClientView ? clientView.simplifyLeads(sData.leads, clientView.sasoonessFinancials(sData)) : sData;
+    const data = wantsClientView ? clientView.sasoonessClientData(sasooness.getClientSheet()) : sasooness.getData();
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(data));
     return;

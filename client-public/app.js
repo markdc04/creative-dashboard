@@ -119,6 +119,7 @@
       const d = await r.json();
       state.leads = d.leads || [];
       state.financials = d.financials || null;
+      state.weeks = d.weeks || null;
       setLive(true);
     } catch (err) {
       setLive(false);
@@ -183,17 +184,37 @@
     const inDateRange = state.leads.filter((l) => inRange(l.date) && (!state.program || l.program === state.program));
     $('#lead-count').textContent = inDateRange.length.toLocaleString('en-US');
 
+    let tiles;
+    if (state.weeks) {
+      // Sasooness: every tile comes from the 2026 tab's weekly rows (the lead list below still
+      // comes from Lead Tracker). A week counts when any of its days fall in the picked range.
+      const { start, end } = state.range;
+      const weeks = state.weeks.filter((w) => (!state.program || w.program === state.program) &&
+        (!start || w.end >= start) && (!end || w.start <= end));
+      const sum = (k) => weeks.reduce((a, w) => a + w[k], 0);
+      const contacts = sum('contacts'), signedW = sum('signed'), spend = sum('spend'), referrals = sum('referrals');
+      $('#lead-count').textContent = contacts.toLocaleString('en-US');
+      tiles = [
+        ['Total Leads', contacts.toLocaleString('en-US'), ''],
+        ['Signed', signedW.toLocaleString('en-US'), 'of ' + contacts.toLocaleString('en-US') + ' leads'],
+        ['Conversion Rate', pct(contacts ? (signedW / contacts) * 100 : 0), 'signed ÷ leads'],
+        ['Ad Spend', money(spend), ''],
+        ['Cost Per Case', signedW > 0 ? money(spend / signedW) : '—', signedW > 0 ? 'ad spend ÷ signed cases' : 'no signed cases yet'],
+      ];
+      if (referrals > 0) tiles.push(['Signed Referrals', referrals.toLocaleString('en-US'), '']);
+    } else {
     const total = inDateRange.length;
     const signed = inDateRange.filter((l) => l.status === 'Signed').length;
     const conversionRate = total ? Math.round((signed / total) * 1000) / 10 : 0;
-    const tiles = [
+    tiles = [
       ['Total Leads', total.toLocaleString('en-US'), ''],
       ['Signed', signed.toLocaleString('en-US'), 'of ' + total.toLocaleString('en-US') + ' leads'],
       ['Conversion Rate', pct(conversionRate), 'signed ÷ leads'],
     ];
+    }
     // Ad spend + marketing fee only mean something for the Agency program (the contract's own
     // terms), so these only show up on that tab, same as the admin view.
-    if (state.financials && state.program === 'agency') {
+    if (!state.weeks && state.financials && state.program === 'agency') {
       const adSpend = agencySpendForRange();
       const fee = feeForRange(state.financials.schedule);
       const totalCost = adSpend + fee;
@@ -271,7 +292,9 @@
   $('#range-clear').addEventListener('click', () => { const { start, end } = computeRange(defaultRangeKey); setRange(defaultRangeKey, start, end); });
 
   // Bryan's own history only starts August 2026; Sasooness and KM go back to January 2026.
-  const defaultRangeKey = buildQuickRangeOptions(2026, scope === 'bryan' ? 8 : 1);
+  // Sasooness opens on all time (no date filter); the others open on this month.
+  const thisMonthKey = buildQuickRangeOptions(2026, scope === 'bryan' ? 8 : 1);
+  const defaultRangeKey = scope === 'sasooness' ? 'all' : thisMonthKey;
   { const { start, end } = computeRange(defaultRangeKey); setRange(defaultRangeKey, start, end); }
 
   fetchData();

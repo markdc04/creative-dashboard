@@ -1,3 +1,5 @@
+const { toISODate } = require('./csv-utils');
+
 // What a `role: 'client'` session gets back from a client dashboard's data API, instead of the
 // full internal payload an admin/creative session gets from the same endpoint. Deliberately
 // conservative for now (name/date/status only, no dollars, no campaign or vendor names) — the
@@ -68,6 +70,25 @@ function sasoonessFinancials(data) {
   };
 }
 
+// Sasooness's client view, built only from their own workbook: the lead list from the Lead
+// Tracker tab (one row per lead, as the sheet has it) and every tile number from the 2026 tab's
+// weekly rows, so what the client sees matches the sheet they already read. LS045 is the WA
+// pay-per-lead marketing source; everything else on Lead Tracker is the AZ side (Agency).
+function sasoonessClientData(sheet) {
+  const leads = (sheet.trackerRows || [])
+    .filter((r) => (r['Full Name'] || r['Email'] || r['Mobile Phone'] || '').trim())
+    .map((r) => {
+      const status = (r['Status'] || '').trim();
+      return {
+        name: (r['Full Name'] || '').trim(), date: toISODate(r['Created Date']),
+        status: isSignedStatus(status) ? 'Signed' : status,
+        program: (r['Marketing Source'] || '').trim().toUpperCase() === 'LS045' ? 'ppl' : 'agency',
+        reason: status.toLowerCase().includes('reject') ? ((r['SubStatus'] || '').trim() || '(no reason given)') : '',
+      };
+    });
+  return { leads, weeks: sheet.weeks || [], updatedAt: Date.now() };
+}
+
 // KM's "cases" are already-converted leads (no funnel/status) — normalized to the same
 // {leads, totals} shape as simplifyLeads (every case reads as Signed) so one client-facing page
 // can render either client's data without knowing which internal module it came from.
@@ -80,4 +101,4 @@ function simplifyCases(cases) {
   };
 }
 
-module.exports = { simplifyLeads, simplifyCases, sasoonessFinancials };
+module.exports = { simplifyLeads, simplifyCases, sasoonessFinancials, sasoonessClientData };

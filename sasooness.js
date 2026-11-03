@@ -19,6 +19,11 @@ const INTAKE_TABS = [
 // CRM-tracked leads with case management detail (Status/SubStatus/Case Type/Signed Up Date).
 const LEADS_B_DOC_ID = '1lQLiBZRZ93cgc1KVCFbgHT_EoCibGvjwOstkQ6runG8';
 const LEADS_B_GID = '1001225302';
+// Same workbook's "2026" tab: the weekly report Sasooness reads (contacts, ad spend, signed,
+// signed referrals per week). Jan–Aug is one AZ block; from September it's AZ on the left and WA
+// on the right. The client's own dashboard takes its numbers from here so they match the sheet.
+const WEEKLY_GID = '0';
+const WEEKLY_YEAR = 2026;
 
 // The workbook whose ALL LEADS tab tags every lead with the UTM campaign it came from.
 const WORKBOOK_ID = '1rYN9P0oVlEwlxpk53ZqDDGIcZ9154bm-k709KUMIT_A';
@@ -50,6 +55,7 @@ const SOURCE_CODES = { LS004: 'OG' };
 
 let cache = {
   leads: [], googleDaily: [], metaDaily: [], googleCampaignDaily: [], metaCampaignDaily: [],
+  weekly: [], trackerRows: [],
   campaignTags: { byEmail: new Map(), byPhone: new Map() }, schedule: [], droppedEmails: new Set(), walkerLog: [], agencySpend: [], adNames: new Map(), campaignNames: new Map(), adCampaign: new Map(), metaAdCampaigns: new Map(), updatedAt: null,
 };
 
@@ -339,6 +345,33 @@ function walkerOrigin(lead, byEmail, byPhone) {
   };
 }
 
+// One entry per week row on the 2026 tab, e.g. "Oct 5 - 11" → 2026-10-05..2026-10-11. A row's
+// left block (columns A–H) is AZ/Agency; when column J also holds a week label, J–Q is WA/PPL.
+// Header, TOTAL and invoiced rows don't match the week pattern, so they're skipped.
+const WEEK_MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+function parseWeekLabel(label) {
+  const m = /^([A-Za-z]+)\.?\s+(\d{1,2})\s*-\s*(\d{1,2})$/.exec(String(label || '').trim());
+  if (!m) return null;
+  const mo = WEEK_MONTHS.indexOf(m[1].slice(0, 3).toLowerCase()) + 1;
+  if (!mo) return null;
+  const iso = (d) => WEEKLY_YEAR + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+  return { start: iso(m[2]), end: iso(m[3]) };
+}
+function parseWeekly(csv) {
+  const weeks = [];
+  for (const row of parseCSVRows(csv)) {
+    for (const [program, at] of [['agency', 0], ['ppl', 9]]) {
+      const span = parseWeekLabel(row[at]);
+      if (!span) continue;
+      weeks.push({
+        program, label: String(row[at]).trim(), ...span,
+        contacts: num(row[at + 1]), spend: num(row[at + 2]), signed: num(row[at + 4]), referrals: num(row[at + 7]),
+      });
+    }
+  }
+  return weeks;
+}
+
 // UTM tags are a campaign ID for Google, and either the campaign name or ID for Meta. Resolve
 // to the campaign's name; anything else non-empty keeps its own label, empty is unattributed.
 function campaignResolver() {
@@ -353,9 +386,10 @@ function campaignResolver() {
 
 async function pollAll() {
   try {
-    const [intakeCsvs, csvB, allLeadsCsv, tabCsv, casesCsv, walkerCsv, walkerStateCsvs, metaDaily, metaCampaignDaily, metaAdCampaigns] = await Promise.all([
+    const [intakeCsvs, csvB, weeklyCsv, allLeadsCsv, tabCsv, casesCsv, walkerCsv, walkerStateCsvs, metaDaily, metaCampaignDaily, metaAdCampaigns] = await Promise.all([
       Promise.all(INTAKE_TABS.map((t) => fetchText(csvUrl(t.gid, INTAKE_DOC_ID)))),
       fetchText(csvUrl(LEADS_B_GID, LEADS_B_DOC_ID)),
+      fetchText(csvUrl(WEEKLY_GID, LEADS_B_DOC_ID)),
       fetchText(csvUrl(ALL_LEADS_GID, WORKBOOK_ID)),
       fetchText(csvUrl(SASOONESS_TAB_GID, WORKBOOK_ID)),
       fetchText(csvUrl(ALL_CASES_GID, WORKBOOK_ID)),
@@ -371,7 +405,10 @@ async function pollAll() {
       console.warn(`[${new Date().toISOString()}] Sasooness leads sheet looks broken (OG=${intakeSets[0].rows.length}, CRM=${rowsB.length} rows) — keeping last known-good leads`);
     } else {
       cache.leads = mergeLeads(intakeSets, rowsB);
+      cache.trackerRows = rowsB;
     }
+    const weekly = parseWeekly(weeklyCsv);
+    if (weekly.length >= 10) cache.weekly = weekly; else console.warn(`[${new Date().toISOString()}] Sasooness 2026 weekly tab looks broken (${weekly.length} weeks) — keeping last known-good`);
     const campaignTags = parseCampaignTags(allLeadsCsv);
     if (campaignTags.byEmail.size >= 30) cache.campaignTags = campaignTags;
     const schedule = parseSchedule(tabCsv);
@@ -477,4 +514,10 @@ function getData() {
   };
 }
 
-module.exports = { pollAll, updateGoogleSpend, getData };
+// What the client's own dashboard is built from: the 2026 tab's weekly numbers and the Lead
+// Tracker tab's rows as-is (no merging with the intake tabs or the internal campaign data).
+function getClientSheet() {
+  return { weeks: cache.weekly, trackerRows: cache.trackerRows, updatedAt: cache.updatedAt };
+}
+
+module.exports = { pollAll, updateGoogleSpend, getData, getClientSheet };

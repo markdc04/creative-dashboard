@@ -536,5 +536,12 @@
   $('#range-end').value = initial.end || '';
 
   showSection('global');
-  setInterval(() => { state.loadedSections.delete(state.section); showSection(state.section); }, 60000);
+  // Was 60s — the server only recomputes Global PPL every 15 min (see walker.js's
+  // LIVE_INTERVAL_MS), so a 60s client poll mostly just re-requests the same cached answer.
+  // Worse, with several Walker tabs open at once (each on its own section, each polling
+  // independently), those redundant polls compete for the same 55-calls/min Sheets API budget
+  // shared across the whole server (walker-rate_limit.js) — exactly the kind of pile-up its own
+  // comments describe turning a ~2 min job into 10+ minutes. Matching the poll interval to the
+  // server's cache window removes most of that redundant demand.
+  setInterval(() => { state.loadedSections.delete(state.section); showSection(state.section); }, 5 * 60 * 1000);
 })();

@@ -259,3 +259,20 @@ button.platform-tag:hover,button.platform-tag.is-selected{background:var(--surfa
 .walker-section.is-active{display:block;}
 .data-range-note{font-size:11.5px;color:var(--text-faint);margin-top:2px;}
 .week-ongoing-badge{color:#f0b429;font-size:9px;vertical-align:middle;}
+
+/* ---------- first-load overlay — Walker's live recompute can take a while on a cold cache ---------- */
+.walker-loading-overlay{
+  position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;
+  background:rgba(10,14,26,.92);backdrop-filter:blur(2px);
+  transition:opacity .25s ease;
+}
+.walker-loading-overlay.is-hidden{opacity:0;pointer-events:none;}
+.walker-loading-box{max-width:380px;padding:28px 32px;border-radius:16px;background:var(--surface);border:1px solid var(--border);text-align:center;}
+.walker-loading-spinner{
+  width:34px;height:34px;margin:0 auto 16px;border-radius:50%;
+  border:3px solid var(--border);border-top-color:var(--accent);
+  animation:walker-spin .8s linear infinite;
+}
+@keyframes walker-spin{to{transform:rotate(360deg);}}
+.walker-loading-title{margin:0 0 6px;font-size:15px;font-weight:700;color:var(--text);}
+.walker-loading-sub{margin:0;font-size:12.5px;color:var(--text-faint);line-height:1.5;}

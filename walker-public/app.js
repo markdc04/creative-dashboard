@@ -535,7 +535,14 @@
   $('#range-start').value = initial.start || '';
   $('#range-end').value = initial.end || '';
 
-  showSection('global');
+  // The overlay is visible by default (see index.html/style.css) so it covers the page from the
+  // very first paint, not just after this script runs — hidden once the first section's data has
+  // actually loaded, whether that load succeeded or failed (a stuck "Loading…" forever on a
+  // network error would be worse than just showing whatever's on the page underneath).
+  showSection('global').finally(() => {
+    const overlay = document.getElementById('walker-loading-overlay');
+    if (overlay) overlay.classList.add('is-hidden');
+  });
   // Was 60s — the server only recomputes Global PPL every 15 min (see walker.js's
   // LIVE_INTERVAL_MS), so a 60s client poll mostly just re-requests the same cached answer.
   // Worse, with several Walker tabs open at once (each on its own section, each polling

@@ -847,9 +847,16 @@ function pollAllTabs() {
 // last write-capable sync run (a laptop, or a Render deploy with a write-scoped credential). This
 // runs against a plain READ-ONLY credential and serves the same corrected numbers straight from
 // memory, so the dashboard stays live with nobody running a manual sync. Own timer, own stuck-lock
-// guard, same cadence as the correction sync above (which keeps writing too, for scripts/tools
-// that still read the sheet directly, e.g. mirror_sync.js's consolidated workbook).
-const LIVE_INTERVAL_MS = 5 * 60 * 1000;
+// guard.
+// 15 minutes, not the original 5 — computeCorrectedCampaigns() is the heaviest single thing this
+// process does (tens of thousands of rows over the Sheets API), and every cache-miss re-runs it
+// in full. A 2026-11-05 OOM crash (FATAL ERROR: JavaScript heap out of memory, status 134) landed
+// right in this path, sharing the same 512MB process as every other dashboard's background
+// polling — a longer window means fewer cold recomputes (less memory pressure, less crash risk)
+// and more repeat visits served instantly from cache instead of waiting on a live refetch. If
+// crashes keep happening even with this, the real fix is more memory headroom (a larger Render
+// plan), not a shorter cache.
+const LIVE_INTERVAL_MS = 15 * 60 * 1000;
 const LIVE_STALE_MS = LIVE_INTERVAL_MS * 3;
 let liveInProgress = false;
 let liveStartedAt = 0;

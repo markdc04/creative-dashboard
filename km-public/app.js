@@ -16,6 +16,8 @@
     // Clicking a slice, bar, point, row or legend item sets one of these; the tiles, charts and
     // tables then re-compute from what matches.
     filters: { platform: null, ad: null },
+    monthlyMetrics: new Set(['Total Leads', 'Total Ad Spend']),
+    monthlyRows: [],
   };
   let defaultRangeKey = null; // set once the quick-range dropdown is built, at the bottom of this file
 
@@ -414,6 +416,165 @@
     container.appendChild(svg);
   }
 
+  // ================= line chart + breakdown table: monthly trend =================
+  // Same metric set and red-to-green heatmap scale as the B2B dashboard's Weekly Trend, just
+  // bucketed by calendar month instead of Monday-Sunday week.
+  function heatColor(t) {
+    t = Math.max(0, Math.min(1, t));
+    const stops = [[224, 102, 102], [255, 217, 102], [87, 187, 138]]; // red -> yellow -> green
+    const seg = t < 0.5 ? 0 : 1;
+    const localT = t < 0.5 ? t / 0.5 : (t - 0.5) / 0.5;
+    const a = stops[seg], b = stops[seg + 1];
+    const r = Math.round(a[0] + (b[0] - a[0]) * localT);
+    const g = Math.round(a[1] + (b[1] - a[1]) * localT);
+    const bl = Math.round(a[2] + (b[2] - a[2]) * localT);
+    return 'rgb(' + r + ',' + g + ',' + bl + ')';
+  }
+  function heatRowColors(values, direction) {
+    if (!direction) return values.map(() => null);
+    const nums = values.filter((v) => v != null && isFinite(v));
+    if (nums.length < 2) return values.map(() => null);
+    const min = Math.min(...nums), max = Math.max(...nums);
+    if (max === min) return values.map(() => null);
+    return values.map((v) => {
+      if (v == null || !isFinite(v)) return null;
+      let t = (v - min) / (max - min);
+      if (direction === 'down') t = 1 - t;
+      return heatColor(t);
+    });
+  }
+
+  const COLOR_SPEND_TREND = '#e0a92d';
+  const MONTHLY_METRIC_DEFS = {
+    'Total Leads': { color: COLOR_LEADS, isMoney: false, get: (r) => r.leads, fmt: (v) => Math.round(v).toLocaleString('en-US') },
+    'Total Ad Spend': { color: COLOR_SPEND_TREND, isMoney: true, get: (r) => r.spend, fmt: (v) => money(v) },
+    'Cost Per Lead': { color: COLOR_CASES, isMoney: true, get: (r) => (r.cpl != null ? r.cpl : 0), fmt: (v) => (v ? money(v) : '—') },
+  };
+  const MONTHLY_BREAKDOWN_ROWS = [
+    ['Total Leads', (r) => r.leads, (r) => Math.round(r.leads).toLocaleString('en-US'), 'up'],
+    ['Total Ad Spend', (r) => r.spend, (r) => money(r.spend), null],
+    ['Cost Per Lead', (r) => r.cpl, (r) => (r.cpl != null ? money(r.cpl) : '—'), 'down'],
+  ];
+
+  // Leads and spend across the whole selected range, bucketed by calendar month — unlike the
+  // "Leads & Signed Cases by Month" bar chart above, out-of-range months are left out entirely
+  // rather than shown dimmed, since this chart is meant to read like the B2B Weekly Trend (which
+  // only ever shows the current range).
+  function monthlyRows() {
+    const byMonth = new Map();
+    const bump = (key, field, n) => { if (!byMonth.has(key)) byMonth.set(key, { leads: 0, spend: 0 }); byMonth.get(key)[field] += n; };
+    for (const r of leadsDailyFor(false)) bump(r.date.slice(0, 7), 'leads', r.leads);
+    for (const r of spendFor(null)) bump(r.date.slice(0, 7), 'spend', r.spend);
+    return [...byMonth.keys()].sort().map((key) => {
+      const v = byMonth.get(key);
+      const y = Number(key.slice(0, 4)), mo = Number(key.slice(5, 7));
+      const label = new Date(y, mo - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      return { key, label, leads: v.leads, spend: v.spend, cpl: v.leads ? v.spend / v.leads : null };
+    });
+  }
+
+  function renderMonthlyTrendChart() {
+    const rows = state.monthlyRows;
+    const container = $('#monthly-trend-chart');
+    container.innerHTML = '';
+    if (!rows.length) { container.innerHTML = '<div class="empty-msg">Nothing for this selection.</div>'; return; }
+    const defs = Object.entries(MONTHLY_METRIC_DEFS).filter(([label]) => state.monthlyMetrics.has(label));
+    if (!defs.length) { container.innerHTML = '<div class="empty-msg">Pick at least one metric.</div>'; return; }
+    const hasMoney = defs.some(([, d]) => d.isMoney);
+    const hasCount = defs.some(([, d]) => !d.isMoney);
+    const dualAxis = hasMoney && hasCount;
+
+    const W = 900, H = 280, padL = 54, padR = dualAxis ? 54 : 14, padT = 14, padB = 30;
+    const innerW = W - padL - padR, innerH = H - padT - padB;
+    const moneyVals = defs.filter(([, d]) => d.isMoney).flatMap(([, d]) => rows.map((r) => d.get(r) || 0));
+    const countVals = defs.filter(([, d]) => !d.isMoney).flatMap(([, d]) => rows.map((r) => d.get(r) || 0));
+    const leftIsMoney = hasMoney;
+    const leftMax = niceMax(Math.max(...(leftIsMoney ? moneyVals : countVals), 1));
+    const rightMax = dualAxis ? niceMax(Math.max(...countVals, 1)) : null;
+    const yLeft = (v) => padT + innerH - (v / leftMax) * innerH;
+    const yRight = (v) => padT + innerH - (v / rightMax) * innerH;
+    const yFor = (d, v) => (dualAxis && !d.isMoney ? yRight(v) : yLeft(v));
+    const x = (i) => padL + (rows.length === 1 ? innerW / 2 : (i / (rows.length - 1)) * innerW);
+
+    const svg = svgEl('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', height: H, style: 'display:block;overflow:visible' });
+    const steps = 4;
+    for (let i = 0; i <= steps; i++) {
+      const vLeft = (leftMax / steps) * i;
+      const gy = yLeft(vLeft);
+      svg.appendChild(svgEl('line', { class: 'viz-gridline', x1: padL, x2: W - padR, y1: gy, y2: gy }));
+      const lbl = svgEl('text', { class: 'viz-axis-label', x: padL - 8, y: gy + 3, 'text-anchor': 'end' });
+      lbl.textContent = leftIsMoney ? '$' + Math.round(vLeft).toLocaleString('en-US') : Math.round(vLeft).toLocaleString('en-US');
+      svg.appendChild(lbl);
+      if (dualAxis) {
+        const vRight = (rightMax / steps) * i;
+        const lblR = svgEl('text', { class: 'viz-axis-label', x: W - padR + 8, y: gy + 3, 'text-anchor': 'start' });
+        lblR.textContent = Math.round(vRight).toLocaleString('en-US');
+        svg.appendChild(lblR);
+      }
+    }
+    const labelEvery = Math.max(1, Math.ceil(rows.length / 8));
+    rows.forEach((r, i) => {
+      if (i % labelEvery !== 0 && i !== rows.length - 1) return;
+      const lbl = svgEl('text', { class: 'viz-axis-label', x: x(i), y: H - 8, 'text-anchor': 'middle' });
+      lbl.textContent = r.label;
+      svg.appendChild(lbl);
+    });
+
+    defs.forEach(([, d]) => {
+      const path = rows.map((r, i) => {
+        const v = d.get(r);
+        return (i === 0 ? 'M' : 'L') + x(i) + ',' + yFor(d, v);
+      }).join(' ');
+      svg.appendChild(svgEl('path', { d: path, fill: 'none', stroke: d.color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+      rows.forEach((r, i) => svg.appendChild(svgEl('circle', { cx: x(i), cy: yFor(d, d.get(r)), r: 3, fill: d.color })));
+    });
+
+    const tip = ensureTooltip(container);
+    const hitW = innerW / Math.max(1, rows.length - 1 || 1);
+    rows.forEach((r, i) => {
+      const rect = svgEl('rect', { class: 'bar-hover-rect is-clickable', x: x(i) - hitW / 2, y: padT, width: hitW, height: innerH });
+      rect.addEventListener('mouseenter', () => {
+        tip.innerHTML = '<div class="t-date">' + r.label + '</div>' +
+          defs.map(([label, d]) => '<div class="t-row"><span><span class="legend-swatch" style="background:' + d.color + ';display:inline-block;margin-right:5px"></span>' + label + '</span><strong>' + d.fmt(d.get(r)) + '</strong></div>').join('') +
+          '<div class="t-hint">Click to filter to this month</div>';
+        tip.hidden = false;
+        positionTooltip(tip, container, (x(i) / W) * container.clientWidth, padT);
+      });
+      rect.addEventListener('mouseleave', () => { tip.hidden = true; });
+      rect.addEventListener('click', () => {
+        const y = Number(r.key.slice(0, 4)), mo = Number(r.key.slice(5, 7));
+        if (state.range.key === r.key) clearRange(); else setRange(r.key, toISO(startOfMonth(y, mo)), toISO(endOfMonth(y, mo)));
+        render();
+      });
+      svg.appendChild(rect);
+    });
+
+    container.style.position = 'relative';
+    container.appendChild(svg);
+  }
+
+  function renderMonthlyBreakdown() {
+    const rows = state.monthlyRows;
+    $('#monthly-sub').textContent = rows.length + ' month' + (rows.length === 1 ? '' : 's');
+    const thead = '<thead><tr><th></th>' + rows.map((r) => '<th class="th-num">' + escapeHtml(r.label) + '</th>').join('') + '</tr></thead>';
+    const tbody = '<tbody>' + MONTHLY_BREAKDOWN_ROWS.map(([label, rawFn, fmtFn, direction]) => {
+      const colors = heatRowColors(rows.map(rawFn), direction);
+      const cells = rows.map((r, i) => {
+        const bg = colors[i];
+        const style = bg ? ' style="background:' + bg + ';color:#15201a"' : '';
+        return '<td class="td-num num"' + style + '>' + fmtFn(r) + '</td>';
+      }).join('');
+      return '<tr><td>' + escapeHtml(label) + '</td>' + cells + '</tr>';
+    }).join('') + '</tbody>';
+    $('#monthly-table').innerHTML = thead + tbody;
+  }
+
+  function renderMonthlyTrend() {
+    state.monthlyRows = monthlyRows();
+    renderMonthlyTrendChart();
+    renderMonthlyBreakdown();
+  }
+
   // ================= donut chart: ad spend by platform =================
   function renderPieChart() {
     const container = $('#pie-chart');
@@ -519,6 +680,7 @@
     renderKpis(cases, spendFor(), leadsDailyFor());
     renderSpendChart();
     renderBarChart();
+    renderMonthlyTrend();
     renderPieChart();
     renderAds();
     renderCasesTable(cases);
@@ -538,6 +700,15 @@
     if (platform) { toggleFilter('platform', platform.dataset.platform); return; }
     const adRow = e.target.closest('tr[data-ad]');
     if (adRow) { toggleFilter('ad', adRow.dataset.ad); return; }
+  });
+
+  $('#monthly-metrics').addEventListener('click', (e) => {
+    const btn = e.target.closest('.chip');
+    if (!btn) return;
+    const metric = btn.dataset.monthlyMetric;
+    if (state.monthlyMetrics.has(metric)) state.monthlyMetrics.delete(metric); else state.monthlyMetrics.add(metric);
+    btn.classList.toggle('is-active', state.monthlyMetrics.has(metric));
+    renderMonthlyTrendChart();
   });
 
   // ---- date-range controls ----

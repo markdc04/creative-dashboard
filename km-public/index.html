@@ -83,6 +83,30 @@
     </div>
   </div>
 
+  <div class="panel chart-panel">
+    <div class="panel-head">
+      <h2 class="panel-title">Monthly Trend</h2>
+      <span class="panel-sub">$ metrics on the left axis, counts on the right</span>
+    </div>
+    <div class="chip-group" id="monthly-metrics" style="margin-bottom:14px">
+      <button class="chip is-active" data-monthly-metric="Total Leads">Total Leads</button>
+      <button class="chip is-active" data-monthly-metric="Total Ad Spend">Total Ad Spend</button>
+      <button class="chip" data-monthly-metric="Cost Per Lead">Cost Per Lead</button>
+    </div>
+    <div id="monthly-trend-chart" class="chart-slot"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2 class="panel-title">Monthly Breakdown</h2>
+      <span class="panel-sub" id="monthly-sub"></span>
+    </div>
+    <p class="footnote footnote--inside">Same leads and ad spend as the chart above, aggregated by calendar month.</p>
+    <div class="table-scroll table-scroll--short">
+      <table id="monthly-table"></table>
+    </div>
+  </div>
+
   <div class="panel">
     <div class="panel-head">
       <h2 class="panel-title">Signed Cases by Ad</h2>

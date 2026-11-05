@@ -62,7 +62,11 @@
   const sasoonessSigned = (l) => { const v = (l.status || '').trim(); return v === 'Signed Up' || v === 'Client'; };
   const bryanSigned = (l) => l.status === 'Signed';
   const BRYAN_PRICE_PER_LEAD = 350; // bryan-public/app.js's PRICE_PER_LEAD — keep in sync.
-  const BRYAN_FEE_BY_MONTH = { '2026-08': 1250, '2026-09': 1250, '2026-10': 1250 }; // bryan-public/app.js's MARKETING_FEE_BY_MONTH — keep in sync.
+  const BRYAN_FEE_BY_MONTH = { '2026-09': 1250, '2026-10': 1250 }; // bryan-public/app.js's MARKETING_FEE_BY_MONTH — keep in sync.
+  // August isn't a flat fee — Bryan's real August contract is a flat $20,000, of which the
+  // $350/lead revenue is just an accounting split; the "fee" is whatever's left over. See
+  // bryan-public/app.js's AUGUST_RETAINER comment — keep in sync.
+  const BRYAN_AUGUST_RETAINER = 20000;
   const KM_FEE_PER_LEAD = 35; // falls back to this if /km-api/data's settings.feePerLead is missing.
 
   const state = { range: { from: '', to: '' } };
@@ -113,8 +117,14 @@
         const signed = leads.filter(bryanSigned).length;
         const billable = leads.filter((l) => l.billable !== false).length;
         const revenue = billable * BRYAN_PRICE_PER_LEAD;
-        const feeMonths = new Set(leads.map((l) => (l.createdDate || '').slice(0, 7)).filter((m) => BRYAN_FEE_BY_MONTH[m] != null));
-        const fee = [...feeMonths].reduce((s, m) => s + BRYAN_FEE_BY_MONTH[m], 0);
+        const feeMonths = new Set(leads.map((l) => (l.createdDate || '').slice(0, 7)).filter((m) => m === '2026-08' || BRYAN_FEE_BY_MONTH[m] != null));
+        const fee = [...feeMonths].reduce((s, m) => {
+          if (m === '2026-08') {
+            const augRevenue = leads.filter((l) => (l.createdDate || '').slice(0, 7) === '2026-08' && l.billable !== false).length * BRYAN_PRICE_PER_LEAD;
+            return s + (BRYAN_AUGUST_RETAINER - augRevenue);
+          }
+          return s + BRYAN_FEE_BY_MONTH[m];
+        }, 0);
         return {
           totalLeads: leads.length, cpl: leads.length ? spend / leads.length : 0, signed,
           cpc: signed ? (revenue + fee) / signed : 0, cpcLabel: 'CPC + Fee',

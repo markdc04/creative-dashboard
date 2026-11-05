@@ -11,7 +11,13 @@
   // Prorated by day-overlap with whatever range is selected, same as Sasooness/KM's monthly fee.
   // $10,000 invoice per 25-lead month, of which $350 × 25 = $8,750 is revenue; the rest is the
   // marketing fee. The retainer amount per calendar month (months not listed aren't billed).
-  const MARKETING_FEE_BY_MONTH = { '2026-08': 1250, '2026-09': 1250, '2026-10': 1250 };
+  const MARKETING_FEE_BY_MONTH = { '2026-09': 1250, '2026-10': 1250 };
+  // August was never actually billed as a flat $1,250 fee — Bryan's real August contract is a flat
+  // $20,000, and the $350/lead revenue framing is just an accounting split of that same $20k, not
+  // a separate charge. The "fee" for August is whatever's left after revenue, not a fixed amount
+  // (confirmed 2026-11-05: 57 billable leads × $350 = $19,950 revenue, $50 left over that month —
+  // this will vary by month depending on actual billable volume, unlike Sep/Oct's flat $1,250).
+  const AUGUST_RETAINER = 20000;
 
   const NO_CAMPAIGN = 'Not traced to a campaign';
   const STATUSES = ['Signed', 'Rejected', 'Reviewing'];
@@ -215,9 +221,16 @@
     // applies when neither filter narrows the leads being looked at — same rule Sasooness/KM use.
     const contractOk = !state.filters.status && !state.filters.campaign;
     // Each calendar month with leads in the range carries its full billed-month amount (not a
-    // daily share) — months with no entry in MARKETING_FEE_BY_MONTH aren't billed at all.
-    const feeMonths = new Set(leads.map((l) => l.createdDate.slice(0, 7)).filter((m) => MARKETING_FEE_BY_MONTH[m] != null));
-    const fee = contractOk ? [...feeMonths].reduce((a, m) => a + MARKETING_FEE_BY_MONTH[m], 0) : 0;
+    // daily share) — months with no entry in MARKETING_FEE_BY_MONTH, other than August (see
+    // AUGUST_RETAINER above), aren't billed at all.
+    const feeMonths = new Set(leads.map((l) => l.createdDate.slice(0, 7)).filter((m) => m === '2026-08' || MARKETING_FEE_BY_MONTH[m] != null));
+    const fee = contractOk ? [...feeMonths].reduce((a, m) => {
+      if (m === '2026-08') {
+        const augRevenue = leads.filter((l) => l.createdDate.slice(0, 7) === '2026-08' && l.billable !== false).length * PRICE_PER_LEAD;
+        return a + (AUGUST_RETAINER - augRevenue);
+      }
+      return a + MARKETING_FEE_BY_MONTH[m];
+    }, 0) : 0;
     // Profit is all-in: the $350/lead revenue plus that month's marketing fee (both part of what
     // Bryan is actually invoiced), minus what was spent on his ads.
     const profit = revenue + fee - spend;

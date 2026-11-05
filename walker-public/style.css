@@ -261,10 +261,19 @@ button.platform-tag:hover,button.platform-tag.is-selected{background:var(--surfa
 .week-ongoing-badge{color:#f0b429;font-size:9px;vertical-align:middle;}
 
 /* ---------- first-load overlay — Walker's live recompute can take a while on a cold cache ---------- */
+/* Covers only the content area, not the sidebar — someone waiting on Walker should still be able
+   to click away to another dashboard instead of being stuck on this page until it loads. Left
+   offset matches body's own sidebar padding (shared/sidebar.css) exactly, including collapsed and
+   mobile-top-bar states, so the overlay's edge never overlaps the nav. */
 .walker-loading-overlay{
-  position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;
+  position:fixed;top:0;left:var(--side-w,244px);right:0;bottom:0;z-index:150;
+  display:flex;align-items:center;justify-content:center;
   background:rgba(10,14,26,.92);backdrop-filter:blur(2px);
-  transition:opacity .25s ease;
+  transition:opacity .25s ease,left .2s ease;
+}
+html.side-collapsed .walker-loading-overlay{left:var(--side-w-collapsed,72px);}
+@media (max-width:820px){
+  .walker-loading-overlay{left:0;top:58px;}
 }
 .walker-loading-overlay.is-hidden{opacity:0;pointer-events:none;}
 .walker-loading-box{max-width:380px;padding:28px 32px;border-radius:16px;background:var(--surface);border:1px solid var(--border);text-align:center;}

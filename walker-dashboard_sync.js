@@ -23,6 +23,14 @@ const MAIN_DOC = '1-Wh4ilpfXqmCRdVwFqv2oBz_soAaFzg30SKHl7Qq3-0';
 const LIVE_SOURCE_DOC = '1500g7cuyitT9Xmn85TkMoWXs9XYBoDOBs1cvz5Na36w';
 const PUBLISHER_DOC = LIVE_SOURCE_DOC;
 const QMVA_PAYOUT_DOC = LIVE_SOURCE_DOC;
+// "GOOGLE AND META AD SPENT" — confirmed against the user's own manual weekly report
+// (2026-11-05) that neither COPY/COPY OF's own spend column nor the Google-only live fallback
+// above ever included X (Twitter) or GPT ad spend, even though both platforms run real
+// LOUDRCA/PPL-tagged campaigns: Google+Meta alone was short by exactly what's sitting in these
+// two tabs ($56.55 on 11/2, ~$332 on 11/3). Two near-identical "X AD SPENT" tabs exist in this
+// doc; "X AD SPENT." (trailing period) is the one confirmed current/correct — the other is a
+// stale leftover copy with different numbers for the same dates.
+const GOOGLE_AD_SPENT_DOC = '1u0jJNfvnWZQsBaC6lmn0vhabtNuwI1yS0WchV2WYnAs';
 // The webhook conversion log — a near-instant record as leads convert. Publisher Data CA/TX (the
 // correction pipeline's usual ground truth) can lag this by hours to days for very recent dates —
 // confirmed directly: Sep 8 showed $6,240/4 leads in Publisher Data while this sheet already had
@@ -522,6 +530,28 @@ async function getLiveGoogleSpendByDate(token, matches) {
   return byDate;
 }
 
+// X and GPT ad spend aren't in COPY/COPY OF's own spend column at all (confirmed — see
+// GOOGLE_AD_SPENT_DOC's comment), for ANY date, not just gaps — unlike getLiveGoogleSpendByDate
+// above this isn't a "fill missing days" fallback, it's added for every day with spend on either
+// platform. Same (Date, Campaign Name, ..., Spend) column layout as the live Google tab above —
+// Date(0), Campaign Name(1), Spend(4) — on both the X and GPT tabs.
+async function getXAndGptSpendByDate(token, matches) {
+  const [xRows, gptRows] = await Promise.all([
+    getValues(token, 'X AD SPENT.', 'A2:I20000', GOOGLE_AD_SPENT_DOC),
+    getValues(token, 'GPT AD SPENT', 'A2:I20000', GOOGLE_AD_SPENT_DOC),
+  ]);
+  const byDate = {};
+  for (const row of [...(xRows || []), ...(gptRows || [])]) {
+    const m = String(row[0] || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) continue;
+    const campaign = String(row[1] || '').toUpperCase();
+    if (!matches(campaign)) continue;
+    const date = `${Number(m[2])}/${Number(m[3])}/${m[1]}`;
+    byDate[date] = (byDate[date] || 0) + parseMoney(row[4]);
+  }
+  return byDate;
+}
+
 // Both take already-fetched COPY/COPY OF rows instead of re-reading the sheet — refreshOne,
 // computeLateQmvaCorrelation and computeCampaignTrends all need spend-by-date derived from the
 // exact same COPY/COPY OF rows they (or a sibling call) already fetch for revenue, so every caller
@@ -620,7 +650,7 @@ const BRYAN_AD_SPEND = BRYAN_WEEKS.flatMap((w) => {
   return Object.entries(w.leads).map(([date, c]) => ({ week: w.week, date, amount: Math.round((w.total * c / n) * 100) / 100 }));
 });
 
-async function refreshOne(token, which, publisher, importByPhone, revenueAdjustments, spendAdjustments, spendFill = null, write = true, rawValues = null) {
+async function refreshOne(token, which, publisher, importByPhone, revenueAdjustments, spendAdjustments, spendFill = null, write = true, rawValues = null, otherSpendFill = null) {
   const srcSheet = which === 'NW' ? 'COPY' : 'COPY OF';
   const dstSheet = which === 'NW' ? 'NW PPL CAMPAIGN' : 'CA PPL CAMPAIGN';
 
@@ -703,6 +733,15 @@ async function refreshOne(token, which, publisher, importByPhone, revenueAdjustm
     correctionRows.push([
       date, '', '', '', '$0.00', '$0.00', fmt(spendAdj), '0', '0', '0', '0',
       fmt(revAdj), fmt(revAdj - spendAdj), '', '(period reconciliation)',
+    ]);
+  }
+
+  // X/GPT spend, added for real (not tagged as Youtube Ad Spent — column index 4 — since it's
+  // neither Google/Youtube nor Facebook; only "Total Amount Spent" — index 6 — should see it).
+  for (const [date, amount] of Object.entries(otherSpendFill || {})) {
+    correctionRows.push([
+      date, '', '', '', '$0.00', '$0.00', `$${amount.toFixed(2)}`, '0', '0', '0', '0',
+      '$0.00', `-$${amount.toFixed(2)}`, '', '(X/GPT spend from live source)',
     ]);
   }
 
@@ -933,12 +972,14 @@ async function refreshCampaignSnapshots(token, opts = {}) {
   // re-reading the same sheet a third time), and the live Google spend fallback. Running them
   // together instead of one after another was most of a sync run's wall-clock time once the
   // shared rate limiter (rate_limit.js) made every redundant read directly cost queue time.
-  const [publisher, nwCopyValues, caCopyValues, nwLive, caLive] = await Promise.all([
+  const [publisher, nwCopyValues, caCopyValues, nwLive, caLive, nwXGpt, caXGpt] = await Promise.all([
     getPublisherLeads(token, qmvaPayouts, rtpp),
     getValues(token, 'COPY', 'A2:S10000'),
     getValues(token, 'COPY OF', 'A2:S10000'),
     getLiveGoogleSpendByDate(token, (c) => c.includes('PPL') && c.includes('TEXAS')),
     getLiveGoogleSpendByDate(token, (c) => c.includes('LOUDRCA')),
+    getXAndGptSpendByDate(token, (c) => c.includes('PPL')),
+    getXAndGptSpendByDate(token, (c) => c.includes('LOUDRCA')),
   ]);
   // The date-level floor is now DISABLED for PAID periods — computeRevenueAdjustments below
   // already guarantees the period's TOTAL matches the invoice exactly, distributed across the
@@ -977,13 +1018,30 @@ async function refreshCampaignSnapshots(token, opts = {}) {
   };
   const nwSpendFill = fillMissing(nwLive, nwYt, nwSpendByDate);
   const caSpendFill = fillMissing(caLive, caYt, caSpendByDate);
+  // X/GPT spend added unconditionally (every date with spend, not gap-filled like Google above —
+  // see getXAndGptSpendByDate's comment) and BEFORE computeSpendAdjustments, so invoice-period
+  // reconciliation sees the corrected total: for an already-PAID period that correctly pulls the
+  // total back toward what was actually invoiced (X/GPT was never part of a past invoice), while a
+  // not-yet-invoiced date like today's just gets the real, complete total straight through.
+  const nwOtherFill = {};
+  for (const [date, amount] of Object.entries(nwXGpt)) {
+    if (amount < 0.01) continue;
+    nwOtherFill[date] = amount;
+    nwSpendByDate[date] = (nwSpendByDate[date] || 0) + amount;
+  }
+  const caOtherFill = {};
+  for (const [date, amount] of Object.entries(caXGpt)) {
+    if (amount < 0.01) continue;
+    caOtherFill[date] = amount;
+    caSpendByDate[date] = (caSpendByDate[date] || 0) + amount;
+  }
   const spendAdjustments = computeSpendAdjustments({ NW: nwSpendByDate, CA: caSpendByDate }, paidPeriods, { NW: nwLive, CA: caLive });
 
   // NW and CA are fully independent from here — same rate limiter, so running them together
   // doesn't cost extra quota, just wall-clock time.
   const [nw, ca] = await Promise.all([
-    refreshOne(token, 'NW', publisher, importByPhone, revenueAdjustments.NW, spendAdjustments.NW, nwSpendFill, write, nwCopyValues),
-    refreshOne(token, 'CA', publisher, importByPhone, revenueAdjustments.CA, spendAdjustments.CA, caSpendFill, write, caCopyValues),
+    refreshOne(token, 'NW', publisher, importByPhone, revenueAdjustments.NW, spendAdjustments.NW, nwSpendFill, write, nwCopyValues, nwOtherFill),
+    refreshOne(token, 'CA', publisher, importByPhone, revenueAdjustments.CA, spendAdjustments.CA, caSpendFill, write, caCopyValues, caOtherFill),
   ]);
 
   // Raise the floor to whatever was actually established this run (never lower it) — next run's
@@ -1258,11 +1316,13 @@ function mondayKeyOf(dateKey) {
 // answerable against that same week's spend, not a mix of weeks.
 async function computeLateQmvaCorrelation(getAccessToken) {
   const token = await getAccessToken();
-  const [lateQmvaBatches, pendingLate, nwCopyValues, caCopyValues, nwLive, caLive] = await Promise.all([
+  const [lateQmvaBatches, pendingLate, nwCopyValues, caCopyValues, nwLive, caLive, nwXGpt, caXGpt] = await Promise.all([
     getInvoiceLateQmvaBatches(token), getPendingLateLeads(token),
     getValues(token, 'COPY', 'A2:S10000'), getValues(token, 'COPY OF', 'A2:S10000'),
     getLiveGoogleSpendByDate(token, (c) => c.includes('PPL') && c.includes('TEXAS')),
     getLiveGoogleSpendByDate(token, (c) => c.includes('LOUDRCA')),
+    getXAndGptSpendByDate(token, (c) => c.includes('PPL')),
+    getXAndGptSpendByDate(token, (c) => c.includes('LOUDRCA')),
   ]);
   // COPY/COPY OF read once and reused for both spend figures, not fetched twice — same reasoning
   // as refreshCampaignSnapshots.
@@ -1276,6 +1336,11 @@ async function computeLateQmvaCorrelation(getAccessToken) {
     for (const [date, amount] of Object.entries(live)) {
       if (amount >= 1 && (ytByDate[date] || 0) < 1) spendByDate[date] = (spendByDate[date] || 0) + amount;
     }
+  }
+  // X/GPT, added unconditionally — same as refreshCampaignSnapshots — so this view keeps agreeing
+  // with the dashboard's own numbers now that those include it too.
+  for (const [xgpt, spendByDate] of [[nwXGpt, nwSpendByDate], [caXGpt, caSpendByDate]]) {
+    for (const [date, amount] of Object.entries(xgpt)) spendByDate[date] = (spendByDate[date] || 0) + amount;
   }
 
   const weeks = {};
@@ -1360,12 +1425,14 @@ async function getLeadLookups(token) {
 // inflections day to day. Read-only, same pattern as computeLateQmvaCorrelation.
 async function computeCampaignTrends(getAccessToken) {
   const token = await getAccessToken();
-  const [qmvaPayouts, rtpp, leadCounts, lookups, nwCopyValues, caCopyValues, nwLive, caLive, invoicePeriods] = await Promise.all([
+  const [qmvaPayouts, rtpp, leadCounts, lookups, nwCopyValues, caCopyValues, nwLive, caLive, invoicePeriods, nwXGpt, caXGpt] = await Promise.all([
     getQmvaPayouts(token), getRealTimePublisherPortal(token), getLeadsImportCounts(token), getLeadLookups(token),
     getValues(token, 'COPY', 'A2:S10000'), getValues(token, 'COPY OF', 'A2:S10000'),
     getLiveGoogleSpendByDate(token, (c) => c.includes('PPL') && c.includes('TEXAS')),
     getLiveGoogleSpendByDate(token, (c) => c.includes('LOUDRCA')),
     getInvoicePeriods(token),
+    getXAndGptSpendByDate(token, (c) => c.includes('PPL')),
+    getXAndGptSpendByDate(token, (c) => c.includes('LOUDRCA')),
   ]);
   const publisher = await getPublisherLeads(token, qmvaPayouts, rtpp);
   const { lawTypeByDateKey, recencyByPhone, qualifiedByDateKey } = lookups;
@@ -1379,6 +1446,12 @@ async function computeCampaignTrends(getAccessToken) {
     for (const [date, amount] of Object.entries(live)) {
       if (amount >= 1 && (ytByDate[date] || 0) < 1) spendByDate[date] = (spendByDate[date] || 0) + amount;
     }
+  }
+  // X/GPT, added unconditionally — same as refreshCampaignSnapshots — before the invoice
+  // reconciliation below, for the same reason: already-settled periods should reconcile toward
+  // what was actually invoiced, not toward a total X/GPT silently inflated.
+  for (const [xgpt, spendByDate] of [[nwXGpt, nwSpendByDate], [caXGpt, caSpendByDate]]) {
+    for (const [date, amount] of Object.entries(xgpt)) spendByDate[date] = (spendByDate[date] || 0) + amount;
   }
   // This raw COPY/COPY OF spend is the exact same data refreshCampaignSnapshots() reconciles
   // against the real invoice ledger before it ever reaches Global PPL/NW & CA PPL (via

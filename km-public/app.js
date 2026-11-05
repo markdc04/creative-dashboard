@@ -445,32 +445,74 @@
   }
 
   const COLOR_SPEND_TREND = '#e0a92d';
+  const COLOR_SIGNED_CASES = '#9085e9';
+  const COLOR_COST_CASE_FEE = '#d55181';
+  const COLOR_COST_CASE_AD = '#e34948';
+  const COLOR_CVR = '#2dd4bf';
   const MONTHLY_METRIC_DEFS = {
     'Total Leads': { color: COLOR_LEADS, isMoney: false, get: (r) => r.leads, fmt: (v) => Math.round(v).toLocaleString('en-US') },
     'Total Ad Spend': { color: COLOR_SPEND_TREND, isMoney: true, get: (r) => r.spend, fmt: (v) => money(v) },
     'Cost Per Lead': { color: COLOR_CASES, isMoney: true, get: (r) => (r.cpl != null ? r.cpl : 0), fmt: (v) => (v ? money(v) : '—') },
+    'Signed Cases': { color: COLOR_SIGNED_CASES, isMoney: false, get: (r) => r.cases, fmt: (v) => Math.round(v).toLocaleString('en-US') },
+    'Cost per Case (+Fee)': { color: COLOR_COST_CASE_FEE, isMoney: true, get: (r) => (r.costCaseFee != null ? r.costCaseFee : 0), fmt: (v) => (v ? money(v) : '—') },
+    'Cost per Case (Ad only)': { color: COLOR_COST_CASE_AD, isMoney: true, get: (r) => (r.costCaseAdOnly != null ? r.costCaseAdOnly : 0), fmt: (v) => (v ? money(v) : '—') },
+    'CVR': { color: COLOR_CVR, isMoney: false, get: (r) => (r.cvr != null ? r.cvr : 0), fmt: (v) => pct(v) },
   };
   const MONTHLY_BREAKDOWN_ROWS = [
     ['Total Leads', (r) => r.leads, (r) => Math.round(r.leads).toLocaleString('en-US'), 'up'],
     ['Total Ad Spend', (r) => r.spend, (r) => money(r.spend), null],
     ['Cost Per Lead', (r) => r.cpl, (r) => (r.cpl != null ? money(r.cpl) : '—'), 'down'],
+    ['Signed Cases', (r) => r.cases, (r) => Math.round(r.cases).toLocaleString('en-US'), 'up'],
+    ['Cost per Case (+Fee)', (r) => r.costCaseFee, (r) => (r.costCaseFee != null ? money(r.costCaseFee) : '—'), 'down'],
+    ['Cost per Case (Ad only)', (r) => r.costCaseAdOnly, (r) => (r.costCaseAdOnly != null ? money(r.costCaseAdOnly) : '—'), 'down'],
+    ['CVR', (r) => r.cvr, (r) => (r.cvr != null ? pct(r.cvr) : '—'), 'up'],
   ];
 
-  // Leads and spend across the whole selected range, bucketed by calendar month — unlike the
-  // "Leads & Signed Cases by Month" bar chart above, out-of-range months are left out entirely
-  // rather than shown dimmed, since this chart is meant to read like the B2B Weekly Trend (which
-  // only ever shows the current range).
+  // 2025 predates this dashboard's own live tracking — ad spend here only goes back to
+  // 2026-01-01 (see the footnote above the Signed Case Details table) — so these twelve months
+  // are hand-entered from the KM Law Facebook Ads Report sheet's own "Monthly Report" tabs and
+  // the GLOBAL MONTHLY-corrected Case Study Data build (Sep-Dec use the flat $12,000/mo fee
+  // confirmed there; every other month is the flat $7,000/mo fee), not fetched live.
+  const HIST_2025 = [
+    { key: '2025-01', label: 'Jan 2025', leads: 122, spend: 4843.01, cases: 8, cpl: 39.70, costCaseFee: 1480.38, costCaseAdOnly: 605.38, cvr: 6.56 },
+    { key: '2025-02', label: 'Feb 2025', leads: 242, spend: 14446.50, cases: 20, cpl: 59.70, costCaseFee: 1072.33, costCaseAdOnly: 722.33, cvr: 8.26 },
+    { key: '2025-03', label: 'Mar 2025', leads: 281, spend: 19725.11, cases: 11, cpl: 70.20, costCaseFee: 2429.56, costCaseAdOnly: 1793.19, cvr: 3.91 },
+    { key: '2025-04', label: 'Apr 2025', leads: 225, spend: 16926.75, cases: 20, cpl: 75.23, costCaseFee: 1196.34, costCaseAdOnly: 846.34, cvr: 8.89 },
+    { key: '2025-05', label: 'May 2025', leads: 239, spend: 18398.96, cases: 20, cpl: 76.98, costCaseFee: 1269.95, costCaseAdOnly: 919.95, cvr: 8.37 },
+    { key: '2025-06', label: 'Jun 2025', leads: 218, spend: 18041.08, cases: 10, cpl: 82.76, costCaseFee: 2504.11, costCaseAdOnly: 1804.11, cvr: 4.59 },
+    { key: '2025-07', label: 'Jul 2025', leads: 366, spend: 22425.40, cases: 18, cpl: 61.27, costCaseFee: 1634.74, costCaseAdOnly: 1245.86, cvr: 4.92 },
+    { key: '2025-08', label: 'Aug 2025', leads: 254, spend: 17497.23, cases: 13, cpl: 68.89, costCaseFee: 2269.02, costCaseAdOnly: 1345.94, cvr: 5.12 },
+    { key: '2025-09', label: 'Sep 2025', leads: 507, spend: 28730.30, cases: 12, cpl: 56.67, costCaseFee: 3394.19, costCaseAdOnly: 2394.19, cvr: 2.37 },
+    { key: '2025-10', label: 'Oct 2025', leads: 402, spend: 29756.51, cases: 14, cpl: 74.02, costCaseFee: 2982.61, costCaseAdOnly: 2125.47, cvr: 3.48 },
+    { key: '2025-11', label: 'Nov 2025', leads: 360, spend: 29011.35, cases: 10, cpl: 80.59, costCaseFee: 4101.14, costCaseAdOnly: 2901.14, cvr: 2.78 },
+    { key: '2025-12', label: 'Dec 2025', leads: 365, spend: 27970.34, cases: 14, cpl: 76.63, costCaseFee: 2497.88, costCaseAdOnly: 1997.88, cvr: 3.84 },
+  ];
+
+  // Full history, bucketed by calendar month — ignores the page's own date-range picker (which
+  // only goes back to Jan 2026 and is meant for the KPI tiles/other charts above) since this
+  // trend is meant to read like the B2B dashboard's Weekly Trend: always the whole timeline.
   function monthlyRows() {
     const byMonth = new Map();
-    const bump = (key, field, n) => { if (!byMonth.has(key)) byMonth.set(key, { leads: 0, spend: 0 }); byMonth.get(key)[field] += n; };
-    for (const r of leadsDailyFor(false)) bump(r.date.slice(0, 7), 'leads', r.leads);
-    for (const r of spendFor(null)) bump(r.date.slice(0, 7), 'spend', r.spend);
-    return [...byMonth.keys()].sort().map((key) => {
+    const bump = (key, field, n) => { if (!byMonth.has(key)) byMonth.set(key, { leads: 0, spend: 0, cases: 0 }); byMonth.get(key)[field] += n; };
+    for (const r of state.leadsDaily) bump(r.date.slice(0, 7), 'leads', r.leads);
+    for (const r of state.spend) bump(r.date.slice(0, 7), 'spend', r.spend);
+    for (const c of state.cases) if (c.conversionDate) bump(c.conversionDate.slice(0, 7), 'cases', 1);
+    const liveRows = [...byMonth.keys()].sort().map((key) => {
       const v = byMonth.get(key);
       const y = Number(key.slice(0, 4)), mo = Number(key.slice(5, 7));
       const label = new Date(y, mo - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-      return { key, label, leads: v.leads, spend: v.spend, cpl: v.leads ? v.spend / v.leads : null };
+      const fee = v.leads * state.settings.feePerLead;
+      return {
+        key, label, leads: v.leads, spend: v.spend, cases: v.cases,
+        cpl: v.leads ? v.spend / v.leads : null,
+        costCaseFee: v.cases ? (v.spend + fee) / v.cases : null,
+        costCaseAdOnly: v.cases ? v.spend / v.cases : null,
+        cvr: v.leads ? (v.cases / v.leads) * 100 : null,
+      };
     });
+    // Guard against double-counting: only live rows from 2026 onward are kept, since HIST_2025
+    // already covers every 2025 month and the live feed isn't expected to have 2025 data anyway.
+    return [...HIST_2025, ...liveRows.filter((r) => r.key >= '2026-01')];
   }
 
   function renderMonthlyTrendChart() {

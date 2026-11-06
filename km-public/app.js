@@ -535,7 +535,13 @@
     });
     // Guard against double-counting: only live rows from 2026 onward are kept, since HIST_2025
     // already covers every 2025 month and the live feed isn't expected to have 2025 data anyway.
-    return [...HIST_2025, ...liveRows.filter((r) => r.key >= '2026-01')];
+    // The current in-progress month is dropped too — a handful of days in, its leads/spend/cases
+    // ratios (CPL, CVR, cost per case) swing wildly and, once indexed against a steady 2025
+    // baseline, can dwarf every other line on the chart (e.g. a few dollars of spend against a
+    // single lead reads as an astronomical % change even though it's not a real trend).
+    const today = pacificToday();
+    const currentMonthKey = today.getFullYear() + '-' + pad(today.getMonth() + 1);
+    return [...HIST_2025, ...liveRows.filter((r) => r.key >= '2026-01' && r.key !== currentMonthKey)];
   }
 
   // Every metric is shown indexed to its own first-month value = 100 (% change from Jan 2025),

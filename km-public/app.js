@@ -109,6 +109,28 @@
     $('#range-end').value = end || '';
   }
 
+  // 2025 isn't in this dashboard's own live feed (spend tracking here starts 2026-01-01), so the
+  // same twelve hand-entered months used by the Monthly Trend chart are injected here too, once,
+  // right after every live fetch — this is what lets the date-range picker, KPI tiles, and every
+  // other chart on the page show real 2025 numbers instead of just the Monthly Trend section.
+  // Any live 2025 rows are dropped first so a real and a synthetic entry for the same day can
+  // never be double-counted.
+  function injectHistorical2025() {
+    state.leadsDaily = state.leadsDaily.filter((r) => r.date >= '2026-01-01');
+    state.spend = state.spend.filter((r) => r.date >= '2026-01-01');
+    state.cases = state.cases.filter((c) => !c.conversionDate || c.conversionDate >= '2026-01-01');
+    HIST_2025.forEach((h) => {
+      const d1 = h.key + '-01';
+      state.leadsDaily.push({ date: d1, leads: h.leads });
+      state.spend.push({ date: d1, platform: 'Meta', spend: h.spend });
+      for (let i = 0; i < h.cases; i++) {
+        state.cases.push({ name: '—', email: '', intakeDate: d1, conversionDate: d1, ad: '2025 historical (monthly total)', adName: '2025 historical (monthly total)' });
+      }
+    });
+    state.leadsDaily.sort((a, b) => (a.date < b.date ? -1 : 1));
+    state.spend.sort((a, b) => (a.date < b.date ? -1 : 1));
+  }
+
   async function fetchData() {
     try {
       const r = await fetch('/km-api/data', { cache: 'no-store' });
@@ -121,6 +143,7 @@
         ...(d.metaDaily || []).map((x) => ({ date: x.date, platform: 'Meta', spend: x.spend })),
       ];
       state.settings = d.settings || state.settings;
+      injectHistorical2025();
       setLive(true);
     } catch (err) {
       setLive(false);
@@ -515,6 +538,11 @@
     return [...HIST_2025, ...liveRows.filter((r) => r.key >= '2026-01')];
   }
 
+  // Every metric is shown indexed to its own first-month value = 100 (% change from Jan 2025),
+  // not its raw value — with leads in the hundreds, ad spend in the tens of thousands, and CVR a
+  // single-digit percent all on screen together, a shared raw-value axis (even a dual-axis one)
+  // leaves most lines flattened near zero. Indexing is the only way all seven read at once; the
+  // tooltip still shows each metric's real value.
   function renderMonthlyTrendChart() {
     const rows = state.monthlyRows;
     const container = $('#monthly-trend-chart');
@@ -522,38 +550,37 @@
     if (!rows.length) { container.innerHTML = '<div class="empty-msg">Nothing for this selection.</div>'; return; }
     const defs = Object.entries(MONTHLY_METRIC_DEFS).filter(([label]) => state.monthlyMetrics.has(label));
     if (!defs.length) { container.innerHTML = '<div class="empty-msg">Pick at least one metric.</div>'; return; }
-    const hasMoney = defs.some(([, d]) => d.isMoney);
-    const hasCount = defs.some(([, d]) => !d.isMoney);
-    const dualAxis = hasMoney && hasCount;
 
-    const W = 900, H = 280, padL = 54, padR = dualAxis ? 54 : 14, padT = 14, padB = 30;
+    const indexedDefs = defs.map(([label, d]) => {
+      const baseline = d.get(rows[0]) || 1;
+      return { label, d, baseline, idx: (r) => (d.get(r) / baseline) * 100 };
+    });
+
+    const padR = 150; // room for end-of-line labels
+    const W = 900, H = 300, padL = 50, padT = 14, padB = 30;
     const innerW = W - padL - padR, innerH = H - padT - padB;
-    const moneyVals = defs.filter(([, d]) => d.isMoney).flatMap(([, d]) => rows.map((r) => d.get(r) || 0));
-    const countVals = defs.filter(([, d]) => !d.isMoney).flatMap(([, d]) => rows.map((r) => d.get(r) || 0));
-    const leftIsMoney = hasMoney;
-    const leftMax = niceMax(Math.max(...(leftIsMoney ? moneyVals : countVals), 1));
-    const rightMax = dualAxis ? niceMax(Math.max(...countVals, 1)) : null;
-    const yLeft = (v) => padT + innerH - (v / leftMax) * innerH;
-    const yRight = (v) => padT + innerH - (v / rightMax) * innerH;
-    const yFor = (d, v) => (dualAxis && !d.isMoney ? yRight(v) : yLeft(v));
+    const allIdx = indexedDefs.flatMap(({ idx }) => rows.map((r) => idx(r)));
+    const maxVal = niceMax(Math.max(...allIdx, 150) * 1.1);
+    const y = (v) => padT + innerH - (v / maxVal) * innerH;
     const x = (i) => padL + (rows.length === 1 ? innerW / 2 : (i / (rows.length - 1)) * innerW);
 
     const svg = svgEl('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', height: H, style: 'display:block;overflow:visible' });
-    const steps = 4;
+    const steps = 5;
     for (let i = 0; i <= steps; i++) {
-      const vLeft = (leftMax / steps) * i;
-      const gy = yLeft(vLeft);
-      svg.appendChild(svgEl('line', { class: 'viz-gridline', x1: padL, x2: W - padR, y1: gy, y2: gy }));
+      const v = (maxVal / steps) * i;
+      const gy = y(v);
+      svg.appendChild(svgEl('line', { class: 'viz-gridline', x1: padL, x2: padL + innerW, y1: gy, y2: gy }));
       const lbl = svgEl('text', { class: 'viz-axis-label', x: padL - 8, y: gy + 3, 'text-anchor': 'end' });
-      lbl.textContent = leftIsMoney ? '$' + Math.round(vLeft).toLocaleString('en-US') : Math.round(vLeft).toLocaleString('en-US');
+      lbl.textContent = Math.round(v);
       svg.appendChild(lbl);
-      if (dualAxis) {
-        const vRight = (rightMax / steps) * i;
-        const lblR = svgEl('text', { class: 'viz-axis-label', x: W - padR + 8, y: gy + 3, 'text-anchor': 'start' });
-        lblR.textContent = Math.round(vRight).toLocaleString('en-US');
-        svg.appendChild(lblR);
-      }
     }
+    // dashed reference line at the first-month baseline (100)
+    const baseY = y(100);
+    svg.appendChild(svgEl('line', { x1: padL, x2: padL + innerW, y1: baseY, y2: baseY, stroke: 'var(--text-faint)', 'stroke-width': 1, 'stroke-dasharray': '3,3', opacity: 0.6 }));
+    const baseLbl = svgEl('text', { class: 'viz-axis-label', x: padL + innerW + 6, y: baseY + 3 });
+    baseLbl.textContent = rows[0].label + ' baseline';
+    svg.appendChild(baseLbl);
+
     const labelEvery = Math.max(1, Math.ceil(rows.length / 8));
     rows.forEach((r, i) => {
       if (i % labelEvery !== 0 && i !== rows.length - 1) return;
@@ -562,13 +589,23 @@
       svg.appendChild(lbl);
     });
 
-    defs.forEach(([, d]) => {
-      const path = rows.map((r, i) => {
-        const v = d.get(r);
-        return (i === 0 ? 'M' : 'L') + x(i) + ',' + yFor(d, v);
-      }).join(' ');
+    indexedDefs.forEach(({ d, idx }) => {
+      const path = rows.map((r, i) => (i === 0 ? 'M' : 'L') + x(i) + ',' + y(idx(r))).join(' ');
       svg.appendChild(svgEl('path', { d: path, fill: 'none', stroke: d.color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
-      rows.forEach((r, i) => svg.appendChild(svgEl('circle', { cx: x(i), cy: yFor(d, d.get(r)), r: 3, fill: d.color })));
+      rows.forEach((r, i) => svg.appendChild(svgEl('circle', { cx: x(i), cy: y(idx(r)), r: 3, fill: d.color })));
+    });
+
+    // end-of-line direct labels, nudged apart if two lines finish close together
+    const lastX = x(rows.length - 1);
+    const lastPoints = indexedDefs.map(({ label, d, idx }) => ({ label, color: d.color, y: y(idx(rows[rows.length - 1])) })).sort((a, b) => a.y - b.y);
+    const minGap = 13;
+    for (let i = 1; i < lastPoints.length; i++) {
+      if (lastPoints[i].y - lastPoints[i - 1].y < minGap) lastPoints[i].y = lastPoints[i - 1].y + minGap;
+    }
+    lastPoints.forEach(({ label, color, y: ly }) => {
+      const lbl = svgEl('text', { x: lastX + 8, y: ly + 3, style: 'font-size:11px;font-weight:600;fill:' + color });
+      lbl.textContent = label;
+      svg.appendChild(lbl);
     });
 
     const tip = ensureTooltip(container);
@@ -577,15 +614,15 @@
       const rect = svgEl('rect', { class: 'bar-hover-rect is-clickable', x: x(i) - hitW / 2, y: padT, width: hitW, height: innerH });
       rect.addEventListener('mouseenter', () => {
         tip.innerHTML = '<div class="t-date">' + r.label + '</div>' +
-          defs.map(([label, d]) => '<div class="t-row"><span><span class="legend-swatch" style="background:' + d.color + ';display:inline-block;margin-right:5px"></span>' + label + '</span><strong>' + d.fmt(d.get(r)) + '</strong></div>').join('') +
+          indexedDefs.map(({ label, d }) => '<div class="t-row"><span><span class="legend-swatch" style="background:' + d.color + ';display:inline-block;margin-right:5px"></span>' + label + '</span><strong>' + d.fmt(d.get(r)) + '</strong></div>').join('') +
           '<div class="t-hint">Click to filter to this month</div>';
         tip.hidden = false;
         positionTooltip(tip, container, (x(i) / W) * container.clientWidth, padT);
       });
       rect.addEventListener('mouseleave', () => { tip.hidden = true; });
       rect.addEventListener('click', () => {
-        const y = Number(r.key.slice(0, 4)), mo = Number(r.key.slice(5, 7));
-        if (state.range.key === r.key) clearRange(); else setRange(r.key, toISO(startOfMonth(y, mo)), toISO(endOfMonth(y, mo)));
+        const y2 = Number(r.key.slice(0, 4)), mo = Number(r.key.slice(5, 7));
+        if (state.range.key === r.key) clearRange(); else setRange(r.key, toISO(startOfMonth(y2, mo)), toISO(endOfMonth(y2, mo)));
         render();
       });
       svg.appendChild(rect);
@@ -777,7 +814,7 @@
     fetchData().finally(() => setTimeout(() => $('#refresh-btn').classList.remove('is-spinning'), 400));
   });
 
-  buildQuickRangeOptions(2026, 1);
+  buildQuickRangeOptions(2025, 1);
   defaultRangeKey = 'all';
   clearRange();
   fetchData();

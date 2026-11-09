@@ -361,8 +361,12 @@ function startDashboardApp() {
     // "Active" means spent on the last day of whatever's currently selected — the end of a
     // specific range (so picking "Yesterday" checks yesterday, not today), or under "All time"
     // the most recent day actually present in the data (robust to the sheet lagging a day
-    // behind the calendar, which would otherwise empty every dot for no real reason).
+    // behind the calendar, which would otherwise empty every dot for no real reason). A range
+    // like "This month" ends on a future calendar date (e.g. Nov 30 while it's only Nov 10) that
+    // can never have spend yet, so a future end date falls back to the same "most recent day with
+    // data" logic rather than checking a day that hasn't happened.
     let referenceDay = state.range.end;
+    if (referenceDay && referenceDay > toISO(pacificToday())) referenceDay = '';
     if (!referenceDay) {
       let latest = '';
       for (const r of state.dailyRows) { if (r.date > latest) latest = r.date; }

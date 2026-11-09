@@ -52,6 +52,15 @@ h1{font-size:26px;margin:0 0 4px;letter-spacing:-.01em;}
 .search-box input{flex:1;background:none;border:none;outline:none;color:var(--text);font-size:13px;}
 .search-box svg{flex:none;color:var(--text-faint);}
 
+.panel-head-right{display:flex;align-items:center;gap:8px;}
+.expand-btn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;flex:none;border-radius:10px;background:var(--surface-raised);border:1px solid var(--border);color:var(--text-dim);cursor:pointer;transition:color .12s,border-color .12s;}
+.expand-btn:hover{color:var(--accent);border-color:var(--accent);}
+
+.leads-fullscreen{position:fixed;inset:0;z-index:200;background:var(--bg);padding:20px 24px 24px;display:flex;flex-direction:column;overflow:auto;}
+.leads-fullscreen-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px;}
+.leads-fullscreen .status-chips{flex:none;}
+.leads-fullscreen .table-scroll--full{flex:1;max-height:none;}
+
 table{width:100%;border-collapse:collapse;font-size:12.5px;}
 thead th{text-align:left;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-faint);font-weight:700;padding:0 10px 10px;position:sticky;top:0;background:var(--surface);}
 tbody td{padding:10px;border-top:1px solid var(--border-soft);vertical-align:top;}

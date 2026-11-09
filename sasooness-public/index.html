@@ -223,9 +223,14 @@
   <div class="panel panel--secondary" id="lead-details-panel">
     <div class="panel-head">
       <h2 class="panel-title panel-title--secondary">Lead Details</h2>
-      <div class="search-box">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-        <input id="search" type="text" placeholder="Search name, email, phone&hellip;">
+      <div class="panel-head-right">
+        <div class="search-box">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="search" type="text" placeholder="Search name, email, phone&hellip;">
+        </div>
+        <button class="expand-btn" id="leads-expand-btn" title="Full screen" type="button">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+        </button>
       </div>
     </div>
     <div class="status-chips" id="status-chips"></div>
@@ -257,6 +262,37 @@
   </div>
 
 </div>
+
+<div class="leads-fullscreen" id="leads-fullscreen" hidden>
+  <div class="leads-fullscreen-head">
+    <div>
+      <h2 class="panel-title panel-title--secondary">Lead Details</h2>
+      <p class="panel-sub"><span id="lead-count-full">&mdash;</span> leads <span id="range-label-full"></span></p>
+    </div>
+    <div class="panel-head-right">
+      <div class="search-box">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="search-full" type="text" placeholder="Search name, email, phone&hellip;">
+      </div>
+      <button class="expand-btn" id="leads-fullscreen-close" title="Close" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="status-chips" id="status-chips-full"></div>
+  <div class="table-scroll table-scroll--full">
+    <table>
+      <thead>
+        <tr>
+          <th>Lead</th><th>Contact</th><th>Created</th><th>Status</th><th>Signed Up</th><th>Days to Qualify</th><th>Contact Source</th><th>Campaign</th><th>Ad</th><th class="th-num">CPL</th>
+        </tr>
+      </thead>
+      <tbody id="leads-body-full"></tbody>
+    </table>
+  </div>
+  <div id="leads-empty-full" class="empty-msg" hidden>No leads match this filter.</div>
+</div>
+
 <script src="app.js"></script>
 <script src="/shared/sidebar.js" data-active="sasooness"></script>
 <script src="/shared/back-to-top.js"></script>

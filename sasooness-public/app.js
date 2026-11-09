@@ -1152,6 +1152,8 @@
         '<button class="chip' + (sf === b ? ' is-active' : '') + '" data-status="' + b + '">' + b + '<span class="n">' + counts[b] + '</span></button>'
       ));
     $('#status-chips').innerHTML = chips.join('');
+    const full = $('#status-chips-full');
+    if (full) full.innerHTML = chips.join('');
   }
 
   // Cost per lead for each lead: a partner (Agency/PPL) lead carries its Walker campaign's cost per
@@ -1179,7 +1181,11 @@
     $('#lead-count').textContent = leads.length.toLocaleString('en-US');
     $('#range-label').textContent = rangeLabel();
     $('#leads-empty').hidden = rows.length > 0;
-    $('#leads-body').innerHTML = rows.map((l) => {
+    const countFull = $('#lead-count-full'), rangeFull = $('#range-label-full'), emptyFull = $('#leads-empty-full');
+    if (countFull) countFull.textContent = leads.length.toLocaleString('en-US');
+    if (rangeFull) rangeFull.textContent = rangeLabel();
+    if (emptyFull) emptyFull.hidden = rows.length > 0;
+    const rowsHtml = rows.map((l) => {
       const o = l.origin || {};
       // Whether this lead is actually Walker-sourced, not just which program tab it's in — OG
       // leads inside the combined Agency bucket carry an origin object too, just with no
@@ -1213,6 +1219,9 @@
         '<td class="td-num num">' + cplHtml + '</td>' +
       '</tr>';
     }).join('');
+    $('#leads-body').innerHTML = rowsHtml;
+    const bodyFull = $('#leads-body-full');
+    if (bodyFull) bodyFull.innerHTML = rowsHtml;
   }
 
   // ================= where Agency / PPL leads came from, and what to deduct =================
@@ -1440,7 +1449,21 @@
     render();
   });
 
-  $('#search').addEventListener('input', (e) => { state.search = e.target.value; render(); });
+  $('#search').addEventListener('input', (e) => { state.search = e.target.value; $('#search-full').value = e.target.value; render(); });
+  $('#search-full').addEventListener('input', (e) => { state.search = e.target.value; $('#search').value = e.target.value; render(); });
+
+  function openLeadsFullscreen() {
+    $('#search-full').value = state.search || '';
+    $('#leads-fullscreen').hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+  function closeLeadsFullscreen() {
+    $('#leads-fullscreen').hidden = true;
+    document.body.style.overflow = '';
+  }
+  $('#leads-expand-btn').addEventListener('click', openLeadsFullscreen);
+  $('#leads-fullscreen-close').addEventListener('click', closeLeadsFullscreen);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#leads-fullscreen').hidden) closeLeadsFullscreen(); });
   $('#compare-select').addEventListener('change', renderComparison);
   $('#refresh-btn').addEventListener('click', () => {
     $('#refresh-btn').classList.add('is-spinning');

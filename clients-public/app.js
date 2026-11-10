@@ -59,7 +59,9 @@
 
   // Sasooness's own exact definition (sasooness.js / sasooness-public/app.js) — Status alone,
   // never SubStatus (confirmed against the live Lead Tracker sheet, 2026-11-04).
-  const sasoonessSigned = (l) => { const v = (l.status || '').trim(); return v === 'Signed Up' || v === 'Client'; };
+  // Matches sasooness-public/app.js's isSignedCase — Signed Up Date present, not Status alone
+  // (Status can say "Referred" with SubStatus "Signed Up" and still have a real signed date).
+  const sasoonessSigned = (l) => !!(l.signedUpDate && String(l.signedUpDate).trim());
   const bryanSigned = (l) => l.status === 'Signed';
   const BRYAN_PRICE_PER_LEAD = 350; // bryan-public/app.js's PRICE_PER_LEAD — keep in sync.
   const BRYAN_FEE_BY_MONTH = { '2026-09': 1250, '2026-10': 1250 }; // bryan-public/app.js's MARKETING_FEE_BY_MONTH — keep in sync.
@@ -175,7 +177,7 @@
     );
   }
 
-  function pplCardBody(m) {
+  function pplCardBody(c, m) {
     return (
       '<div class="client-metrics client-metrics--5">' +
         '<div class="client-metric"><div class="client-metric-label">Revenue</div><div class="client-metric-value">' + money(m.revenue) + '</div></div>' +
@@ -188,7 +190,7 @@
     );
   }
 
-  function pipelineCardBody(m) {
+  function pipelineCardBody(c, m) {
     return (
       '<div class="client-metrics">' +
         '<div class="client-metric"><div class="client-metric-label">Total Leads</div><div class="client-metric-value">' + int(m.totalLeads) + '</div></div>' +
@@ -223,6 +225,10 @@
 
   const bodyRenderers = { legal: legalCardBody, ppl: pplCardBody, pipeline: pipelineCardBody };
 
+  // Raw per-client payloads, kept around so the Fulfillment table below can recompute lifetime
+  // (all-time) totals independently of whatever date range is picked above for the cards.
+  const dataCache = {};
+
   async function loadOne(c) {
     const statusEl = $('#status-' + c.key);
     statusEl.textContent = 'Loading…';
@@ -231,6 +237,7 @@
       const res = await fetch(c.url, { cache: 'no-store' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
+      dataCache[c.key] = data;
       const m = c.metrics(data, state.range);
       $('#body-' + c.key).innerHTML = bodyRenderers[c.type](c, m);
       statusEl.textContent = 'Live';
@@ -239,6 +246,7 @@
       statusEl.textContent = 'Unavailable';
       statusEl.className = 'client-status client-status--error';
     }
+    renderFulfillment();
   }
 
   function load() {
@@ -247,6 +255,101 @@
       $('#load-' + c.key).addEventListener('click', () => loadOne(c));
     });
     return Promise.all(CLIENTS.filter((c) => !c.lazy).map(loadOne));
+  }
+
+  // ---------------- Lead Fulfillment (ordered vs. delivered, per client) ----------------
+  // Nothing in any sheet tracks a prepaid/ordered lead count — every client here is billed
+  // against ad spend (CPL) or a flat per-lead rate, open-ended. "Ordered" has no live source, so
+  // it's a plain editable number saved in this browser (localStorage), while "Delivered" is
+  // computed live from the same data the cards above use, just always at the ALL-TIME range
+  // regardless of what's picked in the date bar — Jeremiah's question was "how many so far",
+  // not "how many this week".
+  const ALL_TIME = { from: '', to: '' };
+  function orderedKey(rowKey) { return 'loudr_order_' + rowKey; }
+  function getOrdered(rowKey) {
+    try { const v = Number(localStorage.getItem(orderedKey(rowKey))); return Number.isFinite(v) && v > 0 ? v : 0; } catch (e) { return 0; }
+  }
+  function setOrdered(rowKey, value) {
+    try {
+      if (value > 0) localStorage.setItem(orderedKey(rowKey), String(value));
+      else localStorage.removeItem(orderedKey(rowKey));
+    } catch (e) { /* ignore — private window / blocked storage */ }
+  }
+
+  // One row per billing bucket, not per card — Sasooness splits into Agency (AZ, billed at CPL)
+  // and PPL (WA, billed at a flat $425/lead), since those have different prices and the point of
+  // this table is "price per lead", singular, per row.
+  const FULFILLMENT_ROWS = [
+    {
+      key: 'sasooness-agency', name: 'Sasooness — Agency (AZ)', trackedIn: 'Lead Tracker sheet + Walker Lead Prosper (shared)',
+      compute: () => {
+        const d = dataCache.sasooness; if (!d) return null;
+        const leads = (d.leads || []).filter((l) => l.channel !== 'Lead Prosper WA');
+        const spend = sum(d.googleDaily, 'spend') + sum(d.metaDaily, 'spend') + sum(d.walker && d.walker.spendDaily, 'spend');
+        return { delivered: leads.length, pricePerLead: leads.length ? spend / leads.length : 0, priceIsCpl: true };
+      },
+    },
+    {
+      key: 'sasooness-ppl', name: 'Sasooness — PPL (WA)', trackedIn: 'Lead Prosper WA (shared Walker campaign)',
+      compute: () => {
+        const d = dataCache.sasooness; if (!d) return null;
+        const leads = (d.leads || []).filter((l) => l.channel === 'Lead Prosper WA');
+        return { delivered: leads.length, pricePerLead: 425, priceIsCpl: false };
+      },
+    },
+    {
+      key: 'bryan', name: 'Bryan Rodriguez', trackedIn: 'Lead Tracker sheet + Walker Lead Prosper (shared)',
+      compute: () => {
+        const d = dataCache.bryan; if (!d) return null;
+        return { delivered: (d.leads || []).length, pricePerLead: BRYAN_PRICE_PER_LEAD, priceIsCpl: false };
+      },
+    },
+    {
+      key: 'km', name: 'KM Law Firm PLLC', trackedIn: 'Own Google/Meta spend sheet + lead sheet',
+      compute: () => {
+        const d = dataCache.km; if (!d) return null;
+        const totalLeads = sum(d.leadsDaily, 'leads');
+        const spend = sum(d.googleDaily, 'spend') + sum(d.metaDaily, 'spend');
+        return { delivered: totalLeads, pricePerLead: totalLeads ? spend / totalLeads : 0, priceIsCpl: true };
+      },
+    },
+    {
+      key: 'b2b', name: 'Loudr Media B2B (aggregate)', trackedIn: 'GHL (leads) + Meta (ad spend) — no per-end-client split today',
+      compute: () => {
+        const d = dataCache.b2b; if (!d) return null;
+        const totalLeads = sum(d.leadsDaily, 'leads');
+        const spend = sum(d.adSpendDaily, 'spend');
+        return { delivered: totalLeads, pricePerLead: totalLeads ? spend / totalLeads : 0, priceIsCpl: true };
+      },
+    },
+  ];
+
+  function renderFulfillment() {
+    const body = $('#fulfillment-body');
+    if (!body) return;
+    body.innerHTML = FULFILLMENT_ROWS.map((row) => {
+      const r = row.compute();
+      const ordered = getOrdered(row.key);
+      const delivered = r ? r.delivered : null;
+      const remaining = ordered && delivered != null ? ordered - delivered : null;
+      const priceCell = r ? money(r.pricePerLead) + (r.priceIsCpl ? ' <span class="source-tag">CPL</span>' : '') : dash;
+      return (
+        '<tr data-row="' + row.key + '">' +
+        '<td>' + row.name + '</td>' +
+        '<td class="th-num">' + priceCell + '</td>' +
+        '<td class="th-num num">' + (delivered != null ? int(delivered) : dash) + '</td>' +
+        '<td class="th-num"><input type="number" min="0" step="1" class="ordered-input" data-row="' + row.key + '" value="' + (ordered || '') + '" placeholder="&mdash;"></td>' +
+        '<td class="th-num num' + (remaining != null && remaining < 0 ? ' loss' : '') + '">' + (remaining != null ? int(remaining) : dash) + '</td>' +
+        '<td>' + row.trackedIn + '</td>' +
+        '</tr>'
+      );
+    }).join('');
+    body.querySelectorAll('.ordered-input').forEach((inp) => {
+      inp.addEventListener('change', () => {
+        setOrdered(inp.dataset.row, Number(inp.value) || 0);
+        renderFulfillment();
+      });
+    });
   }
 
   $('#refresh-btn').addEventListener('click', () => {

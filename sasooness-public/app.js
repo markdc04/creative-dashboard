@@ -213,10 +213,11 @@
   // CRM status text) — not "is this lead a signed case" (see isSignedCase below for that).
   // Only Lead Tracker's "Signed Up" — the intake tabs' "Client" no longer counts as signed.
   function isSignedStatus(status) { return (status || '').trim() === 'Signed Up'; }
-  // Signed is Status alone — SubStatus never carries a real signed marker (confirmed against the
-  // live Lead Tracker sheet, 2026-11-04); an earlier version also checked SubStatus, based on a
-  // one-time count that's since turned out to not hold up against the live data.
-  function isSignedCase(l) { return isSignedStatus(l.status); }
+  // A signed case is whatever has a Signed Up Date filled in — Status alone misses real signed
+  // leads that come back as "Referred" with SubStatus "Signed Up" (confirmed against the live
+  // Lead Tracker sheet, 2026-11-11: several WA rows are Status=Referred/SubStatus=Signed Up with
+  // a real Signed Up Date, which the old Status==="Signed Up" check silently dropped).
+  function isSignedCase(l) { return !!(l.signedUpDate && String(l.signedUpDate).trim()); }
   // The CRM's raw status column has a dozen+ values (Referred, Lost, Hold, Chase, AZ Chase,
   // Existing Client, blank, ...) that don't matter day to day — collapsed to the three that do.
   function statusBucket(l) {
@@ -412,8 +413,8 @@
       const dash = '—';
       tiles = [
         ['leads', 'Total Leads', total.toLocaleString('en-US'), programLabel(program) + ' program', 'Click to clear the filters'],
-        ['signed', 'Signed Cases', signed.toLocaleString('en-US'), 'of ' + total.toLocaleString('en-US') + ' leads', 'Click to show only signed cases'],
-        ['', 'Conversion Rate', pct(conversionRate), 'signed ÷ leads', ''],
+        ['signed', 'Signed Cases', signed.toLocaleString('en-US'), 'signed up in this range', 'Click to show only signed cases'],
+        ['', 'Conversion Rate', pct(conversionRate), 'signed (by sign date) ÷ leads (by created date)', ''],
         ['', 'Rejected', rejected.toLocaleString('en-US'), total ? pct((rejected / total) * 100) + ' of leads' : '', ''],
         ['', 'Awaiting Status', open.toLocaleString('en-US'), 'no status yet', ''],
         ['', 'Revenue', money(revenue), '$' + PPL_PRICE_PER_LEAD + ' × ' + total.toLocaleString('en-US') + ' leads', ''],
@@ -482,8 +483,8 @@
       tiles = [
         ['leads', 'Total Leads', total.toLocaleString('en-US'), rejected ? rejected.toLocaleString('en-US') + ' rejected' : '', 'Click to clear the filters'],
         ['', 'Cost / Lead', cpl ? money(cpl) : dash, costsMeaningful ? 'ad spend ÷ leads' : noSplit, ''],
-        ['signed', 'Signed Cases', signed.toLocaleString('en-US'), 'of ' + total.toLocaleString('en-US') + ' leads', 'Click to show only signed cases'],
-        ['', 'Conversion Rate', pct(conversionRate), 'signed ÷ leads', ''],
+        ['signed', 'Signed Cases', signed.toLocaleString('en-US'), 'signed up in this range', 'Click to show only signed cases'],
+        ['', 'Conversion Rate', pct(conversionRate), 'signed (by sign date) ÷ leads (by created date)', ''],
         ['', 'CPC (Cost / Case)', costPerCase ? money(costPerCase) : dash, !costsMeaningful ? noSplit : signed ? 'ad spend ÷ signed cases' : 'no signed cases yet', ''],
         ['__break__'],
         ['', 'Ad Spend', money(totalSpend), money(ownSpend) + ' own ads + ' + money(partnerSpend) + ' Lead Prosper', ''],

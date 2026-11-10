@@ -101,6 +101,36 @@ function normalizeName(v) {
   return s.split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
 }
 
+// Jeff A and Rhonda are on-camera talent, not writers — some sheet rows still have them typed
+// into the Writer column. Swap them into Actor (and bump whoever was there into Writer) rather
+// than editing the source sheet, since this is a known, consistent mislabeling.
+const ACTOR_ONLY_NAMES = new Set(['Jeff A', 'Rhonda']);
+function fixActorWriterRoles(a) {
+  if (ACTOR_ONLY_NAMES.has(a.writer)) {
+    const displacedActor = a.actor;
+    a.actor = a.writer;
+    a.writer = displacedActor;
+  }
+}
+
+// The sheet's own Actor/Writer/Editor/Hook Type columns are frequently mistyped or shifted
+// (e.g. a hook phrase like "Reduce Their Fear" typed into the Writer column). The file's own
+// naming convention is reliable instead — it's always a run of {...} segments ending in
+// {hook}_{actor}_{writer}_{editor} — so when a name has at least 4 bracket segments, derive
+// roles from position counted from the end rather than trusting the sheet columns.
+function rolesFromName(name) {
+  const groups = String(name || '').match(/\{([^}]*)\}/g);
+  if (!groups || groups.length < 4) return null;
+  const n = groups.length;
+  const trim = (s) => s.slice(1, -1).trim();
+  return {
+    hookType: trim(groups[n - 4]),
+    actor: trim(groups[n - 3]),
+    writer: trim(groups[n - 2]),
+    editor: trim(groups[n - 1]),
+  };
+}
+
 function isDateLike(v) {
   const s = String(v).trim();
   return /^\d{4}-\d{2}-\d{2}$/.test(s) || /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s);
@@ -228,6 +258,19 @@ async function pollAll() {
         if (!a.editor && extra.editor) a.editor = extra.editor;
         if (!a.hookType && extra.hookType) a.hookType = extra.hookType;
         if (!a.displayName && extra.displayName) a.displayName = extra.displayName;
+      }
+    }
+
+    for (const adId in effectiveAssets) {
+      const a = effectiveAssets[adId];
+      const roles = rolesFromName(a.displayName || a.fileName);
+      if (roles) {
+        a.hookType = roles.hookType;
+        a.actor = normalizeName(roles.actor);
+        a.writer = normalizeName(roles.writer);
+        a.editor = normalizeName(roles.editor);
+      } else {
+        fixActorWriterRoles(a);
       }
     }
 

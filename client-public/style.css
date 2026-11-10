@@ -1,20 +1,21 @@
 :root{
-  --bg:#0a0e1a;--surface:#121729;--surface-raised:#171d33;--border:#252d49;--border-soft:#1a2038;
-  --text:#f5f7fb;--text-dim:#8992ad;--text-faint:#565f7d;--accent:#f0b429;--accent-ink:#1a1305;
+  --bg:#000000;--surface:#0e0e0e;--surface-raised:#171717;--border:#2b2b2b;--border-soft:#1c1c1c;
+  --text:#ffffff;--text-dim:#a3a3a3;--text-faint:#6b6b6b;--accent:#F8BD02;--accent-ink:#141200;
+  --font-head:"Anton",-apple-system,sans-serif;--font-body:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   --profit:#34d399;--profit-dim:#0f2e28;
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
 html{background:var(--bg);}
 body{
-  background:radial-gradient(1100px 520px at 12% -8%,rgba(240,180,41,.10),transparent 60%),var(--bg);
-  color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  background:radial-gradient(1100px 520px at 12% -8%,rgba(248,189,2,.12),transparent 60%),var(--bg);
+  color:var(--text);font-family:var(--font-body);
   -webkit-font-smoothing:antialiased;min-height:100vh;
 }
 .num{font-family:ui-monospace,"SF Mono","Roboto Mono",monospace;font-variant-numeric:tabular-nums;}
-.wrap{max-width:1300px;margin:0 auto;padding:22px 24px 64px;}
+.wrap{max-width:1680px;width:96%;margin:0 auto;padding:22px 24px 64px;}
 
-.preview-banner{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;text-align:center;padding:10px 16px;margin-bottom:14px;border-radius:10px;background:rgba(240,180,41,.12);border:1px solid var(--accent);color:var(--accent);font-size:12.5px;font-weight:600;}
+.preview-banner{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;text-align:center;padding:10px 16px;margin-bottom:14px;border-radius:10px;background:rgba(248,189,2,.12);border:1px solid var(--accent);color:var(--accent);font-size:12.5px;font-weight:600;}
 .preview-exit{color:var(--accent-ink);background:var(--accent);text-decoration:none;padding:4px 12px;border-radius:100px;font-weight:700;white-space:nowrap;}
 .preview-exit:hover{opacity:.85;}
 .brandbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:22px;flex-wrap:wrap;}
@@ -27,7 +28,7 @@ body{
 .logout-link:hover{color:var(--text);border-color:var(--text-faint);}
 
 .brand-eyebrow{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);font-weight:700;margin:0 0 4px;}
-h1{font-size:26px;margin:0 0 4px;letter-spacing:-.01em;}
+h1{font-family:var(--font-head);font-size:38px;font-weight:400;letter-spacing:.01em;text-transform:uppercase;margin:0 0 4px;}
 .topbar-sub{margin:0;color:var(--text-faint);font-size:13px;}
 .topbar{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:14px;margin-bottom:22px;}
 
@@ -56,12 +57,12 @@ h1{font-size:26px;margin:0 0 4px;letter-spacing:-.01em;}
   .clear-btn{width:100%;}
 }
 
-.kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:26px;}
+.kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:26px;}
 @media (max-width:640px){.kpi-row{grid-template-columns:repeat(1,1fr);}}
-.kpi{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;}
-.kpi::before{content:"";position:absolute;top:-40px;left:-40px;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,rgba(240,180,41,.16),transparent 70%);}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 24px;display:flex;flex-direction:column;gap:10px;position:relative;overflow:hidden;}
+.kpi::before{content:"";position:absolute;top:-40px;left:-40px;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,rgba(248,189,2,.16),transparent 70%);}
 .kpi-label{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint);font-weight:600;position:relative;}
-.kpi-value{font-size:28px;font-weight:700;letter-spacing:-.01em;line-height:1.1;position:relative;}
+.kpi-value{font-family:var(--font-head);font-size:clamp(24px,2.3vw,36px);font-weight:400;letter-spacing:.01em;line-height:1.05;position:relative;}
 .kpi-sub{font-size:11.5px;color:var(--text-faint);position:relative;}
 
 .panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px 22px;margin-bottom:20px;}
@@ -88,7 +89,7 @@ tbody tr:hover td{background:var(--surface-raised);}
 .segment-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 16px;padding:5px;border-radius:12px;background:var(--surface);border:1px solid var(--border);width:fit-content;max-width:100%;}
 .segment-tab{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:9px;border:none;background:none;color:var(--text-dim);font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
 .segment-tab:hover{color:var(--text);background:var(--surface-raised);}
-.segment-tab.is-active{background:linear-gradient(180deg,#f6c34d,var(--accent));color:var(--accent-ink);}
+.segment-tab.is-active{background:linear-gradient(180deg,#FFDA47,var(--accent));color:var(--accent-ink);}
 .segment-tab .n{font-size:11px;font-weight:700;opacity:.7;}
 
 .empty-msg{padding:30px 10px;text-align:center;color:var(--text-faint);font-size:13.5px;}
@@ -97,4 +98,4 @@ tbody tr:hover td{background:var(--surface-raised);}
 .view-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 16px;padding:5px;border-radius:12px;background:var(--surface);border:1px solid var(--border);width:fit-content;max-width:100%;}
 .view-tab{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:9px;border:none;background:none;color:var(--text-dim);font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
 .view-tab:hover{color:var(--text);background:var(--surface-raised);}
-.view-tab.is-active{background:linear-gradient(180deg,#f6c34d,var(--accent));color:var(--accent-ink);}
+.view-tab.is-active{background:linear-gradient(180deg,#FFDA47,var(--accent));color:var(--accent-ink);}

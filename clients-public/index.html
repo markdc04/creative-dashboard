@@ -7,7 +7,10 @@
 <title>Clients — Loudr Media</title>
 <link rel="icon" href="/walker/favicon.svg">
 <link rel="manifest" href="/shared/manifest.json">
-<meta name="theme-color" content="#0a0e1a">
+<meta name="theme-color" content="#000000">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="apple-touch-icon" href="/shared/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -54,6 +57,20 @@
   </div>
 
   <div class="client-grid" id="client-grid"></div>
+
+  <div class="panel" id="fulfillment-panel">
+    <div class="panel-head">
+      <h2 class="panel-title">Lead Fulfillment</h2>
+      <span class="panel-sub">ordered/prepaid vs. delivered, per client &mdash; lifetime totals, not affected by the date range above</span>
+    </div>
+    <div class="table-scroll table-scroll--short">
+      <table>
+        <thead><tr><th>Client</th><th class="th-num">Price / Lead</th><th class="th-num">Delivered</th><th class="th-num">Ordered</th><th class="th-num">Remaining</th><th>Tracked In</th></tr></thead>
+        <tbody id="fulfillment-body"></tbody>
+      </table>
+    </div>
+    <p class="footnote footnote--inside">&ldquo;Ordered&rdquo; isn&rsquo;t in any sheet today &mdash; type in each client&rsquo;s prepaid/contracted lead count and it&rsquo;s saved in this browser. Walker isn&rsquo;t listed here: it&rsquo;s the ad account running Sasooness/Bryan&rsquo;s shared campaigns, not a lead-recipient client with its own order.</p>
+  </div>
 
 </div>
 <script src="/shared/sidebar.js" data-active="clients"></script>

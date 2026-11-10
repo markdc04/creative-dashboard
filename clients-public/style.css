@@ -5,7 +5,7 @@
 .client-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;}
 .client-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:18px;}
 .client-id{display:flex;align-items:center;gap:12px;}
-.client-badge{width:42px;height:42px;border-radius:10px;background:linear-gradient(180deg,#f6c34d,var(--accent));color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex:none;}
+.client-badge{width:42px;height:42px;border-radius:10px;background:linear-gradient(180deg,#FFDA47,var(--accent));color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex:none;}
 .client-name{font-size:16px;font-weight:700;margin:0;}
 .client-sub{margin:2px 0 0;font-size:12px;color:var(--text-faint);}
 .client-status{padding:4px 10px;border-radius:100px;font-size:11px;font-weight:700;white-space:nowrap;background:var(--profit-dim);color:var(--profit);}
@@ -15,10 +15,12 @@
 .client-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}
 .client-metrics--5{grid-template-columns:repeat(5,1fr);}
 @media (max-width:620px){.client-metrics,.client-metrics--5{grid-template-columns:repeat(2,1fr);}}
-.client-metric{background:var(--surface-raised);border:1px solid var(--border);border-radius:12px;padding:12px 14px;min-width:0;}
-.client-metric--highlight{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:rgba(240,180,41,.06);}
+.client-metric{background:var(--surface-raised);border:1px solid var(--border);border-radius:12px;padding:14px 16px;min-width:0;}
+.client-metric--highlight{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:rgba(248,189,2,.06);position:relative;overflow:hidden;}
+.client-metric--highlight::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.16) 45%,transparent 60%);background-size:220% 100%;animation:kpiShine 4.5s ease-in-out infinite;}
+@keyframes kpiShine{0%{background-position:140% 0;}55%,100%{background-position:-60% 0;}}
 .client-metric-label{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-faint);font-weight:600;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.client-metric-value{font-size:17px;font-weight:700;letter-spacing:-.01em;}
+.client-metric-value{font-family:var(--font-head);font-size:20px;font-weight:400;letter-spacing:.01em;}
 .client-metric-value.profit{color:var(--profit);}
 .client-metric-value.loss{color:var(--loss);}
 .client-card-note{font-size:11px;color:var(--text-faint);margin:-8px 0 14px;}
@@ -26,3 +28,13 @@
 .client-card-foot{display:flex;align-items:center;justify-content:flex-end;}
 .client-open-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border-radius:9px;background:var(--surface-raised);border:1px solid var(--border);color:var(--text);font-size:12.5px;font-weight:600;text-decoration:none;transition:border-color .12s,color .12s;}
 .client-open-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+/* ---------- lead fulfillment table ---------- */
+#fulfillment-panel td.num.loss{color:var(--loss);font-weight:700;}
+.ordered-input{
+  width:84px;background:var(--surface-raised);border:1px solid var(--border);color:var(--text);
+  font:inherit;font-size:12.5px;padding:7px 9px;border-radius:8px;text-align:right;
+}
+.ordered-input:hover{border-color:var(--text-faint);}
+.ordered-input:focus{outline:none;border-color:var(--accent);}
+.ordered-input::placeholder{color:var(--text-faint);}

@@ -57,36 +57,40 @@
       <h1>Creative Performance</h1>
       <p class="topbar-sub"><span id="creative-count">&mdash;</span> creatives <span id="range-label"></span> &middot; live from Google Sheets</p>
     </div>
-    <div class="date-bar">
+    <div class="date-bar-wrap">
+      <div class="date-bar">
+        <div class="select-wrap">
+          <select id="quick-range"></select>
+          <svg class="select-caret" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg>
+        </div>
+        <div class="date-inputs" id="custom-dates">
+          <input type="date" id="date-start">
+          <span class="date-arrow">&rarr;</span>
+          <input type="date" id="date-end">
+        </div>
+        <button class="clear-btn" id="clear-range">Clear</button>
+      </div>
+      <p class="filter-note">This date range filters the whole dashboard &mdash; spend, revenue, and all leaderboards below.</p>
+    </div>
+  </div>
+
+  <div class="upload-filter-wrap">
+    <div class="upload-filter-bar">
+      <span class="upload-filter-label">Uploaded between</span>
       <div class="select-wrap">
-        <select id="quick-range"></select>
+        <select id="upload-quick-range"></select>
         <svg class="select-caret" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg>
       </div>
-      <div class="date-inputs" id="custom-dates">
-        <input type="date" id="date-start">
+      <div class="date-inputs">
+        <input type="date" id="upload-date-start">
         <span class="date-arrow">&rarr;</span>
-        <input type="date" id="date-end">
+        <input type="date" id="upload-date-end">
       </div>
-      <button class="clear-btn" id="clear-range">Clear</button>
+      <button class="clear-btn" id="upload-range-clear">Clear</button>
+      <span class="upload-filter-count" id="upload-filter-count"></span>
     </div>
+    <p class="filter-note">This filters by when each ad was uploaded, not when it spent.</p>
   </div>
-  <p class="filter-note filter-note--top">This date range filters the whole dashboard &mdash; spend, revenue, and all leaderboards below.</p>
-
-  <div class="upload-filter-bar">
-    <span class="upload-filter-label">Uploaded between</span>
-    <div class="select-wrap">
-      <select id="upload-quick-range"></select>
-      <svg class="select-caret" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg>
-    </div>
-    <div class="date-inputs">
-      <input type="date" id="upload-date-start">
-      <span class="date-arrow">&rarr;</span>
-      <input type="date" id="upload-date-end">
-    </div>
-    <button class="clear-btn" id="upload-range-clear">Clear</button>
-    <span class="upload-filter-count" id="upload-filter-count"></span>
-  </div>
-  <p class="filter-note">This filters by when each ad was uploaded, not when it spent.</p>
 
   <p class="section-title">Leaderboard</p>
   <div class="chip-group leaderboard-tabs" id="leaderboard-tabs">

@@ -4,6 +4,10 @@ function startDashboardApp() {
     updatedAt: null,
     lastChecked: null, // when we last actually talked to the server, regardless of whether the data changed
     range: { key: 'all', start: null, end: null }, // ISO date strings, inclusive
+    // Separate from `range` above (which filters by SPEND day) — this filters by the ad's own
+    // Date Uploaded, so "how many ads were uploaded between these two days" has a real answer
+    // regardless of whether those ads spent anything in that same window.
+    uploadRange: { key: 'all', start: null, end: null },
     search: '',
     board: 'fileName', // 'fileName' | 'active' | 'hookType' | 'actor' | 'writer' | 'editor' | 'team'
     sortBy: 'profit', // 'profit' | 'revenue' | 'spend' | 'date'
@@ -217,6 +221,20 @@ function startDashboardApp() {
     if (/^\d+(\.\d+)?$/.test(s)) return new Date((Number(s) - 25569) * 86400000);
     const d = new Date(s);
     return isNaN(d.getTime()) ? null : d;
+  }
+  function uploadIsoOf(ad) {
+    const d = parseSheetDate(ad.dateUploaded);
+    return d ? toISO(d) : null;
+  }
+  // '' (All) always matches; otherwise the ad needs its own Date Uploaded inside the picked
+  // range — an ad with no Date Uploaded at all never counts as "uploaded in range" once a range
+  // is actually picked (can't confirm it belongs there).
+  function matchesUploadRange(ad) {
+    const { start, end } = state.uploadRange;
+    if (!start && !end) return true;
+    const iso = uploadIsoOf(ad);
+    if (!iso) return false;
+    return (!start || iso >= start) && (!end || iso <= end);
   }
   function formatDate(d) {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -637,9 +655,15 @@ function startDashboardApp() {
   }
 
   function render() {
-    const rows = creativesForRange();
+    const rows = creativesForRange().filter(matchesUploadRange);
     $('#creative-count').textContent = rows.length.toLocaleString();
     $('#range-label').textContent = rangeLabel();
+    const uc = $('#upload-filter-count');
+    if (uc) {
+      uc.textContent = (state.uploadRange.start || state.uploadRange.end)
+        ? rows.length.toLocaleString() + ' ' + (rows.length === 1 ? 'ad' : 'ads') + ' uploaded in this range'
+        : '';
+    }
     refreshActiveAdIdsToday();
     // "Profit contribution" is this entry's share of total profit — but if it's computed
     // against the *net* total (positives minus losses), a single strong performer can show
@@ -689,6 +713,57 @@ function startDashboardApp() {
     $('#date-start').value = start || '';
     $('#date-end').value = end || '';
     state.range = { key: defaultRangeKey, start, end };
+    render();
+  });
+
+  // ---- upload-date filter (separate from the spend-day range above) ----
+  (function setupUploadQuickRange() {
+    const sel = $('#upload-quick-range');
+    const today = pacificToday();
+    const names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const idxToKey = (idx) => { const y = Math.floor((idx - 1) / 12); return y + '-' + pad(idx - y * 12); };
+    const idxToName = (idx) => { const y = Math.floor((idx - 1) / 12); return names[idx - y * 12 - 1] + ' ' + y; };
+    const thisIdx = today.getFullYear() * 12 + (today.getMonth() + 1);
+    const lastIdx = thisIdx - 1;
+    const floorIdx = 2026 * 12 + 2;
+    const mkOpt = (value, label) => { const o = document.createElement('option'); o.value = value; o.textContent = label; return o; };
+    sel.innerHTML = '';
+    sel.appendChild(mkOpt('all', 'Any time'));
+    sel.appendChild(mkOpt('today', 'Today'));
+    sel.appendChild(mkOpt('yesterday', 'Yesterday'));
+    sel.appendChild(mkOpt('wtd', 'This week'));
+    sel.appendChild(mkOpt('lastweek', 'Last week'));
+    sel.appendChild(mkOpt(idxToKey(thisIdx), 'This month'));
+    sel.appendChild(mkOpt(idxToKey(lastIdx), 'Last month'));
+    for (let idx = lastIdx - 1; idx >= floorIdx; idx--) sel.appendChild(mkOpt(idxToKey(idx), idxToName(idx)));
+    sel.value = 'all';
+  })();
+
+  $('#upload-quick-range').addEventListener('change', (e) => {
+    const key = e.target.value;
+    const { start, end } = computeRange(key);
+    $('#upload-date-start').value = start || '';
+    $('#upload-date-end').value = end || '';
+    state.uploadRange = { key, start, end };
+    render();
+  });
+
+  function applyCustomUploadRange() {
+    const start = $('#upload-date-start').value;
+    const end = $('#upload-date-end').value;
+    if (!start || !end) return;
+    state.uploadRange = { key: 'custom', start, end };
+    $('#upload-quick-range').value = '';
+    render();
+  }
+  $('#upload-date-start').addEventListener('change', applyCustomUploadRange);
+  $('#upload-date-end').addEventListener('change', applyCustomUploadRange);
+
+  $('#upload-range-clear').addEventListener('click', () => {
+    $('#upload-quick-range').value = 'all';
+    $('#upload-date-start').value = '';
+    $('#upload-date-end').value = '';
+    state.uploadRange = { key: 'all', start: null, end: null };
     render();
   });
 

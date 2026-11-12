@@ -40,6 +40,7 @@ USERS['nichole@loudrmedia.com'] = { name: 'Nichole', role: 'admin', hash: '5b706
 USERS['nik@cmosolutionsgroup.com'] = { name: 'Nik', role: 'admin', hash: 'ab082950d3f12adfd063731f014e7e3d$5062de0e3cb28972f00ea56684c82bc979da208eeea6a46d1c579ed719b25070' };
 USERS['jomar@loudrmedia.com'] = { name: 'Jomar', role: 'admin', hash: '31394be5c67807916dcc51780b78502f$20f3f2ee1e2f36a3e0e96138d102bfe5c908ad536fd32558e0513352f7e09b44' };
 USERS['mason@loudrmedia.com'] = { name: 'Mason', role: 'admin', hash: 'e34d6b447a116755313e9a18d2530453$36cef25d65b3c9ddc5b76198e571b77a574194e35fc33e799805e17e3544b697' };
+USERS['jordan@loudrmedia.com'] = { name: 'Jordan', role: 'admin', hash: '487ebc8f16d556627f0629aef41b1f8b$bde0bfd12e2521b0951e7b2fff959c42ac0bf868e1f805e149c416e6151b570d' };
 
 const SESSION_MS = 30 * 24 * 60 * 60 * 1000;
 const SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');

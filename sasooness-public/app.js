@@ -24,25 +24,38 @@
   const PPL_BUDGET_PREVIOUS = 21250;
   // Each invoice's lead target, in order: invoice 1 is 50 leads ($21,250 / $425). Invoice 2 is
   // 47 leads ($20,000 / $425, rounded down) - every invoice after that repeats the last target
-  // here until a new one is added. Replacement Rate (see renderKpis) tracks against whichever
-  // invoice the most recent PPL lead falls into, not the selected date range.
+  // here until a new one is added.
   const PPL_INVOICE_TARGETS = [50, 47];
-  // Buckets every PPL lead since PPL_BUDGET_FROM, in received order, into invoices of
-  // PPL_INVOICE_TARGETS size each, and returns the invoice currently being filled (its leads,
-  // 1-based invoice number, and target) - once an invoice fills exactly, the next lead starts
-  // the next invoice.
-  function pplCurrentInvoice() {
+  // Rejected "Out of state" / no-valid-phone leads get replaced, but never more than 20% of an
+  // invoice's lead target even if the real bad-lead rate in that invoice runs higher.
+  const REPLACEMENT_CAP = 20;
+  function isReplaceable(l) {
+    if (statusClass(l.status) !== 'status-pill--rejected') return false;
+    const reason = reasonOf(l).toLowerCase();
+    return reason.includes('out of state') || reason.includes('valid phone');
+  }
+  // Splits every PPL lead since PPL_BUDGET_FROM (only those received on or before asOf, when
+  // given), in received order, into invoices of PPL_INVOICE_TARGETS size each. The last entry is
+  // the invoice being filled as of that date; one that fills exactly stays last until the next
+  // lead arrives.
+  function pplInvoices(asOf) {
     const pplLeads = state.leads
-    .filter((l) => programOf(l) === 'ppl' && l.createdDate >= PPL_BUDGET_FROM)
-    .sort((a, b) => (a.createdDate || '').localeCompare(b.createdDate || ''));
-    let consumed = 0, idx = 0;
-    let target = PPL_INVOICE_TARGETS[0];
-    while (pplLeads.length - consumed > target) {
+      .filter((l) => programOf(l) === 'ppl' && l.createdDate >= PPL_BUDGET_FROM && (!asOf || l.createdDate <= asOf))
+      .sort((a, b) => (a.createdDate || '').localeCompare(b.createdDate || ''));
+    const invoices = [];
+    let consumed = 0;
+    for (let idx = 0; idx === 0 || consumed < pplLeads.length; idx++) {
+      const target = PPL_INVOICE_TARGETS[idx] || PPL_INVOICE_TARGETS[PPL_INVOICE_TARGETS.length - 1];
+      const leads = pplLeads.slice(consumed, consumed + target);
+      const replaceable = leads.filter(isReplaceable).length;
+      invoices.push({ invoiceNumber: idx + 1, target, leads, replaceable, rate: Math.min((replaceable / target) * 100, REPLACEMENT_CAP) });
       consumed += target;
-      idx++;
-      target = PPL_INVOICE_TARGETS[idx] || PPL_INVOICE_TARGETS[PPL_INVOICE_TARGETS.length - 1];
     }
-    return { invoiceNumber: idx + 1, target, leads: pplLeads.slice(consumed, consumed + target) };
+    return invoices;
+  }
+  function pplCurrentInvoice(asOf) {
+    const invoices = pplInvoices(asOf);
+    return invoices[invoices.length - 1];
   }
   // Splits a combined budget pool into what's left of the earlier tranche(s) vs. the later
   // top-up, assuming spend draws down the earlier money first (FIFO) — so the newer tranche only
@@ -113,6 +126,7 @@
     { id: 'period-comparison', el: '#period-comparison-panel', title: '.panel-title' },
     { id: 'lead-details', el: '#lead-details-panel', title: '.panel-title' },
     { id: 'reasons', el: '#reasons-panel', title: '.panel-title', sub: '#reasons-sub' },
+    { id: 'invoices', el: '#invoices-panel', title: '.panel-title', sub: '#invoices-sub' },
   ];
 
   function escapeHtml(s) {
@@ -414,18 +428,11 @@
     if (program === 'ppl') {
       // WA leads don't come from our own ad account, but Walker's shared campaign deduction
       // (same day-by-day method as Bryan/PPL) still applies, so spend and CPL are real numbers.
-      // Replacement Rate: tracked per invoice, not by the selected date range - rejected leads
-      // whose reason is "Out of state" or a no-valid-phone variant, within the invoice currently
-      // being filled, over that invoice's own lead target (50 for invoice 1, 47 for invoice 2,
-      // ...), capped at 20% even if the real bad-lead rate in that invoice runs higher.
-      const REPLACEMENT_CAP = 20;
-      const pplInvoice = pplCurrentInvoice();
-      const replaceable = pplInvoice.leads.filter((l) => {
-        if (statusClass(l.status) !== 'status-pill--rejected') return false;
-        const reason = reasonOf(l).toLowerCase();
-        return reason.includes('out of state') || reason.includes('valid phone');
-      }).length;
-      const replacementRate = pplInvoice.target > 0 ? Math.min((replaceable / pplInvoice.target) * 100, REPLACEMENT_CAP) : 0;
+      // Replacement Rate is per invoice: the invoice being filled as of the picked range's end
+      // date (or today, with no range) — so picking 9/21-11/07 shows invoice 1.
+      const pplInvoice = pplCurrentInvoice(state.range.end);
+      const replaceable = pplInvoice.replaceable;
+      const replacementRate = pplInvoice.rate;
       const adSpent = partnerDeduction(leads).total;
       const cpl = total > 0 && adSpent > 0 ? adSpent / total : 0;
       const revenue = PPL_PRICE_PER_LEAD * total;
@@ -1089,15 +1096,8 @@
     // Signed by Signed Up Date within the window, not Created Date — same rule as renderKpis.
     const signed = state.leads.filter((l) => programOf(l) === 'ppl' && isSignedCase(l) && l.signedUpDate >= win.start && l.signedUpDate <= win.end).length;
     const rejected = leads.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
-    // Replacement Rate is an invoice-level metric (see renderKpis), not a per-window one - both
-    // comparison periods show the same current-invoice figure.
-    const pplInvoice = pplCurrentInvoice();
-    const replaceableForInvoice = pplInvoice.leads.filter((l) => {
-      if (statusClass(l.status) !== 'status-pill--rejected') return false;
-      const reason = reasonOf(l).toLowerCase();
-      return reason.includes('out of state') || reason.includes('valid phone');
-    }).length;
-    const replacementRate = pplInvoice.target > 0 ? Math.min((replaceableForInvoice / pplInvoice.target) * 100, 20) : 0;
+    // Same rule as renderKpis: the invoice being filled as of the window's end date.
+    const replacementRate = pplCurrentInvoice(win.end).rate;
     const adSpent = partnerDeduction(leads).total;
     const cpl = total > 0 ? adSpent / total : 0;
     const revenue = PPL_PRICE_PER_LEAD * total;
@@ -1411,6 +1411,29 @@
     ).join('');
   }
 
+  // ================= replacements by invoice (PPL only) =================
+  // Every invoice to date regardless of the date filter. The row matching the Replacement Rate
+  // tile is highlighted; clicking a row filters the page to that invoice's lead dates.
+  function renderInvoices() {
+    const panel = $('#invoices-panel');
+    panel.hidden = state.filters.program !== 'ppl';
+    if (panel.hidden) return;
+    const shown = pplCurrentInvoice(state.range.end).invoiceNumber;
+    const invoices = pplInvoices();
+    $('#invoices-sub').textContent = 'out of state / no valid phone ÷ invoice target, capped at ' + REPLACEMENT_CAP + '%';
+    $('#invoices-body').innerHTML = invoices.map((inv) => {
+      const first = inv.leads.length ? inv.leads[0].createdDate : '';
+      const last = inv.leads.length ? inv.leads[inv.leads.length - 1].createdDate : '';
+      const filling = inv.leads.length < inv.target;
+      return '<tr class="is-clickable' + (inv.invoiceNumber === shown ? ' is-selected' : '') + '" data-invoice-start="' + escapeHtml(first) + '" data-invoice-end="' + escapeHtml(last) + '">' +
+        '<td class="name-cell">Invoice ' + inv.invoiceNumber + (filling ? ' <span class="panel-sub">(filling)</span>' : '') + '</td>' +
+        '<td>' + (first ? escapeHtml(first === last ? first : first + ' to ' + last) : '—') + '</td>' +
+        '<td class="td-num num">' + inv.leads.length + ' / ' + inv.target + '</td>' +
+        '<td class="td-num num">' + inv.replaceable + '</td>' +
+        '<td class="td-num num">' + pct(inv.rate) + '</td></tr>';
+    }).join('');
+  }
+
   function render() {
     // Which statuses the donut shows individually (the rest fold into "Other") — computed first
     // because an "Other statuses" filter is defined in terms of it.
@@ -1431,6 +1454,7 @@
     renderChips();
     renderLeadsTable(leads);
     renderReasons();
+    renderInvoices();
     applyPanelLayout();
   }
 
@@ -1459,6 +1483,8 @@
     if (legend) { toggleFilter('status', legend.dataset.status); return; }
     const reasonRow = e.target.closest('tr[data-reason]');
     if (reasonRow) { toggleFilter('reason', reasonRow.dataset.reason); return; }
+    const invoiceRow = e.target.closest('tr[data-invoice-start]');
+    if (invoiceRow && invoiceRow.dataset.invoiceStart) { setRange('custom', invoiceRow.dataset.invoiceStart, invoiceRow.dataset.invoiceEnd); render(); return; }
     const campaignRow = e.target.closest('tr[data-campaign]');
     if (campaignRow) { toggleFilter('campaign', campaignRow.dataset.campaign); return; }
     const programRow = e.target.closest('tr[data-program]');

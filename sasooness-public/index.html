@@ -252,6 +252,19 @@
     <div id="leads-empty" class="empty-msg" hidden>No leads match this filter.</div>
   </div>
 
+  <div class="panel" id="invoices-panel" hidden>
+    <div class="panel-head">
+      <h2 class="panel-title">Replacements by Invoice</h2>
+      <span class="panel-sub" id="invoices-sub"></span>
+    </div>
+    <div class="table-scroll table-scroll--short">
+      <table>
+        <thead><tr><th>Invoice</th><th>Lead Dates</th><th class="th-num">Leads</th><th class="th-num">To Replace</th><th class="th-num">Replacement Rate</th></tr></thead>
+        <tbody id="invoices-body"></tbody>
+      </table>
+    </div>
+  </div>
+
   <div class="panel" id="reasons-panel">
     <div class="panel-head">
       <h2 class="panel-title">Top Reasons Leads Were Rejected</h2>

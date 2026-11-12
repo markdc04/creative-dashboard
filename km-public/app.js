@@ -13,11 +13,13 @@
     cases: [], leadsDaily: [], spend: [], settings: { feePerLead: 35, monthlyAdBudget: 20000 },
     search: '',
     range: { key: 'all', start: null, end: null },
+    // Clicking a slice, bar, point, row or legend item sets one of these; the tiles, charts and
+    // tables then re-compute from what matches.
     filters: { platform: null, ad: null },
     monthlyMetrics: new Set(['Total Leads', 'Total Ad Spend']),
     monthlyRows: [],
   };
-  let defaultRangeKey = null;
+  let defaultRangeKey = null; // set once the quick-range dropdown is built, at the bottom of this file
 
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
@@ -25,6 +27,7 @@
     }[c]));
   }
 
+  // ---- date range (same math as the main creative dashboard, so "August 2026" etc. line up) ----
   function pad(n) { return String(n).padStart(2, '0'); }
   function toISO(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
   function addDays(d, n) { const nd = new Date(d); nd.setDate(nd.getDate() + n); return nd; }
@@ -53,6 +56,10 @@
       }
     }
   }
+  // Builds the quick-range dropdown fresh off today's date every load, so it never goes stale —
+  // Today/Yesterday/This week/Last week/This month/Last month, then every earlier month back to
+  // floorYear-floorMonth, newest first. Month keys are "YYYY-MM", which computeRange's default
+  // case already parses generically.
   function buildQuickRangeOptions(floorYear, floorMonth) {
     const sel = $('#quick-range');
     const today = pacificToday();
@@ -97,6 +104,7 @@
     if (key !== 'custom' && opt) return opt.textContent;
     return start === end ? start : start + ' to ' + end;
   }
+  // Sets the date range and keeps the quick-range dropdown and date boxes in step with it.
   function setRange(key, start, end) {
     state.range = { key, start, end };
     const opt = document.querySelector(`#quick-range option[value="${key}"]`);
@@ -105,6 +113,12 @@
     $('#range-end').value = end || '';
   }
 
+  // 2025 isn't in this dashboard's own live feed (spend tracking here starts 2026-01-01), so the
+  // same twelve hand-entered months used by the Monthly Trend chart are injected here too, once,
+  // right after every live fetch — this is what lets the date-range picker, KPI tiles, and every
+  // other chart on the page show real 2025 numbers instead of just the Monthly Trend section.
+  // Any live 2025 rows are dropped first so a real and a synthetic entry for the same day can
+  // never be double-counted.
   function injectHistorical2025() {
     state.leadsDaily = state.leadsDaily.filter((r) => r.date >= '2026-01-01');
     state.spend = state.spend.filter((r) => r.date >= '2026-01-01');
@@ -148,10 +162,13 @@
 
   function daysBetween(a, b) { return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000); }
 
+  // Spend only exists from 2026-01-01, so leads/cases before the first spend day are left out.
   function firstSpendDay() { const d = state.spend.map((r) => r.date).sort(); return d[0] || null; }
   function inWindow(dateStr) { const f = firstSpendDay(); return !f || (dateStr && dateStr >= f); }
   const adOf = (c) => c.adName || NO_AD;
 
+  // What matches the current filters. A view that offers its own dimension to click is computed
+  // with that one filter skipped, so the other choices stay on screen to switch to.
   function spendFor(skip) {
     const f = state.filters;
     return state.spend.filter((r) => inRange(r.date) && !(f.platform && skip !== 'platform' && r.platform !== f.platform));
@@ -169,6 +186,7 @@
     render();
   }
 
+  // ================= active-filter bar =================
   function filterLabel(name, value) { return name === 'ad' ? 'Ad: ' + (value === NO_AD ? '(no ad listed)' : value) : 'Platform: ' + value; }
   function renderFilterBar() {
     const chips = Object.entries(state.filters).filter(([, v]) => v).map(([name, v]) =>
@@ -186,6 +204,8 @@
   function clearRange() { const { start, end } = computeRange(defaultRangeKey); setRange(defaultRangeKey, start, end); }
   function clearAll() { state.filters = { platform: null, ad: null }; clearRange(); }
 
+  // The sheet's AD Budget is a monthly figure, so a range's budget is that amount spread over each
+  // day's month (a full month gets exactly one month's budget; a week gets about a quarter of it).
   function adBudgetForRange() {
     const spendDays = state.spend.map((r) => r.date).sort();
     if (!spendDays.length) return 0;
@@ -199,6 +219,7 @@
     return total;
   }
 
+  // ================= KPI row =================
   function renderKpis(cases, spendRows, leadsDaily) {
     const f = state.filters;
     const signed = cases.length;
@@ -207,6 +228,8 @@
     const metaSpend = spendRows.filter((r) => r.platform === 'Meta').reduce((a, r) => a + r.spend, 0);
     const totalSpend = googleSpend + metaSpend;
 
+    // Spend is split by platform but not by ad; cases are split by ad but not by platform; leads
+    // by neither. A ratio is only honest when both halves respect every active filter.
     const ratiosOk = !f.platform && !f.ad;
     const note = f.ad ? 'spend and leads aren’t split by ad' : 'leads and cases aren’t split by platform';
     const conversionRate = leads > 0 && ratiosOk ? (signed / leads) * 100 : 0;
@@ -243,6 +266,7 @@
     ).join('');
   }
 
+  // ================= shared SVG/tooltip helpers =================
   function svgEl(tag, attrs) {
     const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
     for (const k in attrs) el.setAttribute(k, attrs[k]);
@@ -266,6 +290,7 @@
     tip.style.top = Math.max(y - 46, 4) + 'px';
   }
 
+  // ================= line chart: daily Google vs Meta spend =================
   function renderSpendChart() {
     const container = $('#spend-chart');
     container.innerHTML = '';
@@ -342,6 +367,7 @@
     container.appendChild(svg);
   }
 
+  // ================= grouped bar chart: leads vs signed cases per month =================
   function renderBarChart() {
     const container = $('#bar-chart');
     container.innerHTML = '';
@@ -349,6 +375,7 @@
       '<span class="legend-item"><span class="legend-swatch" style="background:' + COLOR_LEADS + '"></span>Leads</span>' +
       '<span class="legend-item"><span class="legend-swatch" style="background:' + COLOR_CASES + '"></span>Signed Cases</span>';
 
+    // Months outside the chosen dates stay on screen (dimmed) so another month is one click away.
     const byMonth = new Map();
     const bump = (key, field, n) => { if (!byMonth.has(key)) byMonth.set(key, { leads: 0, cases: 0 }); byMonth.get(key)[field] += n; };
     for (const r of leadsDailyFor(true)) bump(r.date.slice(0, 7), 'leads', r.leads);
@@ -416,9 +443,12 @@
     container.appendChild(svg);
   }
 
+  // ================= line chart + breakdown table: monthly trend =================
+  // Same metric set and red-to-green heatmap scale as the B2B dashboard's Weekly Trend, just
+  // bucketed by calendar month instead of Monday-Sunday week.
   function heatColor(t) {
     t = Math.max(0, Math.min(1, t));
-    const stops = [[224, 102, 102], [255, 217, 102], [87, 187, 138]];
+    const stops = [[224, 102, 102], [255, 217, 102], [87, 187, 138]]; // red -> yellow -> green
     const seg = t < 0.5 ? 0 : 1;
     const localT = t < 0.5 ? t / 0.5 : (t - 0.5) / 0.5;
     const a = stops[seg], b = stops[seg + 1];
@@ -465,6 +495,11 @@
     ['CVR', (r) => r.cvr, (r) => (r.cvr != null ? pct(r.cvr) : '—'), 'up'],
   ];
 
+  // 2025 predates this dashboard's own live tracking — ad spend here only goes back to
+  // 2026-01-01 (see the footnote above the Signed Case Details table) — so these twelve months
+  // are hand-entered from the KM Law Facebook Ads Report sheet's own "Monthly Report" tabs and
+  // the GLOBAL MONTHLY-corrected Case Study Data build (Sep-Dec use the flat $12,000/mo fee
+  // confirmed there; every other month is the flat $7,000/mo fee), not fetched live.
   const HIST_2025 = [
     { key: '2025-01', label: 'Jan 2025', leads: 122, spend: 4843.01, cases: 8, cpl: 39.70, costCaseFee: 1480.38, costCaseAdOnly: 605.38, cvr: 6.56 },
     { key: '2025-02', label: 'Feb 2025', leads: 242, spend: 14446.50, cases: 20, cpl: 59.70, costCaseFee: 1072.33, costCaseAdOnly: 722.33, cvr: 8.26 },
@@ -480,6 +515,9 @@
     { key: '2025-12', label: 'Dec 2025', leads: 365, spend: 27970.34, cases: 14, cpl: 76.63, costCaseFee: 2497.88, costCaseAdOnly: 1997.88, cvr: 3.84 },
   ];
 
+  // Full history, bucketed by calendar month — ignores the page's own date-range picker (which
+  // only goes back to Jan 2026 and is meant for the KPI tiles/other charts above) since this
+  // trend is meant to read like the B2B dashboard's Weekly Trend: always the whole timeline.
   function monthlyRows() {
     const byMonth = new Map();
     const bump = (key, field, n) => { if (!byMonth.has(key)) byMonth.set(key, { leads: 0, spend: 0, cases: 0 }); byMonth.get(key)[field] += n; };
@@ -499,11 +537,22 @@
         cvr: v.leads ? (v.cases / v.leads) * 100 : null,
       };
     });
+    // Guard against double-counting: only live rows from 2026 onward are kept, since HIST_2025
+    // already covers every 2025 month and the live feed isn't expected to have 2025 data anyway.
+    // The current in-progress month is dropped too — a handful of days in, its leads/spend/cases
+    // ratios (CPL, CVR, cost per case) swing wildly and, once indexed against a steady 2025
+    // baseline, can dwarf every other line on the chart (e.g. a few dollars of spend against a
+    // single lead reads as an astronomical % change even though it's not a real trend).
     const today = pacificToday();
     const currentMonthKey = today.getFullYear() + '-' + pad(today.getMonth() + 1);
     return [...HIST_2025, ...liveRows.filter((r) => r.key >= '2026-01' && r.key !== currentMonthKey)];
   }
 
+  // Every metric is shown indexed to its own first-month value = 100 (% change from Jan 2025),
+  // not its raw value — with leads in the hundreds, ad spend in the tens of thousands, and CVR a
+  // single-digit percent all on screen together, a shared raw-value axis (even a dual-axis one)
+  // leaves most lines flattened near zero. Indexing is the only way all seven read at once; the
+  // tooltip still shows each metric's real value.
   function renderMonthlyTrendChart() {
     const rows = state.monthlyRows;
     const container = $('#monthly-trend-chart');
@@ -517,7 +566,7 @@
       return { label, d, baseline, idx: (r) => (d.get(r) / baseline) * 100 };
     });
 
-    const padR = 150;
+    const padR = 150; // room for end-of-line labels
     const W = 900, H = 300, padL = 50, padT = 14, padB = 30;
     const innerW = W - padL - padR, innerH = H - padT - padB;
     const allIdx = indexedDefs.flatMap(({ idx }) => rows.map((r) => idx(r)));
@@ -535,6 +584,7 @@
       lbl.textContent = Math.round(v);
       svg.appendChild(lbl);
     }
+    // dashed reference line at the first-month baseline (100)
     const baseY = y(100);
     svg.appendChild(svgEl('line', { x1: padL, x2: padL + innerW, y1: baseY, y2: baseY, stroke: 'var(--text-faint)', 'stroke-width': 1, 'stroke-dasharray': '3,3', opacity: 0.6 }));
     const baseLbl = svgEl('text', { class: 'viz-axis-label', x: padL + innerW + 6, y: baseY + 3 });
@@ -555,6 +605,7 @@
       rows.forEach((r, i) => svg.appendChild(svgEl('circle', { cx: x(i), cy: y(idx(r)), r: 3, fill: d.color })));
     });
 
+    // end-of-line direct labels, nudged apart if two lines finish close together
     const lastX = x(rows.length - 1);
     const lastPoints = indexedDefs.map(({ label, d, idx }) => ({ label, color: d.color, y: y(idx(rows[rows.length - 1])) })).sort((a, b) => a.y - b.y);
     const minGap = 13;
@@ -613,6 +664,7 @@
     renderMonthlyBreakdown();
   }
 
+  // ================= donut chart: ad spend by platform =================
   function renderPieChart() {
     const container = $('#pie-chart');
     container.innerHTML = '';
@@ -673,6 +725,7 @@
     container.appendChild(tip);
   }
 
+  // ================= signed cases by ad =================
   function renderAds() {
     const cases = casesFor('ad');
     const selected = state.filters.ad;
@@ -689,6 +742,7 @@
     )).join('') + (rows.length ? '<tr class="row-total"><td>Total</td><td class="td-num num">' + total.toLocaleString('en-US') + '</td><td class="td-num num">100%</td></tr>' : '');
   }
 
+  // ================= signed case details (secondary) =================
   function renderCasesTable(cases) {
     const q = state.search.trim().toLowerCase();
     const rows = cases
@@ -721,6 +775,7 @@
     renderCasesTable(cases);
   }
 
+  // ---- click handling: everything clickable is wired here by data attribute ----
   document.addEventListener('click', (e) => {
     const clear = e.target.closest('[data-clear]');
     if (clear) {
@@ -745,6 +800,7 @@
     renderMonthlyTrendChart();
   });
 
+  // ---- date-range controls ----
   $('#quick-range').addEventListener('change', (e) => {
     const key = e.target.value;
     if (key === 'custom') { $('#range-start').focus(); return; }

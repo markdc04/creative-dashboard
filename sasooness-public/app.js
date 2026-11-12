@@ -15,13 +15,13 @@
   // zero before any of it counts as "left." See fifoRemaining().
   const AD_BUDGET_PREVIOUS = 68750;
   const PPL_PRICE_PER_LEAD = 425;
-  // Two invoiced PPL (WA) payments make up one combined pool, both tracked from the same
-  // PPL_BUDGET_FROM start since the per-lead rate hasn't changed: $20,000 (9/21) + $20,000
-  // (10/21) = $40,000.
-  const PPL_BUDGET = 40000;
-  const PPL_BUDGET_FROM = '2026-09-21';
-  // The 10/21 top-up is new money — the first $20,000 (9/21 tranche) must be drawn to zero first.
-  const PPL_BUDGET_PREVIOUS = 20000;
+// Two invoiced PPL (WA) payments make up one combined pool, both tracked from the same
+      // PPL_BUDGET_FROM start since the per-lead rate hasn't changed: $21,250 (9/21, 50 leads x
+      // $425/lead) + $20,000 (10/21) = $41,250.
+      const PPL_BUDGET = 41250;
+      const PPL_BUDGET_FROM = '2026-09-21';
+      // The 10/21 top-up is new money - the first $21,250 (9/21 tranche) must be drawn to zero first.
+      const PPL_BUDGET_PREVIOUS = 21250;
   // Splits a combined budget pool into what's left of the earlier tranche(s) vs. the later
   // top-up, assuming spend draws down the earlier money first (FIFO) — so the newer tranche only
   // starts showing a drawdown once the older one hits zero.

@@ -15,13 +15,35 @@
   // zero before any of it counts as "left." See fifoRemaining().
   const AD_BUDGET_PREVIOUS = 68750;
   const PPL_PRICE_PER_LEAD = 425;
-// Two invoiced PPL (WA) payments make up one combined pool, both tracked from the same
-      // PPL_BUDGET_FROM start since the per-lead rate hasn't changed: $21,250 (9/21, 50 leads x
-      // $425/lead) + $20,000 (10/21) = $41,250.
-      const PPL_BUDGET = 41250;
-      const PPL_BUDGET_FROM = '2026-09-21';
-      // The 10/21 top-up is new money - the first $21,250 (9/21 tranche) must be drawn to zero first.
-      const PPL_BUDGET_PREVIOUS = 21250;
+  // Two invoiced PPL (WA) payments make up one combined pool, both tracked from the same
+  // PPL_BUDGET_FROM start since the per-lead rate hasn't changed: $21,250 (9/21, 50 leads x
+  // $425/lead) + $20,000 (10/21) = $41,250.
+  const PPL_BUDGET = 41250;
+  const PPL_BUDGET_FROM = '2026-09-21';
+  // The 10/21 top-up is new money - the first $21,250 (9/21 tranche) must be drawn to zero first.
+  const PPL_BUDGET_PREVIOUS = 21250;
+  // Each invoice's lead target, in order: invoice 1 is 50 leads ($21,250 / $425). Invoice 2 is
+  // 47 leads ($20,000 / $425, rounded down) - every invoice after that repeats the last target
+  // here until a new one is added. Replacement Rate (see renderKpis) tracks against whichever
+  // invoice the most recent PPL lead falls into, not the selected date range.
+  const PPL_INVOICE_TARGETS = [50, 47];
+  // Buckets every PPL lead since PPL_BUDGET_FROM, in received order, into invoices of
+  // PPL_INVOICE_TARGETS size each, and returns the invoice currently being filled (its leads,
+  // 1-based invoice number, and target) - once an invoice fills exactly, the next lead starts
+  // the next invoice.
+  function pplCurrentInvoice() {
+    const pplLeads = state.leads
+    .filter((l) => programOf(l) === 'ppl' && l.createdDate >= PPL_BUDGET_FROM)
+    .sort((a, b) => (a.createdDate || '').localeCompare(b.createdDate || ''));
+    let consumed = 0, idx = 0;
+    let target = PPL_INVOICE_TARGETS[0];
+    while (pplLeads.length - consumed > target) {
+      consumed += target;
+      idx++;
+      target = PPL_INVOICE_TARGETS[idx] || PPL_INVOICE_TARGETS[PPL_INVOICE_TARGETS.length - 1];
+    }
+    return { invoiceNumber: idx + 1, target, leads: pplLeads.slice(consumed, consumed + target) };
+  }
   // Splits a combined budget pool into what's left of the earlier tranche(s) vs. the later
   // top-up, assuming spend draws down the earlier money first (FIFO) — so the newer tranche only
   // starts showing a drawdown once the older one hits zero.
@@ -392,15 +414,18 @@
     if (program === 'ppl') {
       // WA leads don't come from our own ad account, but Walker's shared campaign deduction
       // (same day-by-day method as Bryan/PPL) still applies, so spend and CPL are real numbers.
-      // Replacement Rate: rejected leads flagged out-of-state or invalid-phone get replaced, but
-            // never more than 20% of leads even if the real bad-lead rate runs higher than that.
-            const REPLACEMENT_CAP = 20;
-            const replaceable = leads.filter((l) => {
-                      if (statusClass(l.status) !== 'status-pill--rejected') return false;
-                      const reason = reasonOf(l).toLowerCase();
-                      return reason.includes('out of state') || reason.includes('invalid phone');
-            }).length;
-            const replacementRate = total > 0 ? Math.min((replaceable / total) * 100, REPLACEMENT_CAP) : 0;
+      // Replacement Rate: tracked per invoice, not by the selected date range - rejected leads
+      // whose reason is "Out of state" or a no-valid-phone variant, within the invoice currently
+      // being filled, over that invoice's own lead target (50 for invoice 1, 47 for invoice 2,
+      // ...), capped at 20% even if the real bad-lead rate in that invoice runs higher.
+      const REPLACEMENT_CAP = 20;
+      const pplInvoice = pplCurrentInvoice();
+      const replaceable = pplInvoice.leads.filter((l) => {
+        if (statusClass(l.status) !== 'status-pill--rejected') return false;
+        const reason = reasonOf(l).toLowerCase();
+        return reason.includes('out of state') || reason.includes('valid phone');
+      }).length;
+      const replacementRate = pplInvoice.target > 0 ? Math.min((replaceable / pplInvoice.target) * 100, REPLACEMENT_CAP) : 0;
       const adSpent = partnerDeduction(leads).total;
       const cpl = total > 0 && adSpent > 0 ? adSpent / total : 0;
       const revenue = PPL_PRICE_PER_LEAD * total;
@@ -424,7 +449,7 @@
         ['signed', 'Signed Cases', signed.toLocaleString('en-US'), 'signed up in this range', 'Click to show only signed cases'],
         ['', 'Conversion Rate', pct(conversionRate), 'signed (by sign date) ÷ leads (by created date)', ''],
         ['', 'Rejected', rejected.toLocaleString('en-US'), total ? pct((rejected / total) * 100) + ' of leads' : '', ''],
-        ['', 'Replacement Rate', pct(replacementRate), 'out-of-state / invalid phone, capped at ' + REPLACEMENT_CAP + '%', ''],
+        ['', 'Replacement Rate', pct(replacementRate), replaceable + ' of ' + pplInvoice.target + ' leads on invoice ' + pplInvoice.invoiceNumber + ', capped at ' + REPLACEMENT_CAP + '%', ''],
         ['', 'Revenue', money(revenue), '$' + PPL_PRICE_PER_LEAD + ' × ' + total.toLocaleString('en-US') + ' leads', ''],
         ['', 'Ad Spent', adSpent ? money(adSpent) : dash, 'already spent in Walker’s campaign on these leads', ''],
         ['', 'Profit', money(profit), pct(margin) + ' margin · revenue − ad spend', ''],
@@ -1064,12 +1089,15 @@
     // Signed by Signed Up Date within the window, not Created Date — same rule as renderKpis.
     const signed = state.leads.filter((l) => programOf(l) === 'ppl' && isSignedCase(l) && l.signedUpDate >= win.start && l.signedUpDate <= win.end).length;
     const rejected = leads.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
-        const replaceable = leads.filter((l) => {
-                if (statusClass(l.status) !== 'status-pill--rejected') return false;
-                const reason = reasonOf(l).toLowerCase();
-                return reason.includes('out of state') || reason.includes('invalid phone');
-        }).length;
-        const replacementRate = total > 0 ? Math.min((replaceable / total) * 100, 20) : 0;
+    // Replacement Rate is an invoice-level metric (see renderKpis), not a per-window one - both
+    // comparison periods show the same current-invoice figure.
+    const pplInvoice = pplCurrentInvoice();
+    const replaceableForInvoice = pplInvoice.leads.filter((l) => {
+      if (statusClass(l.status) !== 'status-pill--rejected') return false;
+      const reason = reasonOf(l).toLowerCase();
+      return reason.includes('out of state') || reason.includes('valid phone');
+    }).length;
+    const replacementRate = pplInvoice.target > 0 ? Math.min((replaceableForInvoice / pplInvoice.target) * 100, 20) : 0;
     const adSpent = partnerDeduction(leads).total;
     const cpl = total > 0 ? adSpent / total : 0;
     const revenue = PPL_PRICE_PER_LEAD * total;

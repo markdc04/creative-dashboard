@@ -392,7 +392,15 @@
     if (program === 'ppl') {
       // WA leads don't come from our own ad account, but Walker's shared campaign deduction
       // (same day-by-day method as Bryan/PPL) still applies, so spend and CPL are real numbers.
-      const open = leads.filter((l) => !(l.status || '').trim()).length;
+      // Replacement Rate: rejected leads flagged out-of-state or invalid-phone get replaced, but
+            // never more than 20% of leads even if the real bad-lead rate runs higher than that.
+            const REPLACEMENT_CAP = 20;
+            const replaceable = leads.filter((l) => {
+                      if (statusClass(l.status) !== 'status-pill--rejected') return false;
+                      const reason = reasonOf(l).toLowerCase();
+                      return reason.includes('out of state') || reason.includes('invalid phone');
+            }).length;
+            const replacementRate = total > 0 ? Math.min((replaceable / total) * 100, REPLACEMENT_CAP) : 0;
       const adSpent = partnerDeduction(leads).total;
       const cpl = total > 0 && adSpent > 0 ? adSpent / total : 0;
       const revenue = PPL_PRICE_PER_LEAD * total;
@@ -416,7 +424,7 @@
         ['signed', 'Signed Cases', signed.toLocaleString('en-US'), 'signed up in this range', 'Click to show only signed cases'],
         ['', 'Conversion Rate', pct(conversionRate), 'signed (by sign date) ÷ leads (by created date)', ''],
         ['', 'Rejected', rejected.toLocaleString('en-US'), total ? pct((rejected / total) * 100) + ' of leads' : '', ''],
-        ['', 'Awaiting Status', open.toLocaleString('en-US'), 'no status yet', ''],
+        ['', 'Replacement Rate', pct(replacementRate), 'out-of-state / invalid phone, capped at ' + REPLACEMENT_CAP + '%', ''],
         ['', 'Revenue', money(revenue), '$' + PPL_PRICE_PER_LEAD + ' × ' + total.toLocaleString('en-US') + ' leads', ''],
         ['', 'Ad Spent', adSpent ? money(adSpent) : dash, 'already spent in Walker’s campaign on these leads', ''],
         ['', 'Profit', money(profit), pct(margin) + ' margin · revenue − ad spend', ''],
@@ -1056,7 +1064,12 @@
     // Signed by Signed Up Date within the window, not Created Date — same rule as renderKpis.
     const signed = state.leads.filter((l) => programOf(l) === 'ppl' && isSignedCase(l) && l.signedUpDate >= win.start && l.signedUpDate <= win.end).length;
     const rejected = leads.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
-    const open = leads.filter((l) => !(l.status || '').trim()).length;
+        const replaceable = leads.filter((l) => {
+                if (statusClass(l.status) !== 'status-pill--rejected') return false;
+                const reason = reasonOf(l).toLowerCase();
+                return reason.includes('out of state') || reason.includes('invalid phone');
+        }).length;
+        const replacementRate = total > 0 ? Math.min((replaceable / total) * 100, 20) : 0;
     const adSpent = partnerDeduction(leads).total;
     const cpl = total > 0 ? adSpent / total : 0;
     const revenue = PPL_PRICE_PER_LEAD * total;
@@ -1066,7 +1079,7 @@
     const profit = revenue - adSpent;
     return {
       'Total Leads': total, 'Signed Cases': signed, 'Conversion Rate': total ? (signed / total) * 100 : 0, 'Rejected': rejected,
-      'Awaiting Status': open, 'Revenue': revenue, 'Ad Spent': adSpent, 'Profit': profit, 'CPL (Cost / Lead)': cpl,
+      'Replacement Rate': replacementRate, 'Revenue': revenue, 'Ad Spent': adSpent, 'Profit': profit, 'CPL (Cost / Lead)': cpl,
       'Budget Left': budgetLeft, 'Cost / Case': costPerCase, 'CPC + Marketing Fee': signed > 0 ? revenue / signed : 0,
     };
   }
@@ -1074,7 +1087,7 @@
     return state.filters.program === 'ppl' ? pplFinancialsForWindow(win) : agencyFinancialsForWindow(win);
   }
 
-  const COMPARE_PCT_METRICS = new Set(['Conversion Rate']);
+  const COMPARE_PCT_METRICS = new Set(['Conversion Rate', 'Replacement Rate']);
   const COMPARE_MONEY_METRICS = new Set([
     'Cost / Lead', 'CPC (Cost / Case)', 'Ad Spend', 'Ad Budget Left', 'Marketing Fee', 'Total Cost', 'CPC + Marketing Fee',
     'Revenue', 'Ad Spent', 'Profit', 'CPL (Cost / Lead)', 'Budget Left', 'Cost / Case',

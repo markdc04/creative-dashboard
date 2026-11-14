@@ -40,7 +40,7 @@
   // lead arrives.
   function pplInvoices(asOf) {
     const pplLeads = state.leads
-      .filter((l) => programOf(l) === 'ppl' && l.createdDate >= PPL_BUDGET_FROM && (!asOf || l.createdDate <= asOf))
+      .filter((l) => isLpWa(l) && l.createdDate >= PPL_BUDGET_FROM && (!asOf || l.createdDate <= asOf))
       .sort((a, b) => (a.createdDate || '').localeCompare(b.createdDate || ''));
     const invoices = [];
     let consumed = 0;
@@ -80,7 +80,33 @@
     { key: 'agency', label: 'Agency (AZ)', short: 'Agency' },
     { key: 'ppl', label: 'PPL (WA)', short: 'PPL' },
   ];
-  const programOf = (l) => (l.channel === 'Lead Prosper WA' ? 'ppl' : 'agency');
+  const programOf = (l) => (l.channel === 'Lead Prosper WA' || l.channel === 'OG WA' ? 'ppl' : 'agency');
+  // Only Lead Prosper WA leads are bought per lead ($425 each, counted toward invoices).
+  const isLpWa = (l) => l.channel === 'Lead Prosper WA';
+  // Our own Google campaign for Washington ("W2 WA - Sasooness - 11 07 26"). A media-buying mistake
+  // sent its leads to Arizona until 11/13, so its spend before then stays in the Agency (AZ) budget;
+  // from 11/13 on its leads land on the OG WA tab and its spend is WA's, out of the PPL budget.
+  const WA_OWN_SPEND_FROM = '2026-11-13';
+  const isWaOwnSpend = (r) => /\bWA\b/.test(r.campaign || '') && r.date >= WA_OWN_SPEND_FROM;
+  const azOwnSpendRows = () => state.campaignSpend.filter((r) => !isWaOwnSpend(r));
+  // WA's own-ad spend per day between from and to, with that day's OG WA leads and cost per lead.
+  function waOwnDays(from, to) {
+    const byDate = new Map();
+    for (const r of state.campaignSpend) {
+      if (!isWaOwnSpend(r) || (from && r.date < from) || (to && r.date > to)) continue;
+      const cur = byDate.get(r.date) || { date: r.date, name: r.campaign, spend: 0, leads: 0 };
+      cur.spend += r.spend;
+      byDate.set(r.date, cur);
+    }
+    for (const l of state.leads) {
+      if (l.channel !== 'OG WA' || !l.createdDate || (from && l.createdDate < from) || (to && l.createdDate > to)) continue;
+      const cur = byDate.get(l.createdDate) || { date: l.createdDate, name: l.campaign || 'OG WA', spend: 0, leads: 0 };
+      cur.leads++;
+      byDate.set(l.createdDate, cur);
+    }
+    const days = [...byDate.values()].map((d) => ({ ...d, cpl: d.leads > 0 ? d.spend / d.leads : 0 })).sort((a, b) => b.date.localeCompare(a.date));
+    return { days, total: days.reduce((t, d) => t + d.spend, 0) };
+  }
   const programLabel = (key) => (PROGRAMS.find((p) => p.key === key) || PROGRAMS[0]).label;
 
   // Special filter values: leads that count as signed cases, statuses folded into the donut's
@@ -295,10 +321,11 @@
 
   function spendFor(skip) {
     const f = state.filters;
-    // PPL leads have no ad spend on our side. Agency does (its Main Landing Page share) — those
-    // rows only ever attribute to leads with a campaign tag, so they don't bleed into PPL.
-    if (f.program === 'ppl' && skip !== 'program') return [];
+    // Our own ad spend splits by program: the W2 WA campaign from 11/13 on is PPL (WA); everything
+    // else is Agency (AZ).
+    const ppl = f.program === 'ppl' && skip !== 'program';
     return state.campaignSpend.filter((r) => {
+      if (isWaOwnSpend(r) !== ppl) return false;
       if (!inRange(r.date)) return false;
       if (f.campaign && skip !== 'campaign' && r.campaign !== f.campaign) return false;
       if (f.platform && skip !== 'platform' && r.platform !== f.platform) return false;
@@ -433,14 +460,20 @@
       const pplInvoice = pplCurrentInvoice(state.range.end);
       const replaceable = pplInvoice.replaceable;
       const replacementRate = pplInvoice.rate;
-      const adSpent = partnerDeduction(leads).total;
+      // Two kinds of WA lead: Lead Prosper WA (bought at $425 each) and OG WA (our own W2 WA
+      // Google campaign, paid for by its ad spend). Revenue is what the WA budget is drawn by:
+      // $425 per Lead Prosper lead plus the OG WA ad spend passed through at cost.
+      const lpCount = leads.filter(isLpWa).length;
+      const ogCount = total - lpCount;
+      const waOwn = spendFor().reduce((a, r) => a + r.spend, 0);
+      const walkerSpent = partnerDeduction(leads).total;
+      const adSpent = walkerSpent + waOwn;
       const cpl = total > 0 && adSpent > 0 ? adSpent / total : 0;
-      const revenue = PPL_PRICE_PER_LEAD * total;
-      // The $20k invoice is drawn down by revenue (what Sasooness owes per lead), not ad spend —
-      // same pool-since-9/21 pattern as Ad Budget Left above, just against the other side of the
-      // ledger.
-      const pplLeadsSinceBudget = state.leads.filter((l) => programOf(l) === 'ppl' && l.createdDate >= PPL_BUDGET_FROM).length;
-      const pplSpentOfBudget = PPL_PRICE_PER_LEAD * pplLeadsSinceBudget;
+      const revenue = PPL_PRICE_PER_LEAD * lpCount + waOwn;
+      // The WA budget pool since 9/21, drawn to date (not just the picked range) by the same two
+      // things: $425 per Lead Prosper WA lead and every dollar of OG WA ad spend.
+      const pplLeadsSinceBudget = state.leads.filter((l) => isLpWa(l) && l.createdDate >= PPL_BUDGET_FROM).length;
+      const pplSpentOfBudget = PPL_PRICE_PER_LEAD * pplLeadsSinceBudget + waOwnDays(PPL_BUDGET_FROM, null).total;
       const budgetLeft = PPL_BUDGET - pplSpentOfBudget;
       const pplSplit = fifoRemaining(PPL_BUDGET_PREVIOUS, PPL_BUDGET, pplSpentOfBudget);
       const pplBudgetNote = pplSplit.previousLeft > 0
@@ -452,13 +485,13 @@
       const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
       const dash = '—';
       tiles = [
-        ['leads', 'Total Leads', total.toLocaleString('en-US'), programLabel(program) + ' program', 'Click to clear the filters'],
+        ['leads', 'Total Leads', total.toLocaleString('en-US'), ogCount ? lpCount + ' Lead Prosper + ' + ogCount + ' OG WA' : programLabel(program) + ' program', 'Click to clear the filters'],
         ['signed', 'Signed Cases', signed.toLocaleString('en-US'), 'signed up in this range', 'Click to show only signed cases'],
         ['', 'Conversion Rate', pct(conversionRate), 'signed (by sign date) ÷ leads (by created date)', ''],
         ['', 'Rejected', rejected.toLocaleString('en-US'), total ? pct((rejected / total) * 100) + ' of leads' : '', ''],
         ['', 'Replacement Rate', pct(replacementRate), replaceable + ' of ' + pplInvoice.target + ' leads on invoice ' + pplInvoice.invoiceNumber + ', capped at ' + REPLACEMENT_CAP + '%', ''],
-        ['', 'Revenue', money(revenue), '$' + PPL_PRICE_PER_LEAD + ' × ' + total.toLocaleString('en-US') + ' leads', ''],
-        ['', 'Ad Spent', adSpent ? money(adSpent) : dash, 'already spent in Walker’s campaign on these leads', ''],
+        ['', 'Revenue', money(revenue), '$' + PPL_PRICE_PER_LEAD + ' × ' + lpCount.toLocaleString('en-US') + ' Lead Prosper leads' + (waOwn ? ' + ' + money(waOwn) + ' OG WA ad spend' : ''), ''],
+        ['', 'Ad Spent', adSpent ? money(adSpent) : dash, waOwn ? money(walkerSpent) + ' Walker’s campaign + ' + money(waOwn) + ' our W2 WA ads' : 'already spent in Walker’s campaign on these leads', ''],
         ['', 'Profit', money(profit), pct(margin) + ' margin · revenue − ad spend', ''],
         ['', 'CPL (Cost / Lead)', cpl ? money(cpl) : dash, 'ad spend ÷ leads', ''],
         ['', 'Budget Left', money(budgetLeft), pplBudgetNote, ''],
@@ -492,7 +525,7 @@
       // the spend that already happened between 9/9 and October.
       const budgetTo = state.range.end || toISO(pacificToday());
       const combinedAgencySpend = (from, to) => {
-        const own = state.campaignSpend.filter((r) => r.date >= from && r.date <= to).reduce((a, r) => a + r.spend, 0);
+        const own = azOwnSpendRows().filter((r) => r.date >= from && r.date <= to).reduce((a, r) => a + r.spend, 0);
         const partner = partnerDeduction(state.leads.filter((l) => programOf(l) === 'agency' && l.createdDate >= from && l.createdDate <= to)).total;
         return own + partner;
       };
@@ -1063,7 +1096,7 @@
     // Signed by Signed Up Date within the window, not Created Date — same rule as renderKpis.
     const signed = state.leads.filter((l) => programOf(l) === 'agency' && isSignedCase(l) && l.signedUpDate >= win.start && l.signedUpDate <= win.end).length;
     const rejected = leads.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
-    const ownSpend = state.campaignSpend.filter((r) => r.date >= win.start && r.date <= win.end).reduce((a, r) => a + r.spend, 0);
+    const ownSpend = azOwnSpendRows().filter((r) => r.date >= win.start && r.date <= win.end).reduce((a, r) => a + r.spend, 0);
     const partnerSpend = partnerDeduction(leads).total;
     const totalSpend = ownSpend + partnerSpend;
     const cpl = total > 0 ? totalSpend / total : 0;
@@ -1071,7 +1104,7 @@
     const { fee: feeBeforeSept } = contractForRange({ start: win.start, end: win.end });
     const budgetTo = win.end;
     const combinedAgencySpend = (from, to) => {
-      const own = state.campaignSpend.filter((r) => r.date >= from && r.date <= to).reduce((a, r) => a + r.spend, 0);
+      const own = azOwnSpendRows().filter((r) => r.date >= from && r.date <= to).reduce((a, r) => a + r.spend, 0);
       const partner = partnerDeduction(state.leads.filter((l) => programOf(l) === 'agency' && l.createdDate >= from && l.createdDate <= to)).total;
       return own + partner;
     };
@@ -1098,11 +1131,12 @@
     const rejected = leads.filter((l) => statusClass(l.status) === 'status-pill--rejected').length;
     // Same rule as renderKpis: the invoice being filled as of the window's end date.
     const replacementRate = pplCurrentInvoice(win.end).rate;
-    const adSpent = partnerDeduction(leads).total;
+    const waOwn = waOwnDays(win.start, win.end).total;
+    const adSpent = partnerDeduction(leads).total + waOwn;
     const cpl = total > 0 ? adSpent / total : 0;
-    const revenue = PPL_PRICE_PER_LEAD * total;
-    const pplLeadsSinceBudget = state.leads.filter((l) => programOf(l) === 'ppl' && l.createdDate >= PPL_BUDGET_FROM && l.createdDate <= win.end).length;
-    const budgetLeft = PPL_BUDGET - PPL_PRICE_PER_LEAD * pplLeadsSinceBudget;
+    const revenue = PPL_PRICE_PER_LEAD * leads.filter(isLpWa).length + waOwn;
+    const pplLeadsSinceBudget = state.leads.filter((l) => isLpWa(l) && l.createdDate >= PPL_BUDGET_FROM && l.createdDate <= win.end).length;
+    const budgetLeft = PPL_BUDGET - PPL_PRICE_PER_LEAD * pplLeadsSinceBudget - waOwnDays(PPL_BUDGET_FROM, win.end).total;
     const costPerCase = signed > 0 ? adSpent / signed : 0;
     const profit = revenue - adSpent;
     return {
@@ -1212,7 +1246,8 @@
     for (const l of leadsFor('campaign')) if (l.campaign) leadsBy.set(l.campaign, (leadsBy.get(l.campaign) || 0) + 1);
     const og = new Map();
     for (const [name, spend] of spendBy) { const n = leadsBy.get(name) || 0; if (n > 0 && spend > 0) og.set(name, spend / n); }
-    return { walker, og };
+    const waDay = new Map(waOwnDays().days.filter((d) => d.cpl).map((d) => [d.date, d.cpl]));
+    return { walker, og, waDay };
   }
 
   function renderLeadsTable(leads) {
@@ -1238,6 +1273,9 @@
       let cplHtml = dash;
       if (partner) {
         const c = cpl.walker.get(o.campaignId + '|' + l.createdDate);
+        if (c) cplHtml = money(c);
+      } else if (l.channel === 'OG WA') {
+        const c = cpl.waDay.get(l.createdDate);
         if (c) cplHtml = money(c);
       } else if (cpl.og.get(l.campaign)) {
         cplHtml = money(cpl.og.get(l.campaign));
@@ -1319,26 +1357,39 @@
     // One strip of facts per Walker campaign: the Sasooness ad spend that follows from the day-by-day
     // table below, the campaign, and the leads sent.
     const cents0 = (n) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    $('#deduct-facts').innerHTML = rows.length ? rows.map((r) => {
+    // On the WA tab our own W2 WA campaign (from 11/13) is a second source: every dollar of its
+    // spend is Sasooness's, spread over that day's OG WA leads.
+    const wa = state.filters.program === 'ppl' ? waOwnDays(state.range.start, state.range.end) : { days: [], total: 0 };
+    const waLeads = wa.days.reduce((t, d) => t + d.leads, 0);
+    const waFacts = wa.days.length
+      ? '<div class="fact fact--total"><div class="fact-label">Sasooness ad spend</div><div class="fact-value">' + cents0(wa.total) + '</div><div class="fact-sub">our own W2 WA Google ads · sum of the days below</div></div>' +
+        '<div class="fact"><div class="fact-label">Our campaign</div><div class="fact-value">' + escapeHtml(wa.days[0].name) + '</div></div>' +
+        '<div class="fact"><div class="fact-label">OG WA leads</div><div class="fact-value">' + waLeads + ' lead' + (waLeads === 1 ? '' : 's') + '</div><div class="fact-sub">from the OG WA tab</div></div>'
+      : '';
+    $('#deduct-facts').innerHTML = waFacts + (rows.length ? rows.map((r) => {
       const statuses = r.statuses.map(([st, k]) => k + ' ' + st.toLowerCase()).join(' · ');
       return '<div class="fact fact--total"><div class="fact-label">Sasooness ad spend</div><div class="fact-value">' + cents0(r.deduct) + '</div><div class="fact-sub">already spent in Walker’s campaign · sum of the days below</div></div>' +
         '<div class="fact"><div class="fact-label">Walker campaign</div><div class="fact-value">' + escapeHtml(r.name) + '</div></div>' +
         '<div class="fact"><div class="fact-label">Sent to Sasooness</div><div class="fact-value">' + r.n + ' lead' + (r.n === 1 ? '' : 's') + '</div><div class="fact-sub">' + escapeHtml(statuses) + '</div></div>';
-    }).join('') : '<div class="fact"><div class="fact-value">No Walker campaign found for the leads in this range.</div></div>';
+    }).join('') : (waFacts ? '' : '<div class="fact"><div class="fact-value">No Walker campaign found for the leads in this range.</div></div>'));
 
     // Two decimals here so every step can be checked by hand: spend ÷ Walker leads = cost per
     // lead; cost per lead × leads sent = Sasooness's ad spend for the day.
     const cents = (n) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const sentTotal = ded.days.reduce((t, d) => t + d.n, 0);
-    $('#deduct-days-body').innerHTML = ded.days.map((d) => (
+    const sentTotal = ded.days.reduce((t, d) => t + d.n, 0) + waLeads;
+    const dayRows = [
+      ...ded.days,
+      ...wa.days.map((d) => ({ date: d.date, name: d.name, spend: d.spend, walkerLeads: d.leads, n: d.leads, cpl: d.cpl, deduct: d.spend })),
+    ].sort((a, b) => b.date.localeCompare(a.date));
+    $('#deduct-days-body').innerHTML = dayRows.map((d) => (
       '<tr><td>' + escapeHtml(d.date) + '</td><td class="name-cell">' + escapeHtml(d.name) + '</td>' +
       '<td class="td-num num">' + cents(d.spend) + '</td>' +
       '<td class="td-num num">' + d.walkerLeads.toLocaleString('en-US') + '</td>' +
       '<td class="td-num num">' + d.n + '</td>' +
       '<td class="td-num num">' + (d.cpl ? cents(d.cpl) : dash) + '</td>' +
       '<td class="td-num num">' + (d.deduct ? cents(d.deduct) : dash) + '</td></tr>'
-    )).join('') + (ded.days.length
-      ? '<tr class="row-total"><td>Total</td><td></td><td></td><td></td><td class="td-num num">' + sentTotal + '</td><td></td><td class="td-num num">' + cents(ded.total) + '</td></tr>'
+    )).join('') + (dayRows.length
+      ? '<tr class="row-total"><td>Total</td><td></td><td></td><td></td><td class="td-num num">' + sentTotal + '</td><td></td><td class="td-num num">' + cents(ded.total + wa.total) + '</td></tr>'
       : '<tr class="row-muted"><td colspan="7">No leads to show for this range.</td></tr>');
   }
 

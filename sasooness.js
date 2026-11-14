@@ -9,11 +9,13 @@ const { metaDailyFor, metaCampaignDailyFor, metaAdCampaignsFor } = require('./me
 //   OG              leads from the main landing page (the paid-ad campaigns)
 //   Lead Prosper AZ leads bought via Walker Agency's AZ lead flow, some of which go to Sasooness
 //   Lead Prosper WA Sasooness's pay-per-lead (PPL) model
+//   OG WA           WA leads from our own Google campaign (W2 WA), counted in the PPL (WA) program
 const INTAKE_DOC_ID = '1syy62rEp85sIQoM8D69C7btrs1TsXV_NeOb8QkUWJd8';
 const INTAKE_TABS = [
   { channel: 'OG', gid: '0' },
   { channel: 'Lead Prosper AZ', gid: '691201289' },
   { channel: 'Lead Prosper WA', gid: '541453763' },
+  { channel: 'OG WA', gid: '171826738' },
 ];
 
 // CRM-tracked leads with case management detail (Status/SubStatus/Case Type/Signed Up Date).

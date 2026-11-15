@@ -2,8 +2,8 @@
 //   - "B2B Only" tab inside the shared "Getloud Active Client" workbook (same workbook KM Law
 //     and Sasooness already read from) — 649+ rows, the larger lead list, but has no
 //     Stage/Status/State columns.
-//   - The standalone "B2B Sales pipeline" sheet — fewer rows, but has Stage/Status/State/Firm
-//     Name, which the user confirmed are important to keep showing.
+//   - The standalone "B2B Sales pipeline" sheet's "B2B GHL Synced" tab — fewer rows, but has
+//     Stage/Status/State/Firm Name, which the user confirmed are important to keep showing.
 // "B2B Only" is the base list, enriched with Stage/Status/State/Firm Name from the pipeline sheet
 // when its GHL Contact ID is found there. But the two lists are NOT a strict superset/subset —
 // confirmed 15 leads (including every "Quick Chat - Loudr Media" one) exist ONLY in the pipeline
@@ -24,7 +24,10 @@ const { getB2BXRows } = require('./x-spend');
 const WORKBOOK_ID = '1rYN9P0oVlEwlxpk53ZqDDGIcZ9154bm-k709KUMIT_A';
 const B2B_ONLY_GID = '825238244';
 const PIPELINE_DOC_ID = '1sJod1nVa3bA6sQiQtVMhi2mWvmlQVNwAZZBQFLiJ2J0';
-const PIPELINE_GID = '0';
+// "B2B GHL Synced" tab — kept in sync with GoHighLevel, so it has the most complete Stage column.
+// Its Date can run a day ahead of the lead's own date (GHL's timezone), so "B2B Only" stays the
+// base list and the source of dates; this tab only enriches Stage/Status/State/Firm Name.
+const PIPELINE_GID = '673977822';
 
 let cache = { leads: [], leadsDaily: [], adSpendDaily: [], adSpendByAdName: [], adSpendByAdNameDaily: [], ads: [], updatedAt: null };
 

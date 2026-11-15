@@ -53,6 +53,36 @@
     }
     return invoices;
   }
+  // Each invoice's date range for the quick filters: invoice 1 starts on PPL_BUDGET_FROM, each
+  // later one the day after the previous invoice's last lead; a full invoice ends on its last lead,
+  // the one still filling runs through today.
+  function pplInvoiceRanges() {
+    const ordinal = (n) => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+    const md = (iso) => Number(iso.slice(5, 7)) + '/' + Number(iso.slice(8, 10));
+    let start = PPL_BUDGET_FROM;
+    return pplInvoices().filter((inv) => inv.leads.length).map((inv) => {
+      const filling = inv.leads.length < inv.target;
+      const end = filling ? toISO(pacificToday()) : inv.leads[inv.leads.length - 1].createdDate;
+      const r = { key: 'inv' + inv.invoiceNumber, start, end, label: ordinal(inv.invoiceNumber) + ' invoice (' + md(start) + ' – ' + (filling ? 'now' : md(end)) + ')' };
+      start = toISO(addDays(new Date(end + 'T00:00:00'), 1));
+      return r;
+    });
+  }
+  // The invoice quick filters only appear on the PPL (WA) tab, as their own group in the dropdown.
+  function syncInvoiceOptions() {
+    const sel = $('#quick-range');
+    let group = sel.querySelector('optgroup[data-invoices]');
+    if (state.filters.program !== 'ppl') {
+      if (group) group.remove();
+      if (/^inv\d+$/.test(state.range.key)) state.range.key = 'custom';
+    } else {
+      if (!group) { group = document.createElement('optgroup'); group.label = 'PPL (WA) invoices'; group.dataset.invoices = '1'; sel.appendChild(group); }
+      group.innerHTML = pplInvoiceRanges().map((r) => '<option value="' + r.key + '">' + escapeHtml(r.label) + '</option>').join('');
+    }
+    const opt = sel.querySelector('option[value="' + state.range.key + '"]');
+    sel.value = opt ? state.range.key : 'custom';
+  }
+
   function pplCurrentInvoice(asOf) {
     const invoices = pplInvoices(asOf);
     return invoices[invoices.length - 1];
@@ -182,6 +212,8 @@
       case 'lastweek': { const lastMon = addDays(mondayOf(today), -7); const lastSun = addDays(lastMon, 6); return { start: toISO(lastMon), end: toISO(lastSun) }; }
       case 'all': return { start: null, end: null };
       default: {
+        const inv = /^inv(\d+)$/.exec(key);
+        if (inv) { const r = pplInvoiceRanges()[Number(inv[1]) - 1]; return r ? { start: r.start, end: r.end } : { start: null, end: null }; }
         const m = /^(\d{4})-(\d{2})$/.exec(key);
         if (m) { const y = Number(m[1]), mo = Number(m[2]); return { start: toISO(startOfMonth(y, mo)), end: toISO(endOfMonth(y, mo)) }; }
         return { start: null, end: null };
@@ -1316,28 +1348,7 @@
     const leads = leadsFor().filter((l) => l.origin && l.origin.campaignId).slice().sort((a, b) => (b.createdDate || '').localeCompare(a.createdDate || ''));
     const dash = '—';
 
-    // Each Walker campaign these leads came from: its spend and lead counts over the chosen dates
-    // give a cost per lead (over all of Walker's leads, regardless of status);
-    // multiplying by the leads sent to Sasooness gives the amount to deduct.
-    const sent = new Map();
-    const statusBy = new Map(); // campaign ID -> Map(status -> leads sent)
-    for (const l of leads) {
-      const id = l.origin && l.origin.campaignId;
-      if (!id) continue;
-      sent.set(id, (sent.get(id) || 0) + 1);
-      const st = (l.status || '').trim() || 'Awaiting status';
-      if (!statusBy.has(id)) statusBy.set(id, new Map());
-      statusBy.get(id).set(st, (statusBy.get(id).get(st) || 0) + 1);
-    }
     const ded = partnerDeduction(leads);
-    const rows = state.walker.campaigns.filter((c) => sent.has(c.campaignId)).map((c) => {
-      const spend = state.walker.spendDaily.filter((r) => r.campaignId === c.campaignId && inRange(r.date)).reduce((a, r) => a + r.spend, 0);
-      const days = state.walker.leadsDaily.filter((r) => r.campaignId === c.campaignId && inRange(r.date));
-      const all = days.reduce((a, r) => a + r.leads, 0), qual = days.reduce((a, r) => a + r.qualified, 0);
-      const n = sent.get(c.campaignId);
-      const cpl = all > 0 ? spend / all : 0;
-      return { id: c.campaignId, name: c.name, n, spend, all, qual, cpl, deduct: ded.days.filter((d) => d.campaignId === c.campaignId).reduce((t, d) => t + d.deduct, 0), statuses: [...(statusBy.get(c.campaignId) || new Map()).entries()].sort((a, b) => b[1] - a[1]) };
-    });
 
     $('#origin-sub').textContent = leads.length ? leads.length + ' leads' : '';
     $('#origin-empty').hidden = leads.length > 0;
@@ -1354,24 +1365,10 @@
       '</tr>';
     }).join('');
 
-    // One strip of facts per Walker campaign: the Sasooness ad spend that follows from the day-by-day
-    // table below, the campaign, and the leads sent.
-    const cents0 = (n) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     // On the WA tab our own W2 WA campaign (from 11/13) is a second source: every dollar of its
     // spend is Sasooness's, spread over that day's OG WA leads.
     const wa = state.filters.program === 'ppl' ? waOwnDays(state.range.start, state.range.end) : { days: [], total: 0 };
     const waLeads = wa.days.reduce((t, d) => t + d.leads, 0);
-    const waFacts = wa.days.length
-      ? '<div class="fact fact--total"><div class="fact-label">Sasooness ad spend</div><div class="fact-value">' + cents0(wa.total) + '</div><div class="fact-sub">our own W2 WA Google ads · sum of the days below</div></div>' +
-        '<div class="fact"><div class="fact-label">Our campaign</div><div class="fact-value">' + escapeHtml(wa.days[0].name) + '</div></div>' +
-        '<div class="fact"><div class="fact-label">OG WA leads</div><div class="fact-value">' + waLeads + ' lead' + (waLeads === 1 ? '' : 's') + '</div><div class="fact-sub">from the OG WA tab</div></div>'
-      : '';
-    $('#deduct-facts').innerHTML = waFacts + (rows.length ? rows.map((r) => {
-      const statuses = r.statuses.map(([st, k]) => k + ' ' + st.toLowerCase()).join(' · ');
-      return '<div class="fact fact--total"><div class="fact-label">Sasooness ad spend</div><div class="fact-value">' + cents0(r.deduct) + '</div><div class="fact-sub">already spent in Walker’s campaign · sum of the days below</div></div>' +
-        '<div class="fact"><div class="fact-label">Walker campaign</div><div class="fact-value">' + escapeHtml(r.name) + '</div></div>' +
-        '<div class="fact"><div class="fact-label">Sent to Sasooness</div><div class="fact-value">' + r.n + ' lead' + (r.n === 1 ? '' : 's') + '</div><div class="fact-sub">' + escapeHtml(statuses) + '</div></div>';
-    }).join('') : (waFacts ? '' : '<div class="fact"><div class="fact-value">No Walker campaign found for the leads in this range.</div></div>'));
 
     // Two decimals here so every step can be checked by hand: spend ÷ Walker leads = cost per
     // lead; cost per lead × leads sent = Sasooness's ad spend for the day.
@@ -1464,19 +1461,20 @@
 
   // ================= replacements by invoice (PPL only) =================
   // Every invoice to date regardless of the date filter. The row matching the Replacement Rate
-  // tile is highlighted; clicking a row filters the page to that invoice's lead dates.
+  // tile is highlighted; clicking a row applies that invoice's quick filter.
   function renderInvoices() {
     const panel = $('#invoices-panel');
     panel.hidden = state.filters.program !== 'ppl';
     if (panel.hidden) return;
     const shown = pplCurrentInvoice(state.range.end).invoiceNumber;
     const invoices = pplInvoices();
+    const ranges = new Map(pplInvoiceRanges().map((r) => [r.key, r]));
     $('#invoices-sub').textContent = 'out of state / no valid phone ÷ invoice target, capped at ' + REPLACEMENT_CAP + '%';
     $('#invoices-body').innerHTML = invoices.map((inv) => {
       const first = inv.leads.length ? inv.leads[0].createdDate : '';
       const last = inv.leads.length ? inv.leads[inv.leads.length - 1].createdDate : '';
       const filling = inv.leads.length < inv.target;
-      return '<tr class="is-clickable' + (inv.invoiceNumber === shown ? ' is-selected' : '') + '" data-invoice-start="' + escapeHtml(first) + '" data-invoice-end="' + escapeHtml(last) + '">' +
+      return '<tr class="is-clickable' + (inv.invoiceNumber === shown ? ' is-selected' : '') + '"' + (ranges.has('inv' + inv.invoiceNumber) ? ' data-invoice="inv' + inv.invoiceNumber + '"' : '') + '>' +
         '<td class="name-cell">Invoice ' + inv.invoiceNumber + (filling ? ' <span class="panel-sub">(filling)</span>' : '') + '</td>' +
         '<td>' + (first ? escapeHtml(first === last ? first : first + ' to ' + last) : '—') + '</td>' +
         '<td class="td-num num">' + inv.leads.length + ' / ' + inv.target + '</td>' +
@@ -1488,6 +1486,7 @@
   function render() {
     // Which statuses the donut shows individually (the rest fold into "Other") — computed first
     // because an "Other statuses" filter is defined in terms of it.
+    syncInvoiceOptions();
     state.topStatuses = statusGroups(leadsFor('status')).slice(0, 4).map(([s]) => s);
     const leads = leadsFor();
     renderFilterBar();
@@ -1534,8 +1533,8 @@
     if (legend) { toggleFilter('status', legend.dataset.status); return; }
     const reasonRow = e.target.closest('tr[data-reason]');
     if (reasonRow) { toggleFilter('reason', reasonRow.dataset.reason); return; }
-    const invoiceRow = e.target.closest('tr[data-invoice-start]');
-    if (invoiceRow && invoiceRow.dataset.invoiceStart) { setRange('custom', invoiceRow.dataset.invoiceStart, invoiceRow.dataset.invoiceEnd); render(); return; }
+    const invoiceRow = e.target.closest('tr[data-invoice]');
+    if (invoiceRow) { const { start, end } = computeRange(invoiceRow.dataset.invoice); setRange(invoiceRow.dataset.invoice, start, end); render(); return; }
     const campaignRow = e.target.closest('tr[data-campaign]');
     if (campaignRow) { toggleFilter('campaign', campaignRow.dataset.campaign); return; }
     const programRow = e.target.closest('tr[data-program]');

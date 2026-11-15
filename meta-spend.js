@@ -69,15 +69,32 @@ async function metaAdCampaignsFor(pattern) {
 //     combined here, the second one filtered to Account Name === "B2B Loudr Media" only.
 // Cached separately from getMetaRows() rather than reusing its cache, so a bug in one block's
 // shape can never affect the other.
+// Every row in any of the export's three blocks whose campaign name contains "B2B" — the user's
+// rule for what counts as B2B ad spend. The two business-portfolio blocks also carry each ad's
+// Instagram permalink and Facebook post link, used to preview the ad on the B2B dashboard.
 async function getB2BMetaRows() {
   if (cachedB2B && Date.now() - cachedB2B.at < TTL_MS) return cachedB2B.promise;
   const promise = fetchText(csvUrl(META_GID, META_DOC_ID)).then((csv) => {
     const rows = parseCSVRows(csv).slice(2);
-    const original = rows.map((row) => ({ date: toISODate(row[7]), campaign: row[9] || '', campaignId: (row[8] || '').trim(), adId: (row[10] || '').trim(), adName: (row[11] || '').trim(), spend: num(row[12]) }));
-    const newPortfolio = rows
-      .filter((row) => (row[20] || '').trim() === 'B2B Loudr Media')
-      .map((row) => ({ date: toISODate(row[14]), campaign: row[16] || '', campaignId: (row[15] || '').trim(), adId: (row[17] || '').trim(), adName: (row[18] || '').trim(), spend: num(row[19]) }));
-    return [...original, ...newPortfolio];
+    const blocks = [
+      { day: 0, campaignId: 1, campaign: 2, adId: 3, adName: 4, spend: 5 },
+      { day: 7, campaignId: 8, campaign: 9, adId: 10, adName: 11, spend: 12, instagram: 13, post: 14 },
+      { day: 16, campaignId: 17, campaign: 18, adId: 19, adName: 20, spend: 21, instagram: 23, post: 24 },
+    ];
+    const out = [];
+    for (const row of rows) {
+      for (const b of blocks) {
+        const campaign = (row[b.campaign] || '').trim();
+        if (!/b2b/i.test(campaign)) continue;
+        out.push({
+          platform: 'Meta', date: toISODate(row[b.day]), campaign, campaignId: (row[b.campaignId] || '').trim(),
+          adId: (row[b.adId] || '').trim(), adName: (row[b.adName] || '').trim(), spend: num(row[b.spend]),
+          instagramUrl: b.instagram != null ? (row[b.instagram] || '').trim() : '',
+          postUrl: b.post != null ? (row[b.post] || '').trim() : '',
+        });
+      }
+    }
+    return out;
   });
   cachedB2B = { at: Date.now(), promise };
   promise.catch(() => { cachedB2B = null; });

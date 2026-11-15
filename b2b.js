@@ -10,9 +10,9 @@
 // sheet and nowhere in "B2B Only". So any pipeline row whose GHL Contact ID isn't already in
 // "B2B Only" is added as its own lead too, built straight from the pipeline sheet's own columns.
 //
-// Ad spend comes from two sources, combined into one set of totals: the B2B block of the shared
-// Meta export every other dashboard here reads from (see meta-spend.js), and the "X AD SPENT" tab
-// for X/Twitter ads (see x-spend.js). Ad attribution joins by AD NAME (UTM Content <-> Ad Name),
+// Ad spend comes from two sources, combined into one set of totals: every Meta row with "B2B" in
+// its campaign name (see meta-spend.js) and every X/Twitter row with "B2B" in its campaign name
+// (see x-spend.js). Ad attribution joins by AD NAME (UTM Content <-> Ad Name),
 // not by UTM Term/Ad ID — spot-checked ~100+ leads and UTM Term never matches a real Ad ID in the
 // spend sheet (it looks like GHL captures a different Meta object ID into that field), while the
 // ad name consistently does match, just sometimes under more than one Ad ID (A/B duplicates), so
@@ -26,7 +26,7 @@ const B2B_ONLY_GID = '825238244';
 const PIPELINE_DOC_ID = '1sJod1nVa3bA6sQiQtVMhi2mWvmlQVNwAZZBQFLiJ2J0';
 const PIPELINE_GID = '0';
 
-let cache = { leads: [], leadsDaily: [], adSpendDaily: [], adSpendByAdName: [], adSpendByAdNameDaily: [], updatedAt: null };
+let cache = { leads: [], leadsDaily: [], adSpendDaily: [], adSpendByAdName: [], adSpendByAdNameDaily: [], ads: [], updatedAt: null };
 
 // Keyed by GHL Contact ID -> the raw pipeline row, so it can be used both as enrichment (for IDs
 // also present in "B2B Only") and as a standalone lead (for IDs only present here).
@@ -113,6 +113,21 @@ async function pollAll() {
         spendByAdNameDate.set(key, { adName: r.adName, date: r.date, spend: (spendByAdNameDate.get(key)?.spend || 0) + r.spend });
       }
     }
+    // One ad name can run as several posts (different Ad IDs, or both Meta and X), each with its own
+    // link — kept per (ad name, post, date) with spend, so the dashboard can show the post that
+    // actually spent the most in the picked dates.
+    const LINK_KEYS = ['instagramUrl', 'postUrl', 'tweetUrl', 'thumbUrl', 'mediaUrl'];
+    const linkDaily = new Map();
+    for (const r of [...metaRows, ...xRows]) {
+      if (!r.adName || !r.date || !LINK_KEYS.some((k) => r[k])) continue;
+      const post = r.instagramUrl || r.mediaUrl || r.postUrl || r.tweetUrl;
+      const key = r.adName + '|' + post + '|' + r.date;
+      const cur = linkDaily.get(key) || { adName: r.adName, date: r.date, platform: r.platform, spend: 0 };
+      for (const k of LINK_KEYS) if (r[k]) cur[k] = r[k];
+      cur.spend += r.spend || 0;
+      linkDaily.set(key, cur);
+    }
+    cache.ads = [...linkDaily.values()].map((r) => ({ ...r, spend: Math.round(r.spend * 100) / 100 }));
     cache.adSpendDaily = [...spendByDate.entries()].map(([date, spend]) => ({ date, spend: Math.round(spend * 100) / 100 })).sort((a, b) => (a.date < b.date ? -1 : 1));
     cache.adSpendByAdName = [...spendByAdName.entries()].map(([adName, spend]) => ({ adName, spend: Math.round(spend * 100) / 100 }));
     cache.adSpendByAdNameDaily = [...spendByAdNameDate.values()].map((r) => ({ ...r, spend: Math.round(r.spend * 100) / 100 }));
@@ -125,7 +140,7 @@ async function pollAll() {
 function getData() {
   return {
     leads: cache.leads, leadsDaily: cache.leadsDaily, adSpendDaily: cache.adSpendDaily,
-    adSpendByAdName: cache.adSpendByAdName, adSpendByAdNameDaily: cache.adSpendByAdNameDaily, updatedAt: cache.updatedAt,
+    adSpendByAdName: cache.adSpendByAdName, adSpendByAdNameDaily: cache.adSpendByAdNameDaily, ads: cache.ads, updatedAt: cache.updatedAt,
   };
 }
 

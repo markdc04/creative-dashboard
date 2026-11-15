@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>(function(){try{if(localStorage.getItem("loudr_sidebar_collapsed")==="1")document.documentElement.classList.add("side-collapsed");}catch(e){}document.documentElement.classList.add("has-sidebar");})();</script>
-<title>B2B Dashboard — Loudr Media</title>
+<title>B2B Report — Loudr Media</title>
 <link rel="icon" href="/walker/favicon.svg">
 <link rel="manifest" href="/shared/manifest.json">
 <meta name="theme-color" content="#000000">
@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="/walker/style.css">
 <link rel="stylesheet" href="/shared/sidebar.css">
 <link rel="stylesheet" href="/shared/back-to-top.css">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="wrap">
@@ -39,8 +39,8 @@
   <div class="topbar">
     <div>
       <p class="brand-eyebrow">B2B Sales Pipeline</p>
-      <h1>B2B Dashboard</h1>
-      <p class="topbar-sub" id="data-range-note">&mdash;</p>
+      <h1>B2B Report</h1>
+      <p class="topbar-sub" id="report-title">&mdash;</p>
     </div>
     <div class="date-bar">
       <div class="select-wrap">
@@ -56,56 +56,16 @@
     </div>
   </div>
 
-  <div class="kpi-row kpi-row--walker" id="b2b-kpis"></div>
-
-  <div class="charts-row full">
-    <div class="chart-card">
-      <h3>B2B Leads &amp; Ad Spend by Date</h3>
-      <div class="chart-canvas-wrap tall"><canvas id="chart-b2b-bydate"></canvas></div>
-    </div>
-  </div>
-
-  <div class="chart-card" style="margin-bottom:14px">
-    <div class="panel-head" style="margin-bottom:10px">
-      <h3 style="margin:0">Weekly Trend</h3>
-      <span class="panel-sub">$ metrics on the left axis, counts on the right</span>
-    </div>
-    <div class="chip-group" id="b2b-weekly-metrics" style="margin-bottom:14px">
-      <button class="chip is-active" data-weekly-metric="Total Leads">Total Leads</button>
-      <button class="chip is-active" data-weekly-metric="Total Ad Spend">Total Ad Spend</button>
-      <button class="chip" data-weekly-metric="Cost Per Lead">Cost Per Lead</button>
-    </div>
-    <div class="chart-canvas-wrap" style="height:280px"><canvas id="chart-b2b-weekly-trend"></canvas></div>
-  </div>
+  <div class="kpi-row" id="b2b-kpis"></div>
 
   <div class="panel">
-    <div class="panel-head"><h2 class="panel-title">Weekly Breakdown</h2><span class="panel-sub" id="b2b-weekly-sub"></span></div>
-    <p class="footnote footnote--inside">Monday-Sunday weeks, same leads and ad spend as the Daily Breakdown table below, just aggregated.</p>
-    <div class="table-scroll">
-      <table id="b2b-weekly-table"></table>
-    </div>
-  </div>
-
-  <div class="panel">
-    <div class="panel-head"><h2 class="panel-title">Daily Breakdown</h2><span class="panel-sub" id="b2b-daily-sub"></span></div>
-    <p class="footnote footnote--inside">Leads from the B2B Sales pipeline sheet; ad spend from the B2B block of the shared Meta export. Cost per lead is that day's ad spend &divide; that day's leads.</p>
-    <div class="table-scroll">
-      <table>
-        <thead><tr><th>Date</th><th class="th-num">Leads</th><th class="th-num">Ad Spend</th><th class="th-num">Cost / Lead</th></tr></thead>
-        <tbody id="b2b-daily-body"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="panel">
-    <div class="panel-head"><h2 class="panel-title">Which Ads Generated Them</h2></div>
-    <p class="footnote footnote--inside">Joined by ad <em>name</em> (UTM Content), not UTM Term/Ad ID &mdash; GHL's UTM Term never matches a real Meta Ad ID for these leads, so name is the attribution path that actually works. A lead with no UTM Content (direct/organic) isn't attributed to any ad.</p>
-    <div class="table-scroll" id="b2b-leads-by-ad"></div>
+    <div class="panel-head"><h2 class="panel-title">Ads</h2><span class="panel-sub" id="ads-sub"></span></div>
+    <div class="table-scroll" id="b2b-ads"></div>
   </div>
 
   <div class="panel">
     <div class="panel-head">
-      <h2 class="panel-title">Lead Detail</h2>
+      <h2 class="panel-title">Leads</h2>
       <div class="search-box">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input id="lead-search" type="text" placeholder="Search name, firm, state, ad&hellip;">
@@ -118,8 +78,21 @@
         <tbody id="lead-detail-body"></tbody>
       </table>
     </div>
+    <div id="leads-empty" class="empty-msg" hidden>No leads in this range.</div>
   </div>
 
+</div>
+
+<div id="video-panel" class="video-panel" aria-hidden="true">
+  <div class="video-panel-head">
+    <div class="video-panel-titlewrap">
+      <span id="video-panel-title" class="video-panel-title">Preview</span>
+      <span id="video-panel-sub" class="video-panel-views"></span>
+    </div>
+    <button id="video-panel-close" class="video-panel-close" aria-label="Close preview">&times;</button>
+  </div>
+  <div id="video-panel-embed" class="video-panel-embed"></div>
+  <div id="video-panel-body" class="video-panel-body"></div>
 </div>
 <script src="app.js"></script>
 <script src="/shared/sidebar.js" data-active="b2b"></script>

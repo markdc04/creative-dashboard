@@ -60,240 +60,187 @@
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
-  const state = {
-    range: { start: null, end: null }, leads: [], leadsDaily: [], adSpendDaily: [], adSpendByAd: [],
-    weeklyMetrics: new Set(['Total Leads', 'Total Ad Spend']),
-  };
+  const state = { range: { key: 'yesterday', start: null, end: null }, leads: [], adSpendDaily: [], adSpendByAdNameDaily: [], ads: [], openAd: null };
 
   function inRange(dateStr) {
     if (state.range.start && dateStr < state.range.start) return false;
     if (state.range.end && dateStr > state.range.end) return false;
     return true;
   }
-
-  const PALETTE = ['#7ea6f7', '#e0a92d', '#4dd6a0', '#b48af0', '#f06c9b'];
-  function chartOptions(extra) {
-    extra = extra || {};
-    const scales = {
-      x: { ticks: { color: '#8b96ac' }, grid: { color: '#232d42' } },
-      y: { ticks: { color: '#8b96ac' }, grid: { color: '#232d42' } },
-    };
-    if (extra.y1) scales.y1 = { position: 'right', ticks: { color: '#8b96ac' }, grid: { display: false } };
-    return { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false, axis: 'x' }, plugins: { legend: { labels: { color: '#e8ecf4' } } }, scales };
-  }
-  const charts = {};
-  function upsertChart(id, config) {
-    const el = $('#' + id);
-    if (!el) return;
-    if (charts[id]) charts[id].destroy();
-    charts[id] = new Chart(el, config);
-  }
+  function mdy(iso) { const [y, m, d] = (iso || '').split('-'); return y ? m + '/' + d + '/' + y : ''; }
+  function shortMd(iso) { const [, m, d] = (iso || '').split('-'); return m ? Number(m) + '/' + Number(d) : ''; }
 
   async function fetchData() {
     const r = await fetch('/b2b-api/data', { cache: 'no-store' });
     const json = await r.json();
     state.leads = json.leads || [];
-    state.leadsDaily = json.leadsDaily || [];
     state.adSpendDaily = json.adSpendDaily || [];
-    state.adSpendByAdName = json.adSpendByAdName || [];
     state.adSpendByAdNameDaily = json.adSpendByAdNameDaily || [];
+    state.ads = json.ads || [];
     renderAll();
+    if (state.openAd) openAdPanel(state.openAd, state.openPost); // keep the panel's numbers current
+  }
+
+  // The posts an ad name ran as within the picked dates, biggest spend first — one ad name can run
+  // as several posts (different Ad IDs, or Meta and X). Falls back to its most recent post overall.
+  function postsFor(adName) {
+    const byPost = new Map();
+    for (const a of state.ads) {
+      if (a.adName !== adName || !inRange(a.date)) continue;
+      const key = a.instagramUrl || a.mediaUrl || a.postUrl || a.tweetUrl;
+      const cur = byPost.get(key) || { ...a, spend: 0 };
+      cur.spend += a.spend;
+      byPost.set(key, cur);
+    }
+    const posts = [...byPost.values()].sort((a, b) => b.spend - a.spend);
+    if (posts.length) return posts;
+    const latest = state.ads.filter((a) => a.adName === adName).sort((a, b) => (a.date < b.date ? 1 : -1))[0];
+    return latest ? [latest] : [];
+  }
+  const postKey = (p) => p && (p.instagramUrl || p.mediaUrl || p.postUrl || p.tweetUrl);
+  const postUrl = (p) => p && (p.instagramUrl || p.tweetUrl || p.postUrl || p.mediaUrl);
+
+  function rangeTitle() {
+    const { key, start, end } = state.range;
+    const opt = document.querySelector('#quick-range option[value="' + key + '"]');
+    const label = key && opt ? opt.textContent : 'Custom range';
+    if (!start && !end) return 'B2B (' + label + ') Report';
+    const dates = start === end ? shortMd(start) : shortMd(start) + ' – ' + shortMd(end);
+    return 'B2B (' + label + ') Report: ' + dates;
   }
 
   function renderAll() {
     const leads = state.leads.filter((l) => inRange(l.date));
-    const leadsByDate = new Map();
-    leads.forEach((l) => leadsByDate.set(l.date, (leadsByDate.get(l.date) || 0) + 1));
-    const spendByDate = new Map();
-    state.adSpendDaily.filter((d) => inRange(d.date)).forEach((d) => spendByDate.set(d.date, (spendByDate.get(d.date) || 0) + d.spend));
-
-    const dates = [...new Set([...leadsByDate.keys(), ...spendByDate.keys()])].sort();
-    const totalLeads = leads.length;
-    const totalSpend = [...spendByDate.values()].reduce((s, v) => s + v, 0);
-    const cpl = totalLeads ? totalSpend / totalLeads : 0;
-
+    const totalSpend = state.adSpendDaily.filter((d) => inRange(d.date)).reduce((s, d) => s + d.spend, 0);
+    const cpl = leads.length ? totalSpend / leads.length : 0;
+    $('#report-title').textContent = rangeTitle();
     $('#b2b-kpis').innerHTML = [
-      ['TOTAL B2B LEADS', fmtInt(totalLeads), true],
-      ['TOTAL AD SPEND', fmtMoney(totalSpend), true],
-      ['COST PER LEAD', fmtMoney(cpl), true],
-      ['DAYS SHOWN', fmtInt(dates.length), false],
-    ].map(([label, value, highlight]) =>
-      '<div class="kpi' + (highlight ? ' kpi--highlight' : '') + '"><div class="kpi-label">' + label + '</div><div class="kpi-value num">' + value + '</div></div>'
-    ).join('');
-
-    upsertChart('chart-b2b-bydate', {
-      data: {
-        labels: dates,
-        datasets: [
-          { type: 'bar', label: 'Leads', data: dates.map((d) => leadsByDate.get(d) || 0), backgroundColor: PALETTE[0] + '99', yAxisID: 'y' },
-          { type: 'line', label: 'Ad Spend', data: dates.map((d) => spendByDate.get(d) || 0), borderColor: PALETTE[1], tension: 0.3, pointRadius: 1.5, yAxisID: 'y1' },
-        ],
-      },
-      options: chartOptions({ y1: true }),
-    });
-
-    $('#b2b-daily-sub').textContent = dates.length + ' days';
-    $('#b2b-daily-body').innerHTML = dates.slice().reverse().map((d) => {
-      const dayLeads = leadsByDate.get(d) || 0;
-      const daySpend = spendByDate.get(d) || 0;
-      const dayCpl = dayLeads ? daySpend / dayLeads : 0;
-      return '<tr><td>' + escapeHtml(d) + '</td>' +
-        '<td class="td-num num">' + fmtInt(dayLeads) + '</td>' +
-        '<td class="td-num num">' + fmtMoney(daySpend) + '</td>' +
-        '<td class="td-num num">' + (dayLeads ? fmtMoney(dayCpl) : '—') + '</td></tr>';
-    }).join('');
-
-    renderWeekly(leadsByDate, spendByDate);
-    renderLeadsByAd(leads);
+      ['Leads', fmtInt(leads.length)],
+      ['Ad Spent', fmtMoney(totalSpend)],
+      ['CPL', leads.length ? fmtMoney(cpl) : '—'],
+    ].map(([label, value]) => '<div class="kpi kpi--highlight"><div class="kpi-label">' + label + '</div><div class="kpi-value num">' + value + '</div></div>').join('');
+    renderAds(leads);
     renderLeadDetail();
   }
 
-  // ---- heatmap coloring for the Weekly Breakdown table (same red-to-green scale used on the
-  // Walker Data Analysis Weekly Breakdown) ----
-  function heatColor(t) {
-    t = Math.max(0, Math.min(1, t));
-    const stops = [[224, 102, 102], [255, 217, 102], [87, 187, 138]]; // red -> yellow -> green
-    const seg = t < 0.5 ? 0 : 1;
-    const localT = t < 0.5 ? t / 0.5 : (t - 0.5) / 0.5;
-    const a = stops[seg], b = stops[seg + 1];
-    const r = Math.round(a[0] + (b[0] - a[0]) * localT);
-    const g = Math.round(a[1] + (b[1] - a[1]) * localT);
-    const bl = Math.round(a[2] + (b[2] - a[2]) * localT);
-    return 'rgb(' + r + ',' + g + ',' + bl + ')';
-  }
-  function heatRowColors(values, direction) {
-    if (!direction) return values.map(() => null);
-    const nums = values.filter((v) => v != null && isFinite(v));
-    if (nums.length < 2) return values.map(() => null);
-    const min = Math.min(...nums), max = Math.max(...nums);
-    if (max === min) return values.map(() => null);
-    return values.map((v) => {
-      if (v == null || !isFinite(v)) return null;
-      let t = (v - min) / (max - min);
-      if (direction === 'down') t = 1 - t;
-      return heatColor(t);
-    });
-  }
-
-  const WEEKLY_MONEY_METRICS = new Set(['Total Ad Spend', 'Cost Per Lead']);
-  const WEEKLY_METRIC_ROWS = [
-    ['Total Leads', (r) => r.leads, (r) => fmtInt(r.leads), 'up'],
-    ['Total Ad Spend', (r) => r.spend, (r) => fmtMoney(r.spend), null],
-    ['Cost Per Lead', (r) => r.cpl, (r) => (r.cpl != null ? fmtMoney(r.cpl) : '—'), 'down'],
-  ];
-  function renderWeekly(leadsByDate, spendByDate) {
-    const dates = [...new Set([...leadsByDate.keys(), ...spendByDate.keys()])];
-    const weeks = new Map();
-    dates.forEach((dateStr) => {
-      const d = new Date(dateStr + 'T00:00:00');
-      if (isNaN(d)) return;
-      const monday = mondayOf(d);
-      const key = toISO(monday);
-      if (!weeks.has(key)) weeks.set(key, { monday, leads: 0, spend: 0 });
-      const w = weeks.get(key);
-      w.leads += leadsByDate.get(dateStr) || 0;
-      w.spend += spendByDate.get(dateStr) || 0;
-    });
-    const weekRows = [...weeks.values()].sort((a, b) => a.monday - b.monday).map((w) => ({
-      label: weekLabel(w.monday), leads: w.leads, spend: w.spend, cpl: w.leads ? w.spend / w.leads : null,
-    }));
-    $('#b2b-weekly-sub').textContent = weekRows.length + ' week' + (weekRows.length === 1 ? '' : 's');
-
-    const thead = '<thead><tr><th></th>' + weekRows.map((r) => '<th class="th-num">' + escapeHtml(r.label) + '</th>').join('') + '</tr></thead>';
-    const tbody = '<tbody>' + WEEKLY_METRIC_ROWS.map(([label, rawFn, fmtFn, direction]) => {
-      const colors = heatRowColors(weekRows.map(rawFn), direction);
-      const cells = weekRows.map((r, i) => {
-        const bg = colors[i];
-        const style = bg ? ' style="background:' + bg + ';color:#15201a"' : '';
-        return '<td class="td-num num"' + style + '>' + fmtFn(r) + '</td>';
-      }).join('');
-      return '<tr><td>' + escapeHtml(label) + '</td>' + cells + '</tr>';
-    }).join('') + '</tbody>';
-    $('#b2b-weekly-table').innerHTML = thead + tbody;
-
-    state.weeklyRows = weekRows;
-    renderWeeklyTrendChart();
-  }
-  function renderWeeklyTrendChart() {
-    const weekRows = state.weeklyRows || [];
-    const selected = WEEKLY_METRIC_ROWS.filter(([label]) => state.weeklyMetrics.has(label));
-    const labels = weekRows.map((r) => r.label);
-    const hasMoney = selected.some(([label]) => WEEKLY_MONEY_METRICS.has(label));
-    const hasCount = selected.some(([label]) => !WEEKLY_MONEY_METRICS.has(label));
-    const dualAxis = hasMoney && hasCount;
-    const datasets = selected.map(([label, rawFn], i) => {
-      const color = PALETTE[i % PALETTE.length];
-      const isMoney = WEEKLY_MONEY_METRICS.has(label);
-      return {
-        type: 'line', label, data: weekRows.map(rawFn), borderColor: color, backgroundColor: color + '22',
-        tension: 0.3, pointRadius: 3, spanGaps: true, yAxisID: dualAxis && !isMoney ? 'y1' : 'y',
-      };
-    });
-    upsertChart('chart-b2b-weekly-trend', {
-      data: { labels, datasets },
-      options: chartOptions({ y1: dualAxis }),
-    });
-  }
-
-  // Joined by ad NAME (UTM Content <-> Meta's Ad Name) — UTM Term never matches a real Ad ID for
-  // B2B leads (see b2b.js), so name is the only attribution path that actually works.
-  function renderLeadsByAd(leads) {
-    const el = $('#b2b-leads-by-ad');
-    // Spend filtered to the same date range as `leads` — adSpendByAdName alone is a lifetime
-    // total and would overstate spend (and Cost/Lead) whenever a range is picked.
+  // Ad name (UTM Content on the lead) joins to the spend sheets' Ad Name — see b2b.js.
+  function adRows(leads) {
     const spendByName = new Map();
-    state.adSpendByAdNameDaily.filter((r) => inRange(r.date)).forEach((r) => {
-      spendByName.set(r.adName, (spendByName.get(r.adName) || 0) + r.spend);
-    });
+    state.adSpendByAdNameDaily.filter((r) => inRange(r.date)).forEach((r) => spendByName.set(r.adName, (spendByName.get(r.adName) || 0) + r.spend));
     const leadsByName = new Map();
     leads.forEach((l) => { if (l.utmContent) leadsByName.set(l.utmContent, (leadsByName.get(l.utmContent) || 0) + 1); });
-    const names = new Set([...spendByName.keys(), ...leadsByName.keys()]);
-    const combined = Array.from(names).map((adName) => {
-      const leadsN = leadsByName.get(adName) || 0;
-      const spend = spendByName.get(adName) || 0;
-      return { adName, leads: leadsN, spend, cpl: leadsN ? spend / leadsN : 0 };
-    }).filter((r) => r.leads > 0 || r.spend > 0).sort((a, b) => b.leads - a.leads).slice(0, 30);
+    return [...new Set([...spendByName.keys(), ...leadsByName.keys()])].map((adName) => {
+      const n = leadsByName.get(adName) || 0, spend = spendByName.get(adName) || 0;
+      return { adName, leads: n, spend, cpl: n ? spend / n : 0 };
+    }).filter((r) => r.leads > 0 || r.spend > 0).sort((a, b) => b.leads - a.leads || b.spend - a.spend);
+  }
 
-    if (!combined.length) { el.innerHTML = '<p style="padding:16px;opacity:0.7">No data for the current filters.</p>'; return; }
-    el.innerHTML = '<table><thead><tr><th>Ad Name</th><th class="th-num">Leads</th><th class="th-num">Spend</th><th class="th-num">Cost/Lead</th></tr></thead><tbody>' +
-      combined.map((r) =>
-        '<tr><td>' + escapeHtml(r.adName) + '</td>' +
-        '<td class="td-num num">' + fmtInt(r.leads) + '</td><td class="td-num num">' + fmtMoney(r.spend) + '</td>' +
-        '<td class="td-num num">' + (r.leads ? fmtMoney(r.cpl) : '—') + '</td></tr>'
-      ).join('') + '</tbody></table>';
+  function renderAds(leads) {
+    const rows = adRows(leads);
+    $('#ads-sub').textContent = rows.length ? rows.length + ' ad' + (rows.length === 1 ? '' : 's') : '';
+    if (!rows.length) { $('#b2b-ads').innerHTML = '<p class="empty-msg">No ad spend or leads in this range.</p>'; return; }
+    $('#b2b-ads').innerHTML = '<table><thead><tr><th>Ad Name</th><th class="th-num">Leads</th><th class="th-num">Spend</th><th class="th-num">Cost/Lead</th><th>Links</th></tr></thead><tbody>' +
+      rows.map((r) => {
+        const top = postsFor(r.adName)[0];
+        const url = postUrl(top);
+        return '<tr class="is-clickable' + (state.openAd === r.adName ? ' is-selected' : '') + '" data-ad="' + escapeHtml(r.adName) + '">' +
+          '<td class="name-cell">' + escapeHtml(r.adName) + '</td>' +
+          '<td class="td-num num">' + fmtInt(r.leads) + '</td>' +
+          '<td class="td-num num">' + fmtMoney(r.spend) + '</td>' +
+          '<td class="td-num num">' + (r.leads ? fmtMoney(r.cpl) : '—') + '</td>' +
+          '<td>' + (url ? '<button class="ad-link" data-ad="' + escapeHtml(r.adName) + '" title="Preview">' + escapeHtml(url) + '</button>' +
+            '<a class="ad-ext" href="' + escapeHtml(url) + '" target="_blank" rel="noopener" title="Open in a new tab">&#8599;</a>' : '<span class="muted">—</span>') + '</td></tr>';
+      }).join('') + '</tbody></table>';
   }
 
   function renderLeadDetail() {
     const filtered = state.leads.filter((l) => inRange(l.date)).sort((a, b) => (a.date < b.date ? 1 : -1));
     const term = ($('#lead-search').value || '').trim().toLowerCase();
     const searched = term ? filtered.filter((l) => [l.name, l.firmName, l.state, l.source, l.utmContent, l.stage, l.status].join(' ').toLowerCase().includes(term)) : filtered;
-    $('#lead-count').textContent = searched.length.toLocaleString() + ' leads' + (term ? ' (filtered from ' + filtered.length.toLocaleString() + ')' : '');
-    const shown = searched.slice(0, 500);
-    $('#lead-detail-body').innerHTML = shown.map((l) =>
-      '<tr><td>' + escapeHtml(l.date) + '</td>' +
+    $('#lead-count').textContent = searched.length.toLocaleString() + ' lead' + (searched.length === 1 ? '' : 's') + (term ? ' (filtered from ' + filtered.length.toLocaleString() + ')' : '');
+    $('#leads-empty').hidden = searched.length > 0;
+    const hasPosts = new Set(state.ads.map((a) => a.adName));
+    $('#lead-detail-body').innerHTML = searched.slice(0, 500).map((l) =>
+      '<tr><td>' + escapeHtml(mdy(l.date)) + '</td>' +
       '<td>' + escapeHtml(l.name) + '</td>' +
       '<td>' + escapeHtml(l.firmName) + '</td>' +
       '<td>' + escapeHtml(l.state) + '</td>' +
       '<td>' + escapeHtml(l.source) + '</td>' +
-      '<td>' + escapeHtml(l.utmContent) + '</td>' +
+      '<td>' + (l.utmContent && hasPosts.has(l.utmContent) ? '<button class="ad-name-btn" data-ad="' + escapeHtml(l.utmContent) + '">' + escapeHtml(l.utmContent) + '</button>' : escapeHtml(l.utmContent)) + '</td>' +
       '<td>' + escapeHtml(l.stage) + '</td>' +
       '<td>' + escapeHtml(l.status) + '</td></tr>'
     ).join('');
   }
 
-  $('#b2b-weekly-metrics').addEventListener('click', (e) => {
-    const btn = e.target.closest('.chip');
-    if (!btn) return;
-    const metric = btn.dataset.weeklyMetric;
-    if (state.weeklyMetrics.has(metric)) state.weeklyMetrics.delete(metric); else state.weeklyMetrics.add(metric);
-    btn.classList.toggle('is-active', state.weeklyMetrics.has(metric));
-    renderWeeklyTrendChart();
+  // ---- side preview panel (same behavior as the Creative Dashboard's video panel) ----
+  function embedHtml(p) {
+    if (!p) return '';
+    const ig = /instagram\.com\/(p|reel|tv)\/([A-Za-z0-9_-]+)/.exec(p.instagramUrl || '');
+    if (ig) return '<iframe src="https://www.instagram.com/' + ig[1] + '/' + ig[2] + '/embed/" allowfullscreen scrolling="no" loading="lazy"></iframe>';
+    if (p.mediaUrl && /\.mp4(\?|$)|video\.twimg\.com/i.test(p.mediaUrl)) return '<video src="' + escapeHtml(p.mediaUrl) + '" controls autoplay playsinline' + (p.thumbUrl ? ' poster="' + escapeHtml(p.thumbUrl) + '"' : '') + '></video>';
+    if (p.mediaUrl) return '<img src="' + escapeHtml(p.mediaUrl) + '" alt="">';
+    if (p.postUrl) return '<iframe src="https://www.facebook.com/plugins/post.php?href=' + encodeURIComponent(p.postUrl) + '&show_text=true&width=500" scrolling="no" loading="lazy"></iframe>';
+    return '';
+  }
+
+  function openAdPanel(adName, wantedKey) {
+    const posts = postsFor(adName);
+    const post = posts.find((p) => postKey(p) === wantedKey) || posts[0];
+    const playing = postKey(post);
+    if (state.openAd !== adName || state.openPost !== playing || !$('#video-panel').classList.contains('is-open')) {
+      $('#video-panel-embed').innerHTML = embedHtml(post);
+    }
+    state.openAd = adName;
+    state.openPost = playing;
+    const leads = state.leads.filter((l) => inRange(l.date) && l.utmContent === adName).sort((a, b) => (a.date < b.date ? 1 : -1));
+    const spend = state.adSpendByAdNameDaily.filter((r) => inRange(r.date) && r.adName === adName).reduce((s, r) => s + r.spend, 0);
+    $('#video-panel-title').textContent = adName;
+    $('#video-panel-sub').textContent = (post ? post.platform + ' ad' : 'No preview link') + ' · ' + rangeTitle().replace(/^B2B \((.*)\) Report:?\s*/, '$1 ');
+    const links = [];
+    if (post && post.instagramUrl) links.push(['Instagram', post.instagramUrl]);
+    if (post && post.postUrl) links.push(['Facebook post', post.postUrl]);
+    if (post && post.tweetUrl) links.push(['Tweet', post.tweetUrl]);
+    if (post && post.mediaUrl && !post.instagramUrl) links.push(['Media file', post.mediaUrl]);
+    $('#video-panel-body').innerHTML =
+      '<div class="panel-figs">' +
+        '<div class="panel-fig"><div class="panel-fig-label">Leads</div><div class="panel-fig-value num">' + fmtInt(leads.length) + '</div></div>' +
+        '<div class="panel-fig"><div class="panel-fig-label">Spend</div><div class="panel-fig-value num">' + fmtMoney(spend) + '</div></div>' +
+        '<div class="panel-fig"><div class="panel-fig-label">Cost/Lead</div><div class="panel-fig-value num">' + (leads.length ? fmtMoney(spend / leads.length) : '—') + '</div></div>' +
+      '</div>' +
+      (links.length ? '<div class="panel-links">' + links.map(([label, url]) => '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' + label + ' &#8599;</a>').join('') + '</div>' : '') +
+      (posts.length > 1 ? '<div class="panel-section-title">Posts running under this ad name</div><ul class="panel-list">' +
+        posts.map((p) => '<li><button data-ad="' + escapeHtml(adName) + '" data-post="' + escapeHtml(postKey(p)) + '">' + escapeHtml(postUrl(p)) + (postKey(p) === playing ? ' (showing)' : '') + '</button><span class="num">' + fmtMoney(p.spend || 0) + '</span></li>').join('') + '</ul>' : '') +
+      '<div class="panel-section-title">Leads from this ad</div>' +
+      (leads.length ? '<ul class="panel-list">' + leads.map((l) => '<li><span>' + escapeHtml(l.name) + (l.firmName ? ' <span class="muted">· ' + escapeHtml(l.firmName) + '</span>' : '') + '</span><span class="muted">' + escapeHtml(l.stage || mdy(l.date)) + '</span></li>').join('') + '</ul>' : '<p class="muted" style="font-size:12.5px;margin:0">No leads from this ad in this range.</p>');
+    $('#video-panel').classList.add('is-open');
+    $('#video-panel').setAttribute('aria-hidden', 'false');
+    document.body.classList.add('video-panel-open');
+    document.querySelectorAll('#b2b-ads tr[data-ad]').forEach((tr) => tr.classList.toggle('is-selected', tr.dataset.ad === adName));
+  }
+  function closeAdPanel() {
+    state.openAd = null;
+    state.openPost = null;
+    $('#video-panel').classList.remove('is-open');
+    $('#video-panel').setAttribute('aria-hidden', 'true');
+    $('#video-panel-embed').innerHTML = ''; // clear so playback actually stops
+    $('#video-panel-body').innerHTML = '';
+    document.body.classList.remove('video-panel-open');
+    document.querySelectorAll('#b2b-ads tr.is-selected').forEach((tr) => tr.classList.remove('is-selected'));
+  }
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.ad-ext, .panel-links a')) return; // real links open in a new tab
+    const postBtn = e.target.closest('#video-panel-body button[data-post]');
+    if (postBtn) { openAdPanel(postBtn.dataset.ad, postBtn.dataset.post); return; }
+    const adEl = e.target.closest('[data-ad]');
+    if (adEl && !adEl.closest('#video-panel')) { e.preventDefault(); openAdPanel(adEl.dataset.ad); }
   });
+  $('#video-panel-close').addEventListener('click', closeAdPanel);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.openAd) closeAdPanel(); });
 
   $('#lead-search').addEventListener('input', renderLeadDetail);
   $('#quick-range').addEventListener('change', (e) => {
     const { start, end } = computeRange(e.target.value);
-    state.range = { start, end };
+    state.range = { key: e.target.value, start, end };
     $('#range-start').value = start || '';
     $('#range-end').value = end || '';
     renderAll();
@@ -301,16 +248,17 @@
   function applyCustomRange() {
     const start = $('#range-start').value || null, end = $('#range-end').value || null;
     if (!start && !end) return;
-    state.range = { start, end };
+    state.range = { key: '', start, end };
     $('#quick-range').value = '';
     renderAll();
   }
   $('#range-start').addEventListener('change', applyCustomRange);
   $('#range-end').addEventListener('change', applyCustomRange);
   $('#range-clear').addEventListener('click', () => {
-    const key = $('#quick-range').value;
+    const key = $('#quick-range').value || 'yesterday';
     const { start, end } = computeRange(key);
-    state.range = { start, end };
+    state.range = { key, start, end };
+    $('#quick-range').value = key;
     $('#range-start').value = start || '';
     $('#range-end').value = end || '';
     renderAll();
@@ -321,9 +269,9 @@
   });
 
   buildQuickRangeOptions(2026, 1);
-  const defaultKey = 'all';
+  const defaultKey = 'yesterday';
   const initial = computeRange(defaultKey);
-  state.range = initial;
+  state.range = { key: defaultKey, ...initial };
   $('#quick-range').value = defaultKey;
   $('#range-start').value = initial.start || '';
   $('#range-end').value = initial.end || '';

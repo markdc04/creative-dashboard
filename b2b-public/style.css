@@ -1,0 +1,64 @@
+/* B2B report page — sits on top of /walker/style.css. The side preview panel matches the
+   Creative Dashboard's: it pushes the page over instead of covering it. */
+#b2b-kpis{grid-template-columns:repeat(3,minmax(0,1fr));}
+
+.ad-link{
+  display:inline-block;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;
+  background:none;border:0;padding:0;font:inherit;font-size:12.5px;color:var(--accent);cursor:pointer;text-align:left;
+}
+.ad-link:hover{text-decoration:underline;}
+.ad-ext{margin-left:6px;color:var(--text-faint);font-size:12px;text-decoration:none;}
+.ad-ext:hover{color:var(--accent);}
+.ad-name-btn{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left;}
+.ad-name-btn:hover{color:var(--accent);}
+
+.video-panel{
+  position:fixed;top:0;right:0;height:100vh;width:min(520px,45vw);z-index:90;
+  background:var(--surface);border-left:1px solid var(--border);
+  box-shadow:-24px 0 50px -10px rgba(0,0,0,.5);
+  display:flex;flex-direction:column;overflow-y:auto;
+  transform:translateX(100%);transition:transform .25s ease;
+}
+.video-panel.is-open{transform:translateX(0);}
+body{transition:margin-right .25s ease;}
+body.video-panel-open{width:auto;margin-right:min(520px,45vw);overflow-x:hidden;}
+body.video-panel-open .back-to-top{right:calc(24px + min(520px,45vw));}
+.video-panel-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:14px 14px 12px;border-bottom:1px solid var(--border);flex:none;
+  position:sticky;top:0;z-index:1;background:var(--surface);
+}
+.video-panel-titlewrap{min-width:0;overflow:hidden;}
+.video-panel-title{display:block;font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.video-panel-views{display:block;font-size:11px;color:var(--text-faint);margin-top:2px;}
+.video-panel-close{
+  flex:none;width:28px;height:28px;border-radius:50%;
+  background:var(--surface-raised);border:1px solid var(--border);color:var(--text-dim);
+  font-size:16px;line-height:1;cursor:pointer;
+}
+.video-panel-close:hover{color:var(--accent);border-color:var(--accent);}
+.video-panel-embed{flex:none;background:#000;display:flex;justify-content:center;}
+.video-panel-embed iframe{width:100%;height:min(720px,78vh);border:0;display:block;background:#fff;}
+.video-panel-embed video,.video-panel-embed img{max-width:100%;max-height:78vh;display:block;}
+.video-panel-embed:empty{display:none;}
+.video-panel-body{flex:none;padding:16px 14px;}
+
+.panel-figs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;}
+.panel-fig{background:var(--surface-raised);border:1px solid var(--border);border-radius:10px;padding:10px;}
+.panel-fig-label{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-faint);}
+.panel-fig-value{font-size:17px;font-weight:800;margin-top:4px;}
+.panel-links{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+.panel-links a{font-size:12px;font-weight:600;color:var(--text);border:1px solid var(--border);border-radius:999px;padding:5px 11px;text-decoration:none;}
+.panel-links a:hover{border-color:var(--accent);color:var(--accent);}
+.panel-section-title{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-dim);margin:14px 0 8px;}
+.panel-list{list-style:none;margin:0;padding:0;}
+.panel-list li{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--border-soft);font-size:12.5px;}
+.panel-list li .muted{color:var(--text-faint);}
+.panel-list button{background:none;border:0;padding:0;font:inherit;color:var(--accent);cursor:pointer;text-align:left;}
+
+@media (max-width:640px){
+  #b2b-kpis{grid-template-columns:1fr;}
+  .video-panel{width:100vw;}
+  body.video-panel-open{margin-right:0;}
+  .ad-link{max-width:180px;}
+}

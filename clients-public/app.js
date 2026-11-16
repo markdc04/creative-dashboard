@@ -106,7 +106,7 @@
         const fee = totalLeads * feePerLead;
         return {
           totalLeads, cpl: totalLeads ? spend / totalLeads : 0, signed,
-          cpc: signed ? (spend + fee) / signed : 0, cpcLabel: 'CPC + Fee',
+          cpc: signed ? (spend + fee) / signed : 0, cpcLabel: 'Client CPC',
         };
       },
     },
@@ -129,7 +129,7 @@
         }, 0);
         return {
           totalLeads: leads.length, cpl: leads.length ? spend / leads.length : 0, signed,
-          cpc: signed ? (revenue + fee) / signed : 0, cpcLabel: 'CPC + Fee',
+          cpc: signed ? (revenue + fee) / signed : 0, cpcLabel: 'Client CPC',
         };
       },
     },

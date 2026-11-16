@@ -191,16 +191,23 @@
       if (l.createdDate === '2026-10-07') continue;
       if (l.createdDate === '2026-10-13' || l.createdDate === '2026-10-14' || l.createdDate === '2026-10-15') continue;
       if (l.createdDate === '2026-10-18' || l.createdDate === '2026-10-19') continue;
-      const key = o.campaignId + '|' + l.createdDate;
+      // Charged on the day the shared campaign logged the lead — the same day it's counted in
+      // that day's lead total (the client's own sheet is occasionally a day off).
+      const key = o.campaignId + '|' + (o.walkerDate || l.createdDate);
       sent.set(key, (sent.get(key) || 0) + 1);
     }
     const nameOf = new Map(state.walker.campaigns.map((c) => [c.campaignId, c.name]));
     const days = [...sent.entries()].map(([key, n]) => {
       const [campaignId, date] = key.split('|');
       const spend = state.walker.spendDaily.filter((r) => r.campaignId === campaignId && r.date === date).reduce((a, r) => a + r.spend, 0);
-      const walkerLeads = state.walker.leadsDaily.filter((r) => r.campaignId === campaignId && r.date === date).reduce((a, r) => a + r.leads, 0);
+      const day = state.walker.leadsDaily.filter((r) => r.campaignId === campaignId && r.date === date);
+      const sum = (k) => day.reduce((a, r) => a + (r[k] || 0), 0);
+      // Every lead the campaign produced that day, for every buyer (Walker + Bryan + Ruy). Never
+      // fewer than the leads sent here, so a lead can't be charged more than the day's spend.
+      const walkerLeads = Math.max(sum('leads'), n);
+      const split = { walker: sum('walker'), bryan: sum('bryan'), ruy: sum('ruy') };
       const cpl = walkerLeads > 0 ? spend / walkerLeads : 0;
-      return { campaignId, date, name: nameOf.get(campaignId) || campaignId, n, spend, walkerLeads, cpl, deduct: n * cpl };
+      return { campaignId, date, name: nameOf.get(campaignId) || campaignId, n, spend, walkerLeads, split, cpl, deduct: n * cpl };
     }).sort((a, b) => b.date.localeCompare(a.date));
     return { days, total: days.reduce((a, d) => a + d.deduct, 0) };
   }
@@ -485,17 +492,19 @@
       if (!byCampaign.has(o.campaignId)) byCampaign.set(o.campaignId, { name: o.campaignName || o.campaignId, n: 0 });
       byCampaign.get(o.campaignId).n++;
     }
+    const untraced = leads.filter((l) => !l.origin || !l.origin.campaignId).length;
     const campaignNames = [...byCampaign.values()].map((c) => c.name + ' · ' + c.n + ' lead' + (c.n === 1 ? '' : 's')).join(', ');
 
     $('#deduct-facts').innerHTML =
       '<div class="fact fact--total"><div class="fact-label">Bryan ad spend</div><div class="fact-value">' + cents(total) + '</div><div class="fact-sub">already spent in Walker&rsquo;s campaigns &middot; sum of the days below</div></div>' +
+      '<div class="fact"><div class="fact-label">Not found in campaign log</div><div class="fact-value">' + untraced + '</div><div class="fact-sub">' + (untraced ? 'lead' + (untraced === 1 ? '' : 's') + ' in this range with no matching row in Walker&rsquo;s PPL log &mdash; not charged ad spend' : 'every lead in this range is matched to the shared campaign') + '</div></div>' +
       '<div class="fact"><div class="fact-label">Walker campaigns</div><div class="fact-value">' + (byCampaign.size || dash) + '</div><div class="fact-sub">' + escapeHtml(campaignNames || 'No Walker campaign found for the leads in this range.') + '</div></div>';
 
     const sentTotal = days.reduce((t, d) => t + d.n, 0);
     $('#deduct-days-body').innerHTML = days.map((d) => (
       '<tr><td>' + escapeHtml(d.date) + '</td><td class="name-cell">' + escapeHtml(d.name) + '</td>' +
       '<td class="td-num num">' + cents(d.spend) + '</td>' +
-      '<td class="td-num num">' + d.walkerLeads.toLocaleString('en-US') + '</td>' +
+      '<td class="td-num num">' + d.walkerLeads.toLocaleString('en-US') + '<div class="email-cell">W ' + d.split.walker + ' · B ' + d.split.bryan + ' · R ' + d.split.ruy + '</div></td>' +
       '<td class="td-num num">' + d.n + '</td>' +
       '<td class="td-num num">' + (d.cpl ? cents(d.cpl) : dash) + '</td>' +
       '<td class="td-num num">' + (d.deduct ? cents(d.deduct) : dash) + '</td></tr>'
@@ -532,7 +541,7 @@
     $('#leads-empty').hidden = rows.length > 0;
     $('#leads-body').innerHTML = rows.map((l) => {
       const o = l.origin;
-      const cpl = o && o.campaignId ? cplByKey.get(o.campaignId + '|' + l.createdDate) : 0;
+      const cpl = o && o.campaignId ? cplByKey.get(o.campaignId + '|' + (o.walkerDate || l.createdDate)) : 0;
       return '<tr>' +
         '<td><div class="name-cell">' + escapeHtml(l.name || '(no name)') + '</div><div class="email-cell">' + escapeHtml(l.email || l.phone || '') + (l.replacement ? ' · replacement · not billed' : (l.billable === false ? ' · not billed' : '')) + '</div></td>' +
         '<td class="td-nowrap">' + escapeHtml(l.createdDate || dash) + '</td>' +

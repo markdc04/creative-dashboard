@@ -261,7 +261,7 @@
       ],
       [
       ['Marketing Fee', fee ? money(fee) : dash, contractOk ? '' : 'not split by filter'],
-      ['CPC + Marketing Fee', cpcWithFee ? money(cpcWithFee) : dash, signed ? 'revenue + fee ÷ signed cases' : 'no signed cases yet'],
+      ['Client CPC', cpcWithFee ? money(cpcWithFee) : dash, signed ? 'what Bryan pays per case · revenue + fee ÷ signed cases' : 'no signed cases yet'],
       ],
     ];
     const tileHtml = ([label, value, sub, key]) =>

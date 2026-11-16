@@ -110,6 +110,7 @@ function parseWalkerLog(csv) {
       date: toISODate(r['Date']),
       name: normName(r['Name']),
       phone: phone10(r['Phone']),
+      email: (r['Email'] || '').trim().toLowerCase(),
       source: (r['Contact Source'] || '').trim(),
       campaignId: (r['UTM Campaign'] || '').trim(),
       adId: (r['UTM Term'] || '').trim(),
@@ -206,9 +207,13 @@ async function pollAll() {
       return { ...l, origin };
     });
 
+    // The campaign's daily lead count covers every buyer (Walker, Bryan, Ruy), minus anything
+    // marked TEST in Ruy's sheet (see ruy.js) — a test submission isn't a real lead.
+    const ruyTests = require('./ruy').getTestKeys();
     const leadsByDay = new Map();
     for (const w of walkerLog) {
       if (!usedCampaignIds.has(w.campaignId)) continue;
+      if ((w.email && ruyTests.has(w.date + '|' + w.email)) || (w.phone && ruyTests.has(w.date + '|' + w.phone))) continue;
       const key = w.campaignId + '|' + w.date;
       const cur = leadsByDay.get(key) || { campaignId: w.campaignId, date: w.date, leads: 0, qualified: 0 };
       cur.leads++;

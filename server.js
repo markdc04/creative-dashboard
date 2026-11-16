@@ -9,6 +9,7 @@ const sasooness = require('./sasooness');
 const { syncSasoonessSheet } = require('./sasooness-sheet-sync');
 const km = require('./km');
 const bryan = require('./bryan');
+const ruy = require('./ruy');
 const b2b = require('./b2b');
 const clientView = require('./client-view');
 const layoutStore = require('./layout-store');
@@ -66,6 +67,7 @@ function pageLabel(pathname) {
   if (pathname.startsWith('/sasooness')) return 'Sasooness';
   if (pathname.startsWith('/km')) return 'KM';
   if (pathname.startsWith('/bryan')) return 'Bryan';
+  if (pathname.startsWith('/ruy')) return 'Ruy Mireles';
   return pathname;
 }
 function recordVisit(name, page) {
@@ -350,6 +352,7 @@ async function pollAll() {
     sasooness.updateGoogleSpend(rows);
     km.updateGoogleSpend(rows);
     bryan.updateGoogleSpend(rows);
+    ruy.updateGoogleSpend(rows);
   } catch (err) {
     console.error('poll error:', err.message);
   }
@@ -533,7 +536,7 @@ const server = http.createServer((req, res) => {
       if (s.scope === 'leaderboard' || s.scope === 'creative') {
         // "creative" also gets /dashboard (the internal Creative Dashboard) on top of the
         // leaderboard; "leaderboard" alone (the shared creatives@ login) doesn't.
-        const others = s.scope === 'creative' ? ['/sasooness', '/km', '/bryan'] : ['/dashboard', '/sasooness', '/km', '/bryan'];
+        const others = s.scope === 'creative' ? ['/sasooness', '/km', '/bryan', '/ruy'] : ['/dashboard', '/sasooness', '/km', '/bryan', '/ruy'];
         return !others.some((p) => pathname === p || pathname.startsWith(p + '/') || pathname === p + '-api/data');
       }
       return pathname === '/' + s.scope || pathname.startsWith('/' + s.scope + '/') || pathname === '/' + s.scope + '-api/data';
@@ -693,6 +696,13 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Admin-only for now — Ruy has no client login or client view yet.
+  if (url.pathname === '/ruy-api/data') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(ruy.getData()));
+    return;
+  }
+
   // Admin-only, no client view — internal report, same as Walker.
   if (url.pathname === '/b2b-api/data') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -734,6 +744,7 @@ const server = http.createServer((req, res) => {
   if (rel === '/sasooness') { res.writeHead(301, { Location: '/sasooness/' }); res.end(); return; }
   if (rel === '/km') { res.writeHead(301, { Location: '/km/' }); res.end(); return; }
   if (rel === '/bryan') { res.writeHead(301, { Location: '/bryan/' }); res.end(); return; }
+  if (rel === '/ruy') { res.writeHead(301, { Location: '/ruy/' }); res.end(); return; }
   if (rel === '/walker') { res.writeHead(301, { Location: '/walker/' }); res.end(); return; }
   if (rel === '/walker-data') { res.writeHead(301, { Location: '/walker-data/' }); res.end(); return; }
   if (rel === '/b2b') { res.writeHead(301, { Location: '/b2b/' }); res.end(); return; }
@@ -742,6 +753,7 @@ const server = http.createServer((req, res) => {
   if (rel.startsWith('/walker-data/')) { root = 'walker-data-public'; rel = rel.slice('/walker-data'.length); }
   else if (rel.startsWith('/walker/')) { root = 'walker-public'; rel = rel.slice('/walker'.length); }
   else if (rel.startsWith('/b2b/')) { root = 'b2b-public'; rel = rel.slice('/b2b'.length); }
+  else if (rel.startsWith('/ruy/')) { root = 'ruy-public'; rel = rel.slice('/ruy'.length); }
   else if (rel.startsWith('/clients/')) { root = 'clients-public'; rel = rel.slice('/clients'.length); }
   // A client-role session gets the shared, limited client-view app for any of the three client
   // dashboards instead of the internal one admins/creative see at the same URL — one small static
@@ -799,6 +811,8 @@ km.pollAll();
 setInterval(km.pollAll, POLL_MS);
 bryan.pollAll();
 setInterval(bryan.pollAll, POLL_MS);
+ruy.pollAll();
+setInterval(ruy.pollAll, POLL_MS);
 b2b.pollAll();
 setInterval(b2b.pollAll, POLL_MS);
 // Walker is NOT polled on a background timer, unlike every dashboard above — its combined tabs

@@ -28,6 +28,7 @@
     '<a class="side-item' + (active === 'sasooness' ? ' is-active' : '') + '" href="/sasooness/" title="Sasooness Law Group, APC">' + icons.scale + '<span class="side-text">Sasooness Law Group, APC</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
     '<a class="side-item' + (active === 'km' ? ' is-active' : '') + '" href="/km/" title="KM Law Firm PLLC">' + icons.brief + '<span class="side-text">KM Law Firm PLLC</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
     '<a class="side-item' + (active === 'bryan' ? ' is-active' : '') + '" href="/bryan/" title="Bryan Rodriguez">' + icons.brief + '<span class="side-text">Bryan Rodriguez</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
+    '<a class="side-item' + (active === 'ruy' ? ' is-active' : '') + '" href="/ruy/" title="Ruy Mireles Law Firm">' + icons.brief + '<span class="side-text">Ruy Mireles Law Firm</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
     '<a class="side-item' + (active === 'walker' ? ' is-active' : '') + '" href="/walker/" title="Walker PPL / Agency">' + icons.walker + '<span class="side-text">Walker PPL / Agency</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
     '<a class="side-item' + (active === 'walker-data' ? ' is-active' : '') + '" href="/walker-data/" title="Data Analysis">' + icons.data + '<span class="side-text">Data Analysis</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
     '<a class="side-item' + (active === 'b2b' ? ' is-active' : '') + '" href="/b2b/" title="B2B Dashboard">' + icons.b2b + '<span class="side-text">B2B Dashboard</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
@@ -64,7 +65,7 @@
       return;
     }
     if (me.role === 'client' && me.scope === 'creative') {
-      ['sasooness', 'km', 'bryan', 'walker', 'walker-data', 'b2b', 'clients'].forEach((s) => { const el = nav.querySelector('.side-item[href="/' + s + '/"]'); if (el) el.remove(); });
+      ['sasooness', 'km', 'bryan', 'ruy', 'walker', 'walker-data', 'b2b', 'clients'].forEach((s) => { const el = nav.querySelector('.side-item[href="/' + s + '/"]'); if (el) el.remove(); });
     }
     document.querySelectorAll('.side-lock-slot').forEach((el) => { el.hidden = true; });
     document.getElementById('side-user-name').textContent = me.name;

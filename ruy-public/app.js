@@ -477,7 +477,7 @@
     $('#deduct-days-body').innerHTML = days.map((d) => (
       '<tr><td>' + escapeHtml(d.date) + '</td><td class="name-cell">' + escapeHtml(d.name) + '</td>' +
       '<td class="td-num num">' + cents(d.spend) + '</td>' +
-      '<td class="td-num num">' + d.walkerLeads.toLocaleString('en-US') + '<div class="email-cell">W ' + d.split.walker + ' · B ' + d.split.bryan + ' · R ' + d.split.ruy + '</div></td>' +
+      '<td class="td-num num">' + d.walkerLeads.toLocaleString('en-US') + '</td>' +
       '<td class="td-num num">' + d.n + '</td>' +
       '<td class="td-num num">' + (d.cpl ? cents(d.cpl) : dash) + '</td>' +
       '<td class="td-num num">' + (d.deduct ? cents(d.deduct) : dash) + '</td></tr>'

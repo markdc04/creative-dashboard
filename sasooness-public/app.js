@@ -528,7 +528,7 @@
         ['', 'CPL (Cost / Lead)', cpl ? money(cpl) : dash, 'ad spend ÷ leads', ''],
         ['', 'Budget Left', money(budgetLeft), pplBudgetNote, ''],
         ['', 'Cost / Case', costPerCase ? money(costPerCase) : dash, signed ? 'ad spend ÷ signed cases' : 'no signed cases yet', ''],
-        ['', 'CPC + Marketing Fee', cpcWithFee ? money(cpcWithFee) : dash, signed ? 'revenue ÷ signed cases' : 'no signed cases yet', ''],
+        ['', 'Client CPC', cpcWithFee ? money(cpcWithFee) : dash, signed ? 'what the client pays per case · revenue ÷ signed cases' : 'no signed cases yet', ''],
       ];
     } else {
       // Agency (AZ) mixes two spend sources: the Main Landing Page's own Google/Meta campaigns
@@ -596,7 +596,7 @@
         ['', 'Ad Budget Left', contractOk ? money(adBudgetLeft) : dash, contractOk ? adBudgetNote : '', ''],
         ['', 'Marketing Fee', contractOk ? money(fee) : dash, contractOk ? 'monthly fee from the contract' : 'contract-level, not split by filter', ''],
         ['', 'Total Cost', contractOk ? money(totalCost) : dash, contractOk ? 'ad spend + marketing fee' : 'contract-level, not split by filter', ''],
-        ['', 'CPC + Marketing Fee', cpcWithFee ? money(cpcWithFee) : dash, !costsMeaningful || !contractOk ? 'not split by filter' : signed ? 'total cost ÷ signed cases' : 'no signed cases yet', ''],
+        ['', 'Client CPC', cpcWithFee ? money(cpcWithFee) : dash, !costsMeaningful || !contractOk ? 'not split by filter' : signed ? 'what the client pays per case · ad spend + fee ÷ signed cases' : 'no signed cases yet', ''],
       ];
     }
     renderLayoutToolbar();
@@ -658,6 +658,16 @@
 
   // Sorts tiles by a saved/working label order; tiles whose label isn't in `order` (e.g. a tile
   // added after the layout was last saved) keep their original relative order, appended at the end.
+  // "CPC + Marketing Fee" was renamed "Client CPC" — carry a saved layout's position/hidden
+  // state over to the new label (and drop any old custom title so the new name shows).
+  function renameLegacyTile(layout) {
+    if (!layout) return layout;
+    const OLD = 'CPC + Marketing Fee', NEW = 'Client CPC';
+    if (Array.isArray(layout.order)) layout.order = layout.order.map((l) => (l === OLD ? NEW : l));
+    if (layout.hidden && OLD in layout.hidden) { layout.hidden[NEW] = layout.hidden[OLD]; delete layout.hidden[OLD]; }
+    if (layout.titles) delete layout.titles[OLD];
+    return layout;
+  }
   function reorderByLabels(list, order) {
     const idx = new Map((order || []).map((l, i) => [l, i]));
     return list
@@ -1152,7 +1162,7 @@
     return {
       'Total Leads': total, 'Signed Cases': signed, 'Conversion Rate': total ? (signed / total) * 100 : 0, 'Rejected': rejected,
       'Cost / Lead': cpl, 'CPC (Cost / Case)': costPerCase, 'Ad Spend': totalSpend, 'Ad Budget Left': adBudgetLeft,
-      'Marketing Fee': fee, 'Total Cost': totalCost, 'CPC + Marketing Fee': signed > 0 ? totalCost / signed : 0,
+      'Marketing Fee': fee, 'Total Cost': totalCost, 'Client CPC': signed > 0 ? totalCost / signed : 0,
     };
   }
   function pplFinancialsForWindow(win) {
@@ -1174,7 +1184,7 @@
     return {
       'Total Leads': total, 'Signed Cases': signed, 'Conversion Rate': total ? (signed / total) * 100 : 0, 'Rejected': rejected,
       'Replacement Rate': replacementRate, 'Revenue': revenue, 'Ad Spent': adSpent, 'Profit': profit, 'CPL (Cost / Lead)': cpl,
-      'Budget Left': budgetLeft, 'Cost / Case': costPerCase, 'CPC + Marketing Fee': signed > 0 ? revenue / signed : 0,
+      'Budget Left': budgetLeft, 'Cost / Case': costPerCase, 'Client CPC': signed > 0 ? revenue / signed : 0,
     };
   }
   function periodMetrics(win) {
@@ -1183,7 +1193,7 @@
 
   const COMPARE_PCT_METRICS = new Set(['Conversion Rate', 'Replacement Rate']);
   const COMPARE_MONEY_METRICS = new Set([
-    'Cost / Lead', 'CPC (Cost / Case)', 'Ad Spend', 'Ad Budget Left', 'Marketing Fee', 'Total Cost', 'CPC + Marketing Fee',
+    'Cost / Lead', 'CPC (Cost / Case)', 'Ad Spend', 'Ad Budget Left', 'Marketing Fee', 'Total Cost', 'Client CPC',
     'Revenue', 'Ad Spent', 'Profit', 'CPL (Cost / Lead)', 'Budget Left', 'Cost / Case',
   ]);
   function renderComparison() {
@@ -1599,7 +1609,7 @@
       const d = r.ok ? await r.json() : null;
       const v = d && d.order;
       // Older saves stored a bare array (order only) — treat that as just the order field.
-      state.layout[program] = Array.isArray(v) ? { order: v, hidden: {}, titles: {} } : (v || null);
+      state.layout[program] = renameLegacyTile(Array.isArray(v) ? { order: v, hidden: {}, titles: {} } : (v || null));
     } catch (err) { state.layout[program] = null; }
   }
 

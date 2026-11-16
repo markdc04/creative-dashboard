@@ -1,6 +1,7 @@
 /* B2B report page — sits on top of /walker/style.css. The side preview panel matches the
    Creative Dashboard's: it pushes the page over instead of covering it. */
 #b2b-kpis{grid-template-columns:repeat(3,minmax(0,1fr));}
+#b2b-kpis-2{grid-template-columns:repeat(4,minmax(0,1fr));}
 
 .ad-link{
   display:inline-block;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;
@@ -57,7 +58,7 @@ body.video-panel-open .back-to-top{right:calc(24px + min(520px,45vw));}
 .panel-list button{background:none;border:0;padding:0;font:inherit;color:var(--accent);cursor:pointer;text-align:left;}
 
 @media (max-width:640px){
-  #b2b-kpis{grid-template-columns:1fr;}
+  #b2b-kpis,#b2b-kpis-2{grid-template-columns:1fr;}
   .video-panel{width:100vw;}
   body.video-panel-open{margin-right:0;}
   .ad-link{max-width:180px;}

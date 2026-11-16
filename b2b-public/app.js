@@ -109,16 +109,34 @@
     return 'B2B (' + label + ') Report: ' + dates;
   }
 
+  // Closed deals are leads at the "Won (Payment Recieved)" stage in GHL. The synced tab has no
+  // deal-value column, so each won deal's value is listed here by lead name (lowercase) until
+  // one is synced from GHL — a won deal missing from this list counts as a closed deal with $0.
+  const DEAL_VALUES = { 'ruy mireles': 25000 };
+  const isQualified = (l) => /^qualified$/i.test(l.status || '');
+  const isWon = (l) => /^won\b/i.test(l.stage || '');
+  const dealValue = (l) => DEAL_VALUES[(l.name || '').trim().toLowerCase()] || 0;
+
   function renderAll() {
     const leads = state.leads.filter((l) => inRange(l.date));
     const totalSpend = state.adSpendDaily.filter((d) => inRange(d.date)).reduce((s, d) => s + d.spend, 0);
     const cpl = leads.length ? totalSpend / leads.length : 0;
+    const qualified = leads.filter(isQualified).length;
+    const won = leads.filter(isWon);
+    const revenue = won.reduce((s, l) => s + dealValue(l), 0);
+    const tile = ([label, value, sub]) => '<div class="kpi kpi--highlight"><div class="kpi-label">' + label + '</div><div class="kpi-value num">' + value + '</div>' + (sub ? '<div class="kpi-sub">' + escapeHtml(sub) + '</div>' : '') + '</div>';
     $('#report-title').textContent = rangeTitle();
     $('#b2b-kpis').innerHTML = [
       ['Leads', fmtInt(leads.length)],
       ['Ad Spent', fmtMoney(totalSpend)],
       ['CPL', leads.length ? fmtMoney(cpl) : '—'],
-    ].map(([label, value]) => '<div class="kpi kpi--highlight"><div class="kpi-label">' + label + '</div><div class="kpi-value num">' + value + '</div></div>').join('');
+    ].map(tile).join('');
+    $('#b2b-kpis-2').innerHTML = [
+      ['Qualified Leads', fmtInt(qualified), 'leads with Status “Qualified”'],
+      ['Cost / Qualified Lead', qualified ? fmtMoney(totalSpend / qualified) : '—', 'ad spent ÷ qualified leads'],
+      ['Closed Deals', fmtInt(won.length), won.length ? won.map((l) => l.firmName || l.name).join(', ') : 'stage “Won (Payment Received)”'],
+      ['Revenue', fmtMoney(revenue), 'value of the closed deals'],
+    ].map(tile).join('');
     renderAds(leads);
     renderLeadDetail();
   }

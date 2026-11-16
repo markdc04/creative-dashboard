@@ -256,7 +256,7 @@
       ['', 'Ad Budget', money(budget), budgetSub, ''],
       ['', 'Total Cost', money(totalCost), 'ad spend + marketing fee', ''],
       ['', 'CPC (Cost / Case)', costPerCase ? money(costPerCase) : dash, !ratiosOk ? note : signed ? 'ad spend ÷ signed cases' : 'no signed cases yet', ''],
-      ['', 'CPC + Marketing Fee', cpcWithFee ? money(cpcWithFee) : dash, !ratiosOk ? note : signed ? 'total cost ÷ signed cases' : 'no signed cases yet', ''],
+      ['', 'Client CPC', cpcWithFee ? money(cpcWithFee) : dash, !ratiosOk ? note : signed ? 'what KM pays per case · ad spend + fee ÷ signed cases' : 'no signed cases yet', ''],
     ];
     $('#kpi-row').innerHTML = tiles.map(([key, label, value, sub, hint]) =>
       '<div class="kpi' + (key ? ' is-clickable' : '') + (label === 'Signed Cases' ? ' kpi--highlight' : '') + '"' + (key ? ' data-tile="' + key + '" title="' + hint + '"' : '') + '>' +

@@ -6,8 +6,11 @@
   const COLOR_LEADS = '#3987e5';
   const COLOR_SIGNED = '#199e70';
   const CAMPAIGN_COLORS = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181'];
-  // Ruy's per-lead price isn't set up here yet, so there are no revenue/profit tiles — only what
-  // his leads cost in the shared campaigns.
+  // Ruy prepaid $25,000 for 50 leads at $500 per lead (PPL), regardless of status. Revenue is
+  // $500 × leads delivered, up to the 50 paid for; Budget Left is what's still owed in leads.
+  const PRICE_PER_LEAD = 500;
+  const PREPAID = 25000;
+  const LEAD_TARGET = 50;
 
   const NO_CAMPAIGN = 'Not traced to a campaign';
   const STATUSES = ['Signed', 'Rejected', 'Reviewing'];
@@ -174,16 +177,23 @@
     for (const l of leads) {
       const o = l.origin;
       if (!o || !o.campaignId || !l.createdDate) continue;
-      const key = o.campaignId + '|' + l.createdDate;
+      // Charged on the day the shared campaign logged the lead — the same day it's counted in
+      // that day's lead total (the client's own sheet is occasionally a day off).
+      const key = o.campaignId + '|' + (o.walkerDate || l.createdDate);
       sent.set(key, (sent.get(key) || 0) + 1);
     }
     const nameOf = new Map(state.walker.campaigns.map((c) => [c.campaignId, c.name]));
     const days = [...sent.entries()].map(([key, n]) => {
       const [campaignId, date] = key.split('|');
       const spend = state.walker.spendDaily.filter((r) => r.campaignId === campaignId && r.date === date).reduce((a, r) => a + r.spend, 0);
-      const walkerLeads = state.walker.leadsDaily.filter((r) => r.campaignId === campaignId && r.date === date).reduce((a, r) => a + r.leads, 0);
+      const day = state.walker.leadsDaily.filter((r) => r.campaignId === campaignId && r.date === date);
+      const sum = (k) => day.reduce((a, r) => a + (r[k] || 0), 0);
+      // Every lead the campaign produced that day, for every buyer (Walker + Bryan + Ruy). Never
+      // fewer than the leads sent here, so a lead can't be charged more than the day's spend.
+      const walkerLeads = Math.max(sum('leads'), n);
+      const split = { walker: sum('walker'), bryan: sum('bryan'), ruy: sum('ruy') };
       const cpl = walkerLeads > 0 ? spend / walkerLeads : 0;
-      return { campaignId, date, name: nameOf.get(campaignId) || campaignId, n, spend, walkerLeads, cpl, deduct: n * cpl };
+      return { campaignId, date, name: nameOf.get(campaignId) || campaignId, n, spend, walkerLeads, split, cpl, deduct: n * cpl };
     }).sort((a, b) => b.date.localeCompare(a.date));
     return { days, total: days.reduce((a, d) => a + d.deduct, 0) };
   }
@@ -197,6 +207,15 @@
     const { total: spend } = dailyDeduction(leads);
     const cpl = total > 0 && spend > 0 ? spend / total : 0;
     const costPerCase = signed > 0 && spend > 0 ? spend / signed : 0;
+    // Revenue counts every delivered lead up to the 50 paid for; the budget is a whole-contract
+    // number, so it always uses every lead to date (not the date filter).
+    const billed = Math.min(total, LEAD_TARGET);
+    const revenue = billed * PRICE_PER_LEAD;
+    const profit = revenue - spend;
+    const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+    const clientCpc = signed > 0 ? revenue / signed : 0;
+    const allDelivered = state.leads.length;
+    const budgetLeft = Math.max(0, PREPAID - Math.min(allDelivered, LEAD_TARGET) * PRICE_PER_LEAD);
     const dash = '—';
 
     const hasFilter = state.filters.status || state.filters.campaign;
@@ -205,15 +224,23 @@
       ['Total Leads', total.toLocaleString('en-US'), hasFilter ? 'click to clear filters' : (rejected ? rejected.toLocaleString('en-US') + ' rejected' : ''), 'clear'],
       ['Cost / Lead', cpl ? money(cpl) : dash, 'ad spend ÷ leads'],
       ['Signed', signed.toLocaleString('en-US'), 'of ' + total.toLocaleString('en-US') + ' leads · click to filter', 'signed'],
-      ['Cost / Case', costPerCase ? money(costPerCase) : dash, signed ? 'ad spend ÷ signed leads' : 'no signed leads yet'],
+      ['Cost / Case', costPerCase ? money(costPerCase) : dash, signed ? 'CPC · ad spend ÷ signed cases' : 'no signed cases yet'],
       ['Conversion Rate', pct(conversionRate), 'signed ÷ leads'],
       ],
       [
       ['Ad Spend', money(spend), 'Ruy’s share of the shared Texas campaigns'],
+      ['Revenue', money(revenue), '$' + PRICE_PER_LEAD + ' × ' + billed.toLocaleString('en-US') + ' leads' + (total > billed ? ' (' + (total - billed) + ' over the ' + LEAD_TARGET + ' paid for)' : '')],
+      ['Profit', money(profit), pct(margin) + ' margin · revenue − ad spend'],
+      ],
+      [
+      ['Client CPC', clientCpc ? money(clientCpc) : dash, signed ? 'what Ruy pays per case · revenue ÷ signed cases (no marketing fee)' : 'no signed cases yet'],
+      ['Budget Paid', money(PREPAID), LEAD_TARGET + ' leads × $' + PRICE_PER_LEAD],
+      ['Leads Delivered', allDelivered.toLocaleString('en-US') + ' / ' + LEAD_TARGET, Math.max(0, LEAD_TARGET - allDelivered) + ' still owed · all time'],
+      ['Budget Left', money(budgetLeft), '$' + PREPAID.toLocaleString('en-US') + ' − $' + PRICE_PER_LEAD + ' × leads delivered'],
       ],
     ];
     const tileHtml = ([label, value, sub, key]) =>
-      '<div class="kpi' + (key ? ' is-clickable' : '') + (key === 'signed' || label === 'Ad Spend' ? ' kpi--highlight' : '') + (key === 'signed' && state.filters.status === 'Signed' ? ' is-selected' : '') + '"' + (key ? ' data-tile="' + key + '"' : '') + '><div class="kpi-label">' + escapeHtml(label) + '</div>' +
+      '<div class="kpi' + (key ? ' is-clickable' : '') + (key === 'signed' || label === 'Profit' ? ' kpi--highlight' : '') + (key === 'signed' && state.filters.status === 'Signed' ? ' is-selected' : '') + '"' + (key ? ' data-tile="' + key + '"' : '') + '><div class="kpi-label">' + escapeHtml(label) + '</div>' +
       '<div class="kpi-value num">' + value + '</div>' +
       (sub ? '<div class="kpi-sub">' + escapeHtml(sub) + '</div>' : '') + '</div>';
     $('#kpi-row').innerHTML = tileRows.map((row) => '<div class="kpi-row kpi-row--' + row.length + '">' + row.map(tileHtml).join('') + '</div>').join('');
@@ -440,17 +467,19 @@
       if (!byCampaign.has(o.campaignId)) byCampaign.set(o.campaignId, { name: o.campaignName || o.campaignId, n: 0 });
       byCampaign.get(o.campaignId).n++;
     }
+    const untraced = leads.filter((l) => !l.origin || !l.origin.campaignId).length;
     const campaignNames = [...byCampaign.values()].map((c) => c.name + ' · ' + c.n + ' lead' + (c.n === 1 ? '' : 's')).join(', ');
 
     $('#deduct-facts').innerHTML =
       '<div class="fact fact--total"><div class="fact-label">Ruy ad spend</div><div class="fact-value">' + cents(total) + '</div><div class="fact-sub">already spent in Walker&rsquo;s campaigns &middot; sum of the days below</div></div>' +
+      '<div class="fact"><div class="fact-label">Not found in campaign log</div><div class="fact-value">' + untraced + '</div><div class="fact-sub">' + (untraced ? 'lead' + (untraced === 1 ? '' : 's') + ' in this range with no matching row in Walker&rsquo;s PPL log &mdash; not charged ad spend' : 'every lead in this range is matched to the shared campaign') + '</div></div>' +
       '<div class="fact"><div class="fact-label">Walker campaigns</div><div class="fact-value">' + (byCampaign.size || dash) + '</div><div class="fact-sub">' + escapeHtml(campaignNames || 'No Walker campaign found for the leads in this range.') + '</div></div>';
 
     const sentTotal = days.reduce((t, d) => t + d.n, 0);
     $('#deduct-days-body').innerHTML = days.map((d) => (
       '<tr><td>' + escapeHtml(d.date) + '</td><td class="name-cell">' + escapeHtml(d.name) + '</td>' +
       '<td class="td-num num">' + cents(d.spend) + '</td>' +
-      '<td class="td-num num">' + d.walkerLeads.toLocaleString('en-US') + '</td>' +
+      '<td class="td-num num">' + d.walkerLeads.toLocaleString('en-US') + '<div class="email-cell">W ' + d.split.walker + ' · B ' + d.split.bryan + ' · R ' + d.split.ruy + '</div></td>' +
       '<td class="td-num num">' + d.n + '</td>' +
       '<td class="td-num num">' + (d.cpl ? cents(d.cpl) : dash) + '</td>' +
       '<td class="td-num num">' + (d.deduct ? cents(d.deduct) : dash) + '</td></tr>'
@@ -487,7 +516,7 @@
     $('#leads-empty').hidden = rows.length > 0;
     $('#leads-body').innerHTML = rows.map((l) => {
       const o = l.origin;
-      const cpl = o && o.campaignId ? cplByKey.get(o.campaignId + '|' + l.createdDate) : 0;
+      const cpl = o && o.campaignId ? cplByKey.get(o.campaignId + '|' + (o.walkerDate || l.createdDate)) : 0;
       return '<tr>' +
         '<td><div class="name-cell">' + escapeHtml(l.name || '(no name)') + '</div><div class="email-cell">' + escapeHtml(l.email || l.phone || '') + '</div></td>' +
         '<td class="td-nowrap">' + escapeHtml(l.createdDate || dash) + '</td>' +

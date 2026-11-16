@@ -73,7 +73,7 @@
         <colgroup><col style="width:112px"><col><col style="width:150px"><col style="width:130px"><col style="width:130px"><col style="width:150px"><col style="width:170px"></colgroup>
         <thead>
           <tr class="head-labels">
-            <th>Date</th><th>Walker campaign</th><th class="th-num">Campaign ad spend that day</th><th class="th-num">Total leads that day (Walker + Bryan + Ruy)</th><th class="th-num">Sent to Ruy</th><th class="th-num">Cost per lead</th><th class="th-num">Ruy ad spend</th>
+            <th>Date</th><th>Walker campaign</th><th class="th-num">Campaign ad spend that day</th><th class="th-num">All leads that day (Walker + Bryan + Ruy)</th><th class="th-num">Sent to Ruy</th><th class="th-num">Cost per lead</th><th class="th-num">Ruy ad spend</th>
           </tr>
           <tr class="head-formula">
             <th></th><th></th><th class="th-num">A</th><th class="th-num">B</th><th class="th-num">C</th><th class="th-num">A &divide; B</th><th class="th-num">A &divide; B &times; C</th>
@@ -82,7 +82,7 @@
         <tbody id="deduct-days-body"></tbody>
       </table>
     </div>
-    <p class="footnote footnote--inside">Every lead counts toward the day&rsquo;s cost per lead, whatever its status, and the day&rsquo;s total counts every lead the shared campaign produced for Walker, Bryan and Ruy &mdash; so Ruy is charged only his own share of that day&rsquo;s spend. The <strong>Ad Spend</strong> tile above is this table&rsquo;s total. Spend and lead counts cover the dates chosen above.</p>
+    <p class="footnote footnote--inside">Every lead counts toward the day&rsquo;s cost per lead, whatever its status, and the day&rsquo;s total counts every lead the shared campaign produced for Walker, Bryan and Ruy (W / B / R under each total) &mdash; so Ruy is charged only his own share of that day&rsquo;s spend. The <strong>Ad Spend</strong> tile above is this table&rsquo;s total. Spend and lead counts cover the dates chosen above.</p>
   </div>
 
   <div class="chart-row">
@@ -126,7 +126,7 @@
     <div id="ad-empty" class="empty-msg" hidden>No leads in this range.</div>
   </div>
 
-  <p class="footnote">Ruy Mireles Law Firm is a pay-per-lead (PPL) client &mdash; his leads come out of the same shared Texas campaigns Walker runs, which also supply Bryan Rodriguez. <strong>Ad Spend</strong> is Ruy&rsquo;s share: each day&rsquo;s campaign spend &divide; every lead that campaign produced that day (Walker + Bryan + Ruy) &times; the leads sent to Ruy that day. Leads are matched to their campaign by email, phone, then name against Walker&rsquo;s PPL delivery log. Rows marked TEST in Ruy&rsquo;s sheet are left out everywhere, including the day&rsquo;s lead count. Status is read from the sheet&rsquo;s Lead Status text (Signed / Rejected, otherwise Reviewing).</p>
+  <p class="footnote">Ruy Mireles Law Firm is a pay-per-lead (PPL) client &mdash; his leads come out of the same shared Texas campaigns Walker runs, which also supply Bryan Rodriguez. <strong>Ad Spend</strong> is Ruy&rsquo;s share: each day&rsquo;s campaign spend &divide; every lead that campaign produced that day (Walker + Bryan + Ruy) &times; the leads sent to Ruy that day. Leads are matched to their campaign by email, phone, then name against Walker&rsquo;s PPL delivery log. Rows marked TEST in Ruy&rsquo;s sheet are left out everywhere, including the day&rsquo;s lead count. <strong>Revenue</strong>: Ruy prepaid $25,000 for 50 leads at $500 per lead, regardless of status &mdash; revenue is $500 &times; leads delivered (up to 50) and <strong>Profit</strong> is revenue minus Ruy&rsquo;s ad-spend share. <strong>Budget Left</strong> is $25,000 &minus; $500 &times; every lead delivered so far. Status is read from the sheet&rsquo;s Lead Status text (Signed / Rejected, otherwise Reviewing).</p>
 
   <div class="panel panel--secondary">
     <div class="panel-head">

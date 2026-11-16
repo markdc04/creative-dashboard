@@ -162,6 +162,19 @@ function updateGoogleSpend(rows) {
   cache.updatedAt = Date.now();
 }
 
+// How many of this client's leads were matched to each shared-campaign day (by the Walker log
+// row's own date, the same day the campaign's lead total is counted on).
+function matchedCounts(leads) {
+  const m = new Map();
+  for (const l of leads) {
+    const o = l.origin;
+    if (!o || !o.campaignId || !o.walkerDate) continue;
+    const key = o.campaignId + '|' + o.walkerDate;
+    m.set(key, (m.get(key) || 0) + 1);
+  }
+  return m;
+}
+
 async function pollAll() {
   try {
     const [crmCsv, walkerCsv, colorByRow, adNamesCsv] = await Promise.all([
@@ -230,12 +243,26 @@ async function pollAll() {
   }
 }
 
+function getMatchedCounts() { return matchedCounts(cache.leads); }
+
 function getData() {
   const campaigns = [...cache.usedCampaignIds].map((id) => ({ campaignId: id, name: cache.campaignNames.get(id) || id }));
+  // The shared campaign's daily lead total comes from Walker's PPL log, which logs every lead the
+  // shared Texas campaigns produce no matter which buyer it went to — Bryan's and Ruy's leads are
+  // rows in that log too (matched one-to-one above), so they're already inside the total and
+  // adding their sheets on top would double-count them. The split per buyer is attached so the
+  // dashboard can show it: Walker = total − Bryan − Ruy.
+  const bryanCounts = require('./bryan').getMatchedCounts();
+  const ruyCounts = require('./ruy').getMatchedCounts();
+  const leadsDaily = cache.walkerLeadsDaily.map((d) => {
+    const key = d.campaignId + '|' + d.date;
+    const bryan = bryanCounts.get(key) || 0, ruy = ruyCounts.get(key) || 0;
+    return { ...d, bryan, ruy, walker: Math.max(0, d.leads - bryan - ruy) };
+  });
   return {
-    leads: cache.leads, walker: { campaigns, leadsDaily: cache.walkerLeadsDaily, spendDaily: cache.spendDaily },
+    leads: cache.leads, walker: { campaigns, leadsDaily, spendDaily: cache.spendDaily },
     updatedAt: cache.updatedAt,
   };
 }
 
-module.exports = { pollAll, updateGoogleSpend, getData };
+module.exports = { pollAll, updateGoogleSpend, getData, getMatchedCounts };

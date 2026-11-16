@@ -233,9 +233,7 @@
       ['Profit', money(profit), pct(margin) + ' margin · revenue − ad spend'],
       ],
       [
-      ['Client CPC', clientCpc ? money(clientCpc) : dash, signed ? 'what Ruy pays per case · revenue ÷ signed cases (no marketing fee)' : 'no signed cases yet'],
-      ['Budget Paid', money(PREPAID), LEAD_TARGET + ' leads × $' + PRICE_PER_LEAD],
-      ['Leads Delivered', allDelivered.toLocaleString('en-US') + ' / ' + LEAD_TARGET, Math.max(0, LEAD_TARGET - allDelivered) + ' still owed · all time'],
+      ['Client CPC', clientCpc ? money(clientCpc) : dash, signed ? 'what Ruy pays per case · revenue ÷ signed cases' : 'no signed cases yet'],
       ['Budget Left', money(budgetLeft), '$' + PREPAID.toLocaleString('en-US') + ' − $' + PRICE_PER_LEAD + ' × leads delivered'],
       ],
     ];

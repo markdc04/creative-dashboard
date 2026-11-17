@@ -1322,7 +1322,9 @@
   }
 
   function renderLeadsTable(leads) {
-    const rows = leads.filter(matchesSearch).sort((a, b) => (b.createdDate || '').localeCompare(a.createdDate || ''));
+    // Newest Signed Up Date first (Z–A); leads not signed yet follow, newest created first.
+    const rows = leads.filter(matchesSearch).sort((a, b) =>
+      (b.signedUpDate || '').localeCompare(a.signedUpDate || '') || (b.createdDate || '').localeCompare(a.createdDate || ''));
     const dash = '—';
     const cpl = cplMaps();
     const platformOf = campaignPlatform();

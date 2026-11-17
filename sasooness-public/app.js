@@ -88,6 +88,16 @@
     sel.value = opt ? state.range.key : 'custom';
   }
 
+  // Sasooness is invoiced $21,250 per Washington invoice. Each invoice's budget is drawn by its
+  // revenue — $425 × every WA lead in it (its Lead Prosper leads plus OG WA leads dated inside it).
+  const PPL_INVOICE_AMOUNT = 21250;
+  function invoiceBudget(inv) {
+    const r = pplInvoiceRanges()[inv.invoiceNumber - 1];
+    const og = r ? state.leads.filter((l) => programOf(l) === 'ppl' && !isLpWa(l) && l.createdDate >= r.start && l.createdDate <= r.end).length : 0;
+    const leads = inv.leads.length + og;
+    const revenue = PPL_PRICE_PER_LEAD * leads;
+    return { leads, revenue, left: PPL_INVOICE_AMOUNT - revenue };
+  }
   function pplCurrentInvoice(asOf) {
     // With an invoice quick filter picked, that invoice is the one shown — its last day can also
     // hold the next invoice's first leads (50 fill invoice 1, the rest spill into invoice 2).
@@ -522,15 +532,10 @@
       const cpl = total > 0 && adSpent > 0 ? adSpent / total : 0;
       // Washington revenue is always $425 × every WA lead, nothing else added.
       const revenue = PPL_PRICE_PER_LEAD * total;
-      // The WA budget pool since 9/21, drawn to date (not just the picked range) by the same two
-      // things: $425 per Lead Prosper WA lead and every dollar of OG WA ad spend.
-      const pplLeadsSinceBudget = state.leads.filter((l) => isLpWa(l) && l.createdDate >= PPL_BUDGET_FROM).length;
-      const pplSpentOfBudget = PPL_PRICE_PER_LEAD * pplLeadsSinceBudget + waOwnDays(PPL_BUDGET_FROM, null).total;
-      const budgetLeft = PPL_BUDGET - pplSpentOfBudget;
-      const pplSplit = fifoRemaining(PPL_BUDGET_PREVIOUS, PPL_BUDGET, pplSpentOfBudget);
-      const pplBudgetNote = pplSplit.previousLeft > 0
-        ? money(pplSplit.previousLeft) + ' left to exhaust first'
-        : 'previous exhausted — ' + money(pplSplit.newLeft) + ' new budget left';
+      // Budget Left is per invoice: $21,250 − that invoice's revenue ($425 × its WA leads).
+      const invBudget = invoiceBudget(pplInvoice);
+      const budgetLeft = invBudget.left;
+      const pplBudgetNote = money(PPL_INVOICE_AMOUNT) + ' invoice ' + pplInvoice.invoiceNumber + ' − ' + money(invBudget.revenue) + ' revenue (' + invBudget.leads + ' leads)';
       const costPerCase = signed > 0 && adSpent > 0 ? adSpent / signed : 0;
       const cpcWithFee = signed > 0 ? revenue / signed : 0;
       const profit = revenue - adSpent;
@@ -1197,8 +1202,7 @@
     const adSpent = partnerDeduction(leads).total + waOwn;
     const cpl = total > 0 ? adSpent / total : 0;
     const revenue = PPL_PRICE_PER_LEAD * total;
-    const pplLeadsSinceBudget = state.leads.filter((l) => isLpWa(l) && l.createdDate >= PPL_BUDGET_FROM && l.createdDate <= win.end).length;
-    const budgetLeft = PPL_BUDGET - PPL_PRICE_PER_LEAD * pplLeadsSinceBudget - waOwnDays(PPL_BUDGET_FROM, win.end).total;
+    const budgetLeft = invoiceBudget(pplCurrentInvoice(win.end)).left;
     const costPerCase = signed > 0 ? adSpent / signed : 0;
     const profit = revenue - adSpent;
     return {

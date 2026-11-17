@@ -363,8 +363,12 @@
     // date), so the invoice's last day doesn't pull in leads that belong to the next invoice.
     const inv = !ignoreDate ? selectedInvoice() : null;
     const invLeads = inv ? new Set(inv.leads) : null;
+    // With the Signed filter on, the date range picks leads by Signed Up Date (same as the Signed
+    // Cases tile), so every case signed in the range is listed even if it came in earlier.
+    const signedView = f.status && skip !== 'status' && (f.status === SIGNED || f.status === 'Signed');
     return state.leads.filter((l) => {
-      if (invLeads && isLpWa(l) && l.createdDate >= PPL_BUDGET_FROM) { if (!invLeads.has(l)) return false; }
+      if (signedView) { if (!ignoreDate && !inRange(l.signedUpDate)) return false; }
+      else if (invLeads && isLpWa(l) && l.createdDate >= PPL_BUDGET_FROM) { if (!invLeads.has(l)) return false; }
       else if (!ignoreDate && !inRange(l.createdDate)) return false;
       if (f.status && skip !== 'status') {
         if (f.status === SIGNED || f.status === 'Signed') { if (!isSignedCase(l)) return false; }
@@ -1288,6 +1292,8 @@
     const base = leadsFor('status');
     const counts = { Signed: 0, Rejected: 0, Reviewing: 0 };
     for (const l of base) counts[statusBucket(l)]++;
+    // Signed counts by Signed Up Date in the range, matching the Signed Cases tile.
+    counts.Signed = leadsFor('status', true).filter((l) => isSignedCase(l) && inRange(l.signedUpDate)).length;
     const sf = state.filters.status;
     const chips = ['<button class="chip' + (!sf ? ' is-active' : '') + '" data-status="">All<span class="n">' + base.length + '</span></button>']
       .concat(['Signed', 'Rejected', 'Reviewing'].map((b) =>

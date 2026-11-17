@@ -122,7 +122,9 @@
     const totalSpend = state.adSpendDaily.filter((d) => inRange(d.date)).reduce((s, d) => s + d.spend, 0);
     const cpl = leads.length ? totalSpend / leads.length : 0;
     const qualified = leads.filter(isQualified).length;
-    const won = leads.filter(isWon);
+    // A won deal lands on its Close Date (when it was actually closed), falling back to the lead's
+    // own date only when no close date has been entered yet.
+    const won = state.leads.filter((l) => isWon(l) && inRange(l.closeDate || l.date));
     const revenue = won.reduce((s, l) => s + dealValue(l), 0);
     const tile = ([label, value, sub]) => '<div class="kpi kpi--highlight"><div class="kpi-label">' + label + '</div><div class="kpi-value num">' + value + '</div>' + (sub ? '<div class="kpi-sub">' + escapeHtml(sub) + '</div>' : '') + '</div>';
     $('#report-title').textContent = rangeTitle();
@@ -134,7 +136,7 @@
     $('#b2b-kpis-2').innerHTML = [
       ['Qualified Leads', fmtInt(qualified), 'leads with Status “Qualified”'],
       ['Cost / Qualified Lead', qualified ? fmtMoney(totalSpend / qualified) : '—', 'ad spent ÷ qualified leads'],
-      ['Closed Deals', fmtInt(won.length), won.length ? won.map((l) => l.firmName || l.name).join(', ') : 'stage “Won (Payment Received)”'],
+      ['Closed Deals', fmtInt(won.length), won.length ? won.map((l) => (l.firmName || l.name) + (l.closeDate ? ' · closed ' + shortMd(l.closeDate) : '')).join(', ') : 'stage “Won (Payment Received)”'],
       ['Revenue', fmtMoney(revenue), 'value of the closed deals'],
     ].map(tile).join('');
     renderAds(leads);

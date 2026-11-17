@@ -520,7 +520,8 @@
       const walkerSpent = partnerDeduction(leads).total;
       const adSpent = walkerSpent + waOwn;
       const cpl = total > 0 && adSpent > 0 ? adSpent / total : 0;
-      const revenue = PPL_PRICE_PER_LEAD * lpCount + waOwn;
+      // Washington revenue is always $425 × every WA lead, nothing else added.
+      const revenue = PPL_PRICE_PER_LEAD * total;
       // The WA budget pool since 9/21, drawn to date (not just the picked range) by the same two
       // things: $425 per Lead Prosper WA lead and every dollar of OG WA ad spend.
       const pplLeadsSinceBudget = state.leads.filter((l) => isLpWa(l) && l.createdDate >= PPL_BUDGET_FROM).length;
@@ -541,7 +542,7 @@
         ['', 'Conversion Rate', pct(conversionRate), 'signed (by sign date) ÷ leads (by created date)', ''],
         ['', 'Rejected', rejected.toLocaleString('en-US'), total ? pct((rejected / total) * 100) + ' of leads' : '', ''],
         ['', 'Replacement Rate', pct(replacementRate), replaceable + ' of ' + pplInvoice.target + ' leads on invoice ' + pplInvoice.invoiceNumber + ', capped at ' + REPLACEMENT_CAP + '%', ''],
-        ['', 'Revenue', money(revenue), '$' + PPL_PRICE_PER_LEAD + ' × ' + lpCount.toLocaleString('en-US') + ' Lead Prosper leads' + (waOwn ? ' + ' + money(waOwn) + ' OG WA ad spend' : ''), ''],
+        ['', 'Revenue', money(revenue), '$' + PPL_PRICE_PER_LEAD + ' × ' + total.toLocaleString('en-US') + ' leads', ''],
         ['', 'Ad Spent', adSpent ? money(adSpent) : dash, waOwn ? money(walkerSpent) + ' Walker’s campaign + ' + money(waOwn) + ' our W2 WA ads' : 'already spent in Walker’s campaign on these leads', ''],
         ['', 'Profit', money(profit), pct(margin) + ' margin · revenue − ad spend', ''],
         ['', 'CPL (Cost / Lead)', cpl ? money(cpl) : dash, 'ad spend ÷ leads', ''],
@@ -1195,7 +1196,7 @@
     const waOwn = waOwnDays(win.start, win.end).total;
     const adSpent = partnerDeduction(leads).total + waOwn;
     const cpl = total > 0 ? adSpent / total : 0;
-    const revenue = PPL_PRICE_PER_LEAD * leads.filter(isLpWa).length + waOwn;
+    const revenue = PPL_PRICE_PER_LEAD * total;
     const pplLeadsSinceBudget = state.leads.filter((l) => isLpWa(l) && l.createdDate >= PPL_BUDGET_FROM && l.createdDate <= win.end).length;
     const budgetLeft = PPL_BUDGET - PPL_PRICE_PER_LEAD * pplLeadsSinceBudget - waOwnDays(PPL_BUDGET_FROM, win.end).total;
     const costPerCase = signed > 0 ? adSpent / signed : 0;

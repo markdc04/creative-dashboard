@@ -52,7 +52,7 @@ function parseLeads(csv) {
       state: (r['State'] || '').trim(),
       // Filled by hand in the sheet when a deal closes — Closed Deals/Revenue are dated by this,
       // not by when the lead came in.
-      closeDate: leadDate(r['Close Date']) || null,
+      closeDate: leadDate(r['Latest Close Date'] || r['Close Date']) || null,
     });
   }
   return leads;

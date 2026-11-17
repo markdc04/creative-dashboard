@@ -64,7 +64,12 @@
       const filling = inv.leads.length < inv.target;
       const end = filling ? toISO(pacificToday()) : inv.leads[inv.leads.length - 1].createdDate;
       const r = { key: 'inv' + inv.invoiceNumber, start, end, label: ordinal(inv.invoiceNumber) + ' invoice (' + md(start) + ' – ' + (filling ? 'now' : md(end)) + ')' };
-      start = toISO(addDays(new Date(end + 'T00:00:00'), 1));
+      // The next invoice starts the day after — or that same day, when leads past this invoice's
+      // target came in on its last day.
+      const next = pplInvoices()[inv.invoiceNumber];
+      const dayAfter = toISO(addDays(new Date(end + 'T00:00:00'), 1));
+      const nextFirst = next && next.leads.length ? next.leads[0].createdDate : null;
+      start = nextFirst && nextFirst < dayAfter ? nextFirst : dayAfter;
       return r;
     });
   }
@@ -84,8 +89,17 @@
   }
 
   function pplCurrentInvoice(asOf) {
+    // With an invoice quick filter picked, that invoice is the one shown — its last day can also
+    // hold the next invoice's first leads (50 fill invoice 1, the rest spill into invoice 2).
+    const picked = selectedInvoice();
+    if (picked) return picked;
     const invoices = pplInvoices(asOf);
     return invoices[invoices.length - 1];
+  }
+  // The invoice picked in the quick filter (state.range.key "invN"), or null.
+  function selectedInvoice() {
+    const m = /^inv(\d+)$/.exec(state.range.key || '');
+    return m ? pplInvoices()[Number(m[1]) - 1] || null : null;
   }
   // Splits a combined budget pool into what's left of the earlier tranche(s) vs. the later
   // top-up, assuming spend draws down the earlier money first (FIFO) — so the newer tranche only
@@ -335,8 +349,13 @@
   function leadsFor(skip, ignoreDate) {
     const f = state.filters;
     const platformOf = f.platform && skip !== 'platform' ? campaignPlatform() : null;
+    // An invoice quick filter takes exactly that invoice's Lead Prosper WA leads (by count, not
+    // date), so the invoice's last day doesn't pull in leads that belong to the next invoice.
+    const inv = !ignoreDate ? selectedInvoice() : null;
+    const invLeads = inv ? new Set(inv.leads) : null;
     return state.leads.filter((l) => {
-      if (!ignoreDate && !inRange(l.createdDate)) return false;
+      if (invLeads && isLpWa(l) && l.createdDate >= PPL_BUDGET_FROM) { if (!invLeads.has(l)) return false; }
+      else if (!ignoreDate && !inRange(l.createdDate)) return false;
       if (f.status && skip !== 'status') {
         if (f.status === SIGNED || f.status === 'Signed') { if (!isSignedCase(l)) return false; }
         else if (f.status === 'Rejected' || f.status === 'Reviewing') { if (statusBucket(l) !== f.status) return false; }

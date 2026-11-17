@@ -22,10 +22,9 @@
   const PPL_BUDGET_FROM = '2026-09-21';
   // The 10/21 top-up is new money - the first $21,250 (9/21 tranche) must be drawn to zero first.
   const PPL_BUDGET_PREVIOUS = 21250;
-  // Each invoice's lead target, in order: invoice 1 is 50 leads ($21,250 / $425). Invoice 2 is
-  // 47 leads ($20,000 / $425, rounded down) - every invoice after that repeats the last target
-  // here until a new one is added.
-  const PPL_INVOICE_TARGETS = [50, 47];
+  // Each invoice's lead target, in order: every Washington invoice is $21,250 = 50 leads at $425
+  // (invoices after the last entry repeat it).
+  const PPL_INVOICE_TARGETS = [50];
   // Rejected "Out of state" / no-valid-phone leads get replaced, but never more than 20% of an
   // invoice's lead target even if the real bad-lead rate in that invoice runs higher.
   const REPLACEMENT_CAP = 20;

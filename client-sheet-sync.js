@@ -277,7 +277,7 @@ function b2bSheets(data) {
     monthly: {
       header: ['Month', 'Leads', 'Qualified', 'Closed Deals', 'Ad Spent', 'CPL', 'Cost / Qualified', 'Revenue'],
       rows: months.map((k) => { const m = metrics(k); return [monthLabel(k), m.leads, m.qualified, m.won.length, r2(m.spend), m.leads ? r2(m.spend / m.leads) : 0, m.qualified ? r2(m.spend / m.qualified) : 0, m.revenue]; }),
-      left: [1, 2], right: [4], money: [4, 5, 6, 7],
+      left: [1, 2], right: [4], money: [4, 5, 6, 7], pctCol: false,
     },
     leads: {
       header: ['Date', 'Name', 'Firm', 'State', 'Contact Source', 'Ad', 'Stage', 'Status', 'Close Date'],
@@ -378,7 +378,8 @@ async function setupFormatting(id, sheets) {
   f.push(header(mo, mCols), freeze(mo, 1, 1), band(mo, 1, Math.max(mRows, 2), mCols));
   f.push(...widths(mo, [160].concat(Array(mCols - 1).fill(120))));
   f.push(...moneyCols(mo, sheets.monthly.money, Math.max(mRows, 2)));
-  f.push(cellFmt(range(mo, 1, Math.max(mRows, 2), 3, 4), { numberFormat: { type: 'NUMBER', pattern: '0.0"%"' } }, 'numberFormat'));
+  // Column 3 is Conversion % on the client sheets; B2B's column 3 is a plain count (Closed Deals).
+  f.push(cellFmt(range(mo, 1, Math.max(mRows, 2), 3, 4), { numberFormat: sheets.monthly.pctCol === false ? { type: 'NUMBER', pattern: '0' } : { type: 'NUMBER', pattern: '0.0"%"' } }, 'numberFormat'));
   if (sheets.monthly.rows.length) {
     const src = (c) => ({ sourceRange: { sources: [range(mo, 0, mRows, c, c + 1)] } });
     f.push({ addChart: { chart: { spec: {

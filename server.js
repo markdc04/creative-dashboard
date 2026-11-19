@@ -7,6 +7,7 @@ const auth = require('./auth');
 const { csvUrl: sharedCsvUrl, fetchText, parseCSV, num, toISODate } = require('./csv-utils');
 const sasooness = require('./sasooness');
 const { syncSasoonessSheet } = require('./sasooness-sheet-sync');
+const { syncClientSheets } = require('./client-sheet-sync');
 const km = require('./km');
 const bryan = require('./bryan');
 const ruy = require('./ruy');
@@ -815,6 +816,9 @@ ruy.pollAll();
 setInterval(ruy.pollAll, POLL_MS);
 b2b.pollAll();
 setInterval(b2b.pollAll, POLL_MS);
+// Bryan / Ruy / KM / B2B "View in Spreadsheet" exports — each one rewrites itself at most every
+// 5 minutes (throttled inside), and waits until its dashboard's first poll (and spend) has landed.
+setInterval(() => { syncClientSheets().catch(() => {}); }, POLL_MS);
 // Walker is NOT polled on a background timer, unlike every dashboard above — its combined tabs
 // (tens of thousands of rows each, held across a dozen-plus caches at once) pushed this process
 // past its 512MB heap limit and crash-looped the whole shared server when it ran continuously in

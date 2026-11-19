@@ -163,4 +163,11 @@ async function boldRows(spreadsheetId, sheetId, rowIndices, totalDataRows, colCo
   return batchUpdate(spreadsheetId, [resetRequest, ...boldRequests]);
 }
 
-module.exports = { writeSheetTab, batchUpdate, upsertLineChart, setBasicFilter, boldRows };
+// Reads a spreadsheet's structure (tabs, charts, conditional formats, bandings) — `fields` picks
+// what comes back so a call stays small.
+async function getSpreadsheet(spreadsheetId, fields) {
+  const token = await getWriteAccessToken();
+  return sheetsRequest('GET', `/v4/spreadsheets/${spreadsheetId}?fields=${encodeURIComponent(fields)}`, token);
+}
+
+module.exports = { writeSheetTab, batchUpdate, upsertLineChart, setBasicFilter, boldRows, getSpreadsheet };

@@ -60,7 +60,12 @@
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
-  const state = { range: { key: 'yesterday', start: null, end: null }, leads: [], adSpendDaily: [], adSpendByAdNameDaily: [], ads: [], openAd: null };
+  const state = { range: { key: 'yesterday', start: null, end: null }, leads: [], adSpendDaily: [], adSpendByAdNameDaily: [], ads: [], openAd: null,
+    // Click-to-filter: kind is 'qualified' or 'won' (from the KPI tiles); the rest are exact values
+    // picked by clicking an ad row or a cell in the Leads table.
+    filters: { kind: null, ad: null, stage: null, status: null, state: null, source: null } };
+  const FILTER_LABELS = { ad: 'Ad', stage: 'Stage', status: 'Status', state: 'State', source: 'Contact Source' };
+  const FIELD_OF = { ad: 'utmContent', stage: 'stage', status: 'status', state: 'state', source: 'source' };
 
   function inRange(dateStr) {
     if (state.range.start && dateStr < state.range.start) return false;
@@ -117,29 +122,70 @@
   const isWon = (l) => /^won\b/i.test(l.stage || '');
   const dealValue = (l) => DEAL_VALUES[(l.name || '').trim().toLowerCase()] || 0;
 
+  // Leads matching every active filter except `skip`. Leads are dated by their lead date; with the
+  // Closed Deals filter on, won deals are dated by their Close Date instead (same as the tile).
+  function filteredLeads(skip) {
+    const f = state.filters;
+    return state.leads.filter((l) => {
+      const kind = skip === 'kind' ? null : f.kind;
+      if (kind === 'won') { if (!isWon(l) || !inRange(l.closeDate || l.date)) return false; }
+      else if (!inRange(l.date)) return false;
+      if (kind === 'qualified' && !isQualified(l)) return false;
+      for (const k of Object.keys(FIELD_OF)) {
+        if (k === skip || !f[k]) continue;
+        if ((l[FIELD_OF[k]] || '') !== f[k]) return false;
+      }
+      return true;
+    });
+  }
+  const anyFilter = () => Object.values(state.filters).some(Boolean);
+  function setFilter(key, value) {
+    state.filters[key] = state.filters[key] === value ? null : value; // clicking the same thing again clears it
+    renderAll();
+  }
+
+  function renderFilterBar() {
+    const f = state.filters;
+    const chips = [];
+    if (f.kind) chips.push(['kind', f.kind === 'won' ? 'Closed deals' : 'Qualified leads']);
+    for (const k of Object.keys(FIELD_OF)) if (f[k]) chips.push([k, FILTER_LABELS[k] + ': ' + f[k]]);
+    const bar = $('#filter-bar');
+    bar.hidden = !chips.length;
+    bar.innerHTML = chips.length ? '<span class="filter-bar-label">Filtered by</span>' +
+      chips.map(([k, label]) => '<button class="filter-chip" data-clear="' + k + '">' + escapeHtml(label) + ' <span>&times;</span></button>').join('') +
+      '<button class="filter-clear-all" data-clear="all">Clear all</button>' : '';
+  }
+
   function renderAll() {
-    const leads = state.leads.filter((l) => inRange(l.date));
-    const totalSpend = state.adSpendDaily.filter((d) => inRange(d.date)).reduce((s, d) => s + d.spend, 0);
+    const f = state.filters;
+    // The tiles reflect every filter except Qualified/Closed (those pick which tile is selected).
+    const leads = filteredLeads('kind');
+    const spendRows = state.adSpendByAdNameDaily.filter((r) => inRange(r.date) && (!f.ad || r.adName === f.ad));
+    const totalSpend = f.ad ? spendRows.reduce((s, r) => s + r.spend, 0) : state.adSpendDaily.filter((d) => inRange(d.date)).reduce((s, d) => s + d.spend, 0);
     const cpl = leads.length ? totalSpend / leads.length : 0;
     const qualified = leads.filter(isQualified).length;
     // A won deal lands on its Close Date (when it was actually closed), falling back to the lead's
     // own date only when no close date has been entered yet.
-    const won = state.leads.filter((l) => isWon(l) && inRange(l.closeDate || l.date));
+    const won = state.filters.kind === 'won' ? filteredLeads() : (() => { const k = f.kind; f.kind = 'won'; const w = filteredLeads(); f.kind = k; return w; })();
     const revenue = won.reduce((s, l) => s + dealValue(l), 0);
-    const tile = ([label, value, sub]) => '<div class="kpi kpi--highlight"><div class="kpi-label">' + label + '</div><div class="kpi-value num">' + value + '</div>' + (sub ? '<div class="kpi-sub">' + escapeHtml(sub) + '</div>' : '') + '</div>';
+    const tile = ([label, value, sub, kind]) => {
+      const selected = kind !== undefined && (kind ? f.kind === kind : false);
+      return '<div class="kpi kpi--highlight' + (kind !== undefined ? ' is-clickable' : '') + (selected ? ' is-selected' : '') + '"' + (kind !== undefined ? ' data-kind="' + kind + '" title="' + (kind ? 'Click to filter by this' : 'Click to show all leads') + '"' : '') + '><div class="kpi-label">' + label + '</div><div class="kpi-value num">' + value + '</div>' + (sub ? '<div class="kpi-sub">' + escapeHtml(sub) + '</div>' : '') + '</div>';
+    };
     $('#report-title').textContent = rangeTitle();
+    renderFilterBar();
     $('#b2b-kpis').innerHTML = [
-      ['Leads', fmtInt(leads.length)],
-      ['Ad Spent', fmtMoney(totalSpend)],
+      ['Leads', fmtInt(leads.length), '', ''],
+      ['Ad Spent', fmtMoney(totalSpend), f.ad ? 'this ad only' : ''],
       ['CPL', leads.length ? fmtMoney(cpl) : '—'],
     ].map(tile).join('');
     $('#b2b-kpis-2').innerHTML = [
-      ['Qualified Leads', fmtInt(qualified), 'leads with Status “Qualified”'],
-      ['Cost / Qualified Lead', qualified ? fmtMoney(totalSpend / qualified) : '—', 'ad spent ÷ qualified leads'],
-      ['Closed Deals', fmtInt(won.length), won.length ? won.map((l) => (l.firmName || l.name) + (l.closeDate ? ' · closed ' + shortMd(l.closeDate) : '')).join(', ') : 'stage “Won (Payment Received)”'],
-      ['Revenue', fmtMoney(revenue), 'value of the closed deals'],
+      ['Qualified Leads', fmtInt(qualified), 'leads with Status “Qualified”', 'qualified'],
+      ['Cost / Qualified Lead', qualified ? fmtMoney(totalSpend / qualified) : '—', 'ad spent ÷ qualified leads', 'qualified'],
+      ['Closed Deals', fmtInt(won.length), won.length ? won.map((l) => (l.firmName || l.name) + (l.closeDate ? ' · closed ' + shortMd(l.closeDate) : '')).join(', ') : 'stage “Won (Payment Received)”', 'won'],
+      ['Revenue', fmtMoney(revenue), 'value of the closed deals', 'won'],
     ].map(tile).join('');
-    renderAds(leads);
+    renderAds(filteredLeads('ad'));
     renderLeadDetail();
   }
 
@@ -163,7 +209,7 @@
       rows.map((r) => {
         const top = postsFor(r.adName)[0];
         const url = postUrl(top);
-        return '<tr class="is-clickable' + (state.openAd === r.adName ? ' is-selected' : '') + '" data-ad="' + escapeHtml(r.adName) + '">' +
+        return '<tr class="is-clickable' + (state.filters.ad === r.adName ? ' is-selected' : '') + '" data-filter-ad="' + escapeHtml(r.adName) + '" title="Click to filter everything by this ad">' +
           '<td class="name-cell">' + escapeHtml(r.adName) + '</td>' +
           '<td class="td-num num">' + fmtInt(r.leads) + '</td>' +
           '<td class="td-num num">' + fmtMoney(r.spend) + '</td>' +
@@ -174,22 +220,26 @@
   }
 
   function renderLeadDetail() {
-    const filtered = state.leads.filter((l) => inRange(l.date)).sort((a, b) => (a.date < b.date ? 1 : -1));
+    const won = state.filters.kind === 'won';
+    const dateOf = (l) => (won ? l.closeDate || l.date : l.date);
+    const filtered = filteredLeads().sort((a, b) => (dateOf(a) < dateOf(b) ? 1 : -1));
     const term = ($('#lead-search').value || '').trim().toLowerCase();
     const searched = term ? filtered.filter((l) => [l.name, l.firmName, l.state, l.source, l.utmContent, l.stage, l.status].join(' ').toLowerCase().includes(term)) : filtered;
-    $('#lead-count').textContent = searched.length.toLocaleString() + ' lead' + (searched.length === 1 ? '' : 's') + (term ? ' (filtered from ' + filtered.length.toLocaleString() + ')' : '');
+    $('#lead-count').textContent = searched.length.toLocaleString() + ' lead' + (searched.length === 1 ? '' : 's') + (term ? ' (filtered from ' + filtered.length.toLocaleString() + ')' : '') + (anyFilter() ? ' · click a cell to filter by it' : ' · click an ad, stage, status, state or source to filter by it');
     $('#leads-empty').hidden = searched.length > 0;
-    const hasPosts = new Set(state.ads.map((a) => a.adName));
+    // Clickable cells filter the whole page by that value (clicking it again clears the filter).
+    const cell = (key, v) => v ? '<button class="cell-filter' + (state.filters[key] === v ? ' is-on' : '') + '" data-filter-' + key + '="' + escapeHtml(v) + '">' + escapeHtml(v) + '</button>' : '';
     $('#lead-detail-body').innerHTML = searched.slice(0, 500).map((l) =>
-      '<tr><td>' + escapeHtml(mdy(l.date)) + '</td>' +
+      '<tr><td>' + escapeHtml(mdy(dateOf(l))) + '</td>' +
       '<td>' + escapeHtml(l.name) + '</td>' +
       '<td>' + escapeHtml(l.firmName) + '</td>' +
-      '<td>' + escapeHtml(l.state) + '</td>' +
-      '<td>' + escapeHtml(l.source) + '</td>' +
-      '<td>' + (l.utmContent && hasPosts.has(l.utmContent) ? '<button class="ad-name-btn" data-ad="' + escapeHtml(l.utmContent) + '">' + escapeHtml(l.utmContent) + '</button>' : escapeHtml(l.utmContent)) + '</td>' +
-      '<td>' + escapeHtml(l.stage) + '</td>' +
-      '<td>' + escapeHtml(l.status) + '</td></tr>'
+      '<td>' + cell('state', l.state) + '</td>' +
+      '<td>' + cell('source', l.source) + '</td>' +
+      '<td>' + cell('ad', l.utmContent) + '</td>' +
+      '<td>' + cell('stage', l.stage) + '</td>' +
+      '<td>' + cell('status', l.status) + '</td></tr>'
     ).join('');
+    $('#lead-date-th').textContent = won ? 'Close Date' : 'Date';
   }
 
   // ---- side preview panel (same behavior as the Creative Dashboard's video panel) ----
@@ -235,7 +285,6 @@
     $('#video-panel').classList.add('is-open');
     $('#video-panel').setAttribute('aria-hidden', 'false');
     document.body.classList.add('video-panel-open');
-    document.querySelectorAll('#b2b-ads tr[data-ad]').forEach((tr) => tr.classList.toggle('is-selected', tr.dataset.ad === adName));
   }
   function closeAdPanel() {
     state.openAd = null;
@@ -245,17 +294,51 @@
     $('#video-panel-embed').innerHTML = ''; // clear so playback actually stops
     $('#video-panel-body').innerHTML = '';
     document.body.classList.remove('video-panel-open');
-    document.querySelectorAll('#b2b-ads tr.is-selected').forEach((tr) => tr.classList.remove('is-selected'));
   }
   document.addEventListener('click', (e) => {
     if (e.target.closest('.ad-ext, .panel-links a')) return; // real links open in a new tab
     const postBtn = e.target.closest('#video-panel-body button[data-post]');
     if (postBtn) { openAdPanel(postBtn.dataset.ad, postBtn.dataset.post); return; }
     const adEl = e.target.closest('[data-ad]');
-    if (adEl && !adEl.closest('#video-panel')) { e.preventDefault(); openAdPanel(adEl.dataset.ad); }
+    if (adEl && !adEl.closest('#video-panel')) { e.preventDefault(); e.stopPropagation(); openAdPanel(adEl.dataset.ad); return; }
+    const clear = e.target.closest('[data-clear]');
+    if (clear) {
+      const k = clear.dataset.clear;
+      if (k === 'all') Object.keys(state.filters).forEach((x) => { state.filters[x] = null; }); else state.filters[k] = null;
+      renderAll();
+      return;
+    }
+    const kpi = e.target.closest('.kpi[data-kind]');
+    if (kpi) {
+      if (!kpi.dataset.kind) { state.filters.kind = null; renderAll(); } else setFilter('kind', kpi.dataset.kind);
+      return;
+    }
+    // An ad row or any filterable cell: data-filter-<key>="value".
+    const fEl = e.target.closest('[data-filter-ad],[data-filter-stage],[data-filter-status],[data-filter-state],[data-filter-source]');
+    if (fEl) {
+      const key = Object.keys(FIELD_OF).find((k) => fEl.hasAttribute('data-filter-' + k));
+      setFilter(key, fEl.getAttribute('data-filter-' + key));
+      // Picking an ad also opens its preview, like before.
+      if (key === 'ad' && state.filters.ad && fEl.closest('#b2b-ads') && postsFor(state.filters.ad).length) openAdPanel(state.filters.ad);
+    }
   });
+
+  // Leads table full screen.
+  function setLeadsFull(on) {
+    $('#leads-panel').classList.toggle('is-fullscreen', on);
+    document.body.classList.toggle('leads-full-open', on);
+    $('#leads-expand').innerHTML = on
+      ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>'
+      : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>';
+    $('#leads-expand').title = on ? 'Exit full screen' : 'Full screen';
+  }
+  $('#leads-expand').addEventListener('click', () => setLeadsFull(!$('#leads-panel').classList.contains('is-fullscreen')));
   $('#video-panel-close').addEventListener('click', closeAdPanel);
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.openAd) closeAdPanel(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if ($('#leads-panel').classList.contains('is-fullscreen')) setLeadsFull(false);
+    else if (state.openAd) closeAdPanel();
+  });
 
   $('#lead-search').addEventListener('input', renderLeadDetail);
   $('#quick-range').addEventListener('change', (e) => {

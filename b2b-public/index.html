@@ -56,6 +56,7 @@
     </div>
   </div>
 
+  <div class="filter-bar" id="filter-bar" hidden></div>
   <div class="kpi-row" id="b2b-kpis"></div>
   <div class="kpi-row" id="b2b-kpis-2"></div>
 
@@ -64,18 +65,21 @@
     <div class="table-scroll" id="b2b-ads"></div>
   </div>
 
-  <div class="panel">
+  <div class="panel" id="leads-panel">
     <div class="panel-head">
       <h2 class="panel-title">Leads</h2>
-      <div class="search-box">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-        <input id="lead-search" type="text" placeholder="Search name, firm, state, ad&hellip;">
+      <div class="panel-head-right">
+        <div class="search-box">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="lead-search" type="text" placeholder="Search name, firm, state, ad&hellip;">
+        </div>
+        <button class="expand-btn" id="leads-expand" type="button" title="Full screen"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></button>
       </div>
     </div>
     <p class="panel-sub" id="lead-count"></p>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Date</th><th>Name</th><th>Firm</th><th>State</th><th>Contact Source</th><th>Ad</th><th>Stage</th><th>Status</th></tr></thead>
+        <thead><tr><th id="lead-date-th">Date</th><th>Name</th><th>Firm</th><th>State</th><th>Contact Source</th><th>Ad</th><th>Stage</th><th>Status</th></tr></thead>
         <tbody id="lead-detail-body"></tbody>
       </table>
     </div>

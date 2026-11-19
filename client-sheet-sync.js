@@ -58,6 +58,30 @@ function sharedDeduction(leads, walker, skip) {
   return total;
 }
 
+// The same deduction, one row per campaign-day — what the dashboard's "Daily ad spend deduction"
+// table shows: leads sent to this client, every lead the campaign produced that day, the day's
+// spend, the CPL, and what's charged to this client.
+function sharedDeductionDays(leads, walker, skip) {
+  const sent = new Map();
+  for (const l of leads) {
+    const o = l.origin;
+    if (!o || !o.campaignId || !l.createdDate || (skip && skip(l))) continue;
+    const key = o.campaignId + '|' + (o.walkerDate || l.createdDate);
+    sent.set(key, (sent.get(key) || 0) + 1);
+  }
+  const nameOf = new Map((walker.campaigns || []).map((c) => [c.campaignId, c.name]));
+  return [...sent.entries()].map(([key, n]) => {
+    const [campaignId, date] = key.split('|');
+    const spend = walker.spendDaily.filter((r) => r.campaignId === campaignId && r.date === date).reduce((a, r) => a + r.spend, 0);
+    const dayLeads = walker.leadsDaily.filter((r) => r.campaignId === campaignId && r.date === date).reduce((a, r) => a + (r.leads || 0), 0);
+    const all = Math.max(dayLeads, n);
+    const cpl = all > 0 ? spend / all : 0;
+    return [date, nameOf.get(campaignId) || campaignId, r2(spend), all, n, r2(cpl), r2(n * cpl)];
+  }).sort((a, b) => b[0].localeCompare(a[0]) || a[1].localeCompare(b[1]));
+}
+// Same columns, same order as the dashboard's daily table.
+const SHARED_DAILY_HEADER = (who) => ['Date', 'Walker campaign', 'Campaign ad spend that day', 'All campaign leads that day (Walker + Bryan + Ruy)', 'Sent to ' + who, 'Cost per lead', who + ' ad spend'];
+
 // ---------- Bryan ----------
 const BRYAN = { price: 350, feeByMonth: { '2026-09': 1250, '2026-10': 1250 }, augRetainer: 20000 };
 const bryanSkip = (l) => l.replacement || ['2026-10-07', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-18', '2026-10-19'].includes(l.createdDate);
@@ -106,6 +130,7 @@ function bryanSheets(data) {
       rows: monthly.map((k) => { const m = bryanMetrics(byMonth(k), data.walker); return [monthLabel(k), m.total, m.signed, m.total ? r2((m.signed / m.total) * 100) : 0, r2(m.spend), m.revenue, r2(m.fee), r2(m.profit), m.signed ? r2(m.spend / m.signed) : 0]; }),
       left: [1, 2], right: [4, 5, 7], money: [4, 5, 6, 7, 8],
     },
+    daily: { header: SHARED_DAILY_HEADER('Bryan'), rows: sharedDeductionDays(leads, data.walker, bryanSkip), money: [2, 5, 6], total: 6 },
     leads: {
       header: ['Date', 'Name', 'Email', 'Phone', 'Status', 'Billable', 'Campaign', 'Ad', 'Contact Source', 'Note'],
       rows: leads.slice().sort((a, b) => b.createdDate.localeCompare(a.createdDate)).map((l) => {
@@ -157,6 +182,7 @@ function ruySheets(data) {
       rows: monthly.map((k) => { const m = ruyMetrics(byMonth(k), data.walker); return [monthLabel(k), m.total, m.signed, m.total ? r2((m.signed / m.total) * 100) : 0, r2(m.spend), m.revenue, r2(m.profit), m.signed ? r2(m.spend / m.signed) : 0]; }),
       left: [1, 2], right: [4, 5, 6], money: [4, 5, 6, 7],
     },
+    daily: { header: SHARED_DAILY_HEADER('Ruy'), rows: sharedDeductionDays(leads, data.walker), money: [2, 5, 6], total: 6 },
     leads: {
       header: ['Date', 'Name', 'Email', 'Phone', 'Status', 'Lead Status (sheet)', 'Campaign', 'Ad', 'Contact Source', 'Notes'],
       rows: leads.slice().sort((a, b) => b.createdDate.localeCompare(a.createdDate)).map((l) => {
@@ -226,6 +252,18 @@ function kmSheets(data) {
       rows: months.map((k) => { const m = metrics(k); return [monthLabel(k), m.leads, m.signed, m.leads ? r2((m.signed / m.leads) * 100) : 0, r2(m.spend), r2(m.fee), r2(m.spend + m.fee), m.signed ? r2(m.spend / m.signed) : 0]; }),
       left: [1, 2], right: [4, 6], money: [4, 5, 6, 7],
     },
+    daily: (() => {
+      const days = [...new Set([...spend.map((r) => r.date), ...leadsDaily.map((r) => r.date)])].sort().reverse();
+      const rows = days.map((d) => {
+        const g = spend.filter((r) => r.date === d && r.platform === 'Google').reduce((a, r) => a + r.spend, 0);
+        const m = spend.filter((r) => r.date === d && r.platform === 'Meta').reduce((a, r) => a + r.spend, 0);
+        const leads = leadsDaily.filter((r) => r.date === d).reduce((a, r) => a + r.leads, 0);
+        const signed = cases.filter((c) => c.conversionDate === d).length;
+        const fee = leads * s.feePerLead;
+        return [d, leads, signed, r2(g), r2(m), r2(g + m), leads ? r2((g + m) / leads) : 0, fee, r2(g + m + fee)];
+      });
+      return { header: ['Date', 'Leads', 'Signed', 'Google Spend', 'Meta Spend', 'Ad Spend', 'Cost / Lead', 'Marketing Fee', 'Total Cost'], rows, money: [3, 4, 5, 6, 7, 8], total: 5 };
+    })(),
     leads: {
       title: 'Signed Cases',
       header: ['Conversion Date', 'Intake Date', 'Name', 'Email', 'Ad', 'Status'],
@@ -311,7 +349,8 @@ const COLORS = {
   amberBg: { red: 1, green: 0.95, blue: 0.8 }, amberText: { red: 0.6, green: 0.4, blue: 0 },
   blueBg: { red: 0.87, green: 0.92, blue: 0.99 }, blueText: { red: 0.1, green: 0.3, blue: 0.7 },
 };
-const OVERVIEW_TOP = 3; // rows 1-3: title, timestamp, blank — table header on row 4
+const OVERVIEW_TOP = 3;
+const DAILY_TAB = 'Daily Ad Spend'; // rows 1-3: title, timestamp, blank — table header on row 4
 
 async function writeAll(id, sheets) {
   const tabs = [['Overview'], ['Monthly'], [sheets.leads.title || 'Leads']];
@@ -319,6 +358,7 @@ async function writeAll(id, sheets) {
   await Promise.all([
     writeSheetTab(id, 'Overview', [[sheets.title], [updatedStamp()], [''], sheets.overview.header, ...sheets.overview.rows]),
     writeSheetTab(id, 'Monthly', [sheets.monthly.header, ...sheets.monthly.rows]),
+    sheets.daily ? writeSheetTab(id, DAILY_TAB, [sheets.daily.header, ...sheets.daily.rows]) : null,
     writeSheetTab(id, sheets.leads.title || 'Leads', [sheets.leads.header, ...sheets.leads.rows]),
     sheets.ads ? writeSheetTab(id, sheets.ads.title, [sheets.ads.header, ...sheets.ads.rows]) : null,
   ]);
@@ -326,7 +366,7 @@ async function writeAll(id, sheets) {
 
 // Creates any missing tabs, then (re)applies all formatting. Safe to run repeatedly.
 async function setupFormatting(id, sheets) {
-  const wanted = ['Overview', 'Monthly', sheets.leads.title || 'Leads'].concat(sheets.ads ? [sheets.ads.title] : []);
+  const wanted = ['Overview', 'Monthly'].concat(sheets.daily ? [DAILY_TAB] : [], [sheets.leads.title || 'Leads'], sheets.ads ? [sheets.ads.title] : []);
   let meta = await getSpreadsheet(id, 'sheets(properties(sheetId,title),charts(chartId),conditionalFormats,bandedRanges(bandedRangeId))');
   const have = new Set(meta.sheets.map((s) => s.properties.title));
   const add = wanted.filter((t) => !have.has(t)).map((title) => ({ addSheet: { properties: { title } } }));
@@ -390,6 +430,15 @@ async function setupFormatting(id, sheets) {
         series: sheets.monthly.left.map((c) => ({ series: src(c), targetAxis: 'LEFT_AXIS', type: 'COLUMN' }))
           .concat(sheets.monthly.right.map((c) => ({ series: src(c), targetAxis: 'RIGHT_AXIS', type: 'LINE' }))),
       } }, position: { overlayPosition: { anchorCell: { sheetId: mo, rowIndex: Math.max(mRows, 2) + 1, columnIndex: 0 }, widthPixels: 900, heightPixels: 380 } } } } });
+  }
+
+  // Daily Ad Spend
+  if (sheets.daily) {
+    const dy = sid[DAILY_TAB], dCols = sheets.daily.header.length, dRows = 1 + sheets.daily.rows.length;
+    f.push(header(dy, dCols), freeze(dy, 1, 1), band(dy, 1, Math.max(dRows, 2), dCols));
+    f.push(...widths(dy, sheets.daily.header.map((h, i) => (i === 0 ? 110 : /campaign$/i.test(h) && i === 1 ? 300 : 140))));
+    f.push(...moneyCols(dy, sheets.daily.money, Math.max(dRows, 2)));
+    f.push(cellFmt(range(dy, 1, Math.max(dRows, 2), sheets.daily.total, sheets.daily.total + 1), { textFormat: { bold: true, foregroundColor: COLORS.blueText }, backgroundColor: COLORS.blueBg }, 'textFormat,backgroundColor'));
   }
 
   // Leads

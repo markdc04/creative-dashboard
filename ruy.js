@@ -7,6 +7,7 @@
 //
 // Ruy's own sheet: Date, Name, Email, Phone, Lead Status, Notes. Rows marked TEST (in Notes, Lead
 // Status or the name) are test submissions and aren't counted anywhere.
+const { pickOrigin } = require('./origin-match');
 const { csvUrl, fetchText, parseCSV, toISODate, phone10 } = require('./csv-utils');
 
 const CRM_DOC_ID = '10Krjcmnp9WBqxWneEoGHdsl974t6pKyXuspd56unQ0U';
@@ -69,19 +70,11 @@ function parseWalkerLog(csv) {
     .filter((r) => r.date && r.name);
 }
 
-// Where a lead came from in Walker's log: email first (Ruy's sheet and the log both carry it),
-// then phone, then name — always within 3 days of Ruy's date, earliest match wins.
+// Where a lead came from in Walker's log: the row for that exact submission — email, phone or
+// name within 3 days of Ruy's date, same-day first, never a same-name row whose phone says it's
+// someone else (see origin-match.js).
 function findOrigin(lead, walkerLog) {
-  const near = (w) => Math.abs((new Date(w.date) - new Date(lead.createdDate)) / 86400000) <= 3;
-  const phone = phone10(lead.phone);
-  const name = normName(lead.name);
-  const w = [
-    (x) => lead.email && x.email === lead.email,
-    (x) => phone && x.phone === phone,
-    (x) => name && x.name === name,
-  ].map((test) => walkerLog.filter((x) => near(x) && test(x)))
-    .find((m) => m.length)
-    ?.reduce((a, b) => (b.date < a.date ? b : a));
+  const w = pickOrigin(lead, walkerLog, { maxDays: 3 });
   if (!w) return null;
   return { campaignId: w.campaignId, campaignName: cache.campaignNames.get(w.campaignId) || '', adId: w.adId, adName: cache.adNames.get(w.adId) || '', contactSource: w.source, walkerDate: w.date };
 }

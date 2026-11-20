@@ -2,6 +2,7 @@
 // three intake tabs, one per lead source) with their ad spend per campaign (Google, filtered out
 // of the main tracker's already-fetched spend; Meta, from the shared export) and per-campaign
 // lead counts (from the UTM tags on the ALL LEADS tab).
+const { pickOrigin } = require('./origin-match');
 const { csvUrl, fetchText, parseCSV, parseCSVRows, num, toISODate, phone10 } = require('./csv-utils');
 const { metaDailyFor, metaCampaignDailyFor, metaAdCampaignsFor } = require('./meta-spend');
 
@@ -337,9 +338,10 @@ function walkerOrigin(lead, byEmail, byPhone) {
   const p = phone10(lead.phone);
   if (p && byPhone.has(p)) hits.push(...byPhone.get(p));
   if (!hits.length) return null;
-  const same = hits.filter((h) => h.date === lead.createdDate);
-  const before = hits.filter((h) => h.date <= lead.createdDate).sort((a, b) => (a.date < b.date ? 1 : -1));
-  const first = same[0] || before[0] || hits.reduce((a, b) => (b.date < a.date ? b : a));
+  // Same-day submission first, else the latest one before the lead reached Sasooness, else the
+  // closest after — the shared rules in origin-match.js.
+  const first = pickOrigin(lead, hits);
+  if (!first) return null;
   return {
     walkerDate: first.date,
     contactSource: first.source,
@@ -424,15 +426,31 @@ async function pollAll() {
     // Union the rollup with the per-state tabs, deduped on (person, date, campaign, ad) — a lead
     // present in both isn't double-counted, but one only in a state tab (dropped by the rollup)
     // still gets in.
+    // The rollup logs every form submission with that submission's own ad. The per-state tabs
+    // ("Sasoones WA"/"AZ") only list deliveries, and for a person who submitted more than once they
+    // repeat the ad from the first time — so for the same person on the same day the rollup's row
+    // is the one kept, and a state-tab row only fills in a delivery the rollup doesn't have at all
+    // (marked `backup`, so it also loses any tie). Without this, Joseph Humiston's 11/6 lead showed
+    // NR3RonHook from the WA tab while Walker logged that submission under GirlHurtHook, and the
+    // duplicate rows were counted twice in the campaign's daily lead total.
     const walkerLogRollup = parseWalkerLog(walkerCsv);
     const walkerLogStates = walkerStateCsvs.flatMap((csv) => parseWalkerLog(csv));
+    const rollupDays = new Set();
+    for (const r of walkerLogRollup) { if (r.email) rollupDays.add(r.date + '|e' + r.email); if (r.phone) rollupDays.add(r.date + '|p' + r.phone); }
     const seenWalkerRows = new Set();
     const walkerLog = [];
-    for (const r of [...walkerLogRollup, ...walkerLogStates]) {
+    for (const r of walkerLogRollup) {
       const key = [r.email, r.phone, r.date, r.campaignId, r.adId].join('|');
       if (seenWalkerRows.has(key)) continue;
       seenWalkerRows.add(key);
       walkerLog.push(r);
+    }
+    for (const r of walkerLogStates) {
+      if ((r.email && rollupDays.has(r.date + '|e' + r.email)) || (r.phone && rollupDays.has(r.date + '|p' + r.phone))) continue;
+      const key = [r.email, r.phone, r.date].join('|');
+      if (seenWalkerRows.has(key)) continue;
+      seenWalkerRows.add(key);
+      walkerLog.push({ ...r, backup: true });
     }
     if (walkerLog.length >= 100) cache.walkerLog = walkerLog; else console.warn(`[${new Date().toISOString()}] Walker lead log looks broken (${walkerLog.length} rows) — keeping last known-good`);
     cache.metaDaily = metaDaily;

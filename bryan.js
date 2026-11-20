@@ -4,6 +4,7 @@
 // Walker's PPL delivery log has no email for most rows, so leads are joined to their source
 // campaign by name + phone, cross-checked against the date, rather than by email like the other
 // clients.
+const { pickOrigin } = require('./origin-match');
 const { csvUrl, fetchText, parseCSV, parseCSVRows, num, toISODate, phone10 } = require('./csv-utils');
 const { readColumnColors } = require('./xlsx-lite');
 
@@ -119,27 +120,13 @@ function parseWalkerLog(csv) {
     .filter((r) => r.date && r.name);
 }
 
-// Where a lead came from: matched by name within 3 days of the CRM date (verified against phone
-// where both sides have one — 110 of 111 candidate matches agreed on phone during testing, so a
-// name+date match without a phone to check is trusted too), earliest candidate wins ties. Some
-// CRM rows name a relative the lead is calling about (e.g. "Jace Peterson (son)") rather than the
-// contact who actually submitted the form — those never match by name, so a same-day phone match
-// against the whole log is tried next before giving up.
-function findOrigin(lead, byName, byPhone) {
-  const candidates = (byName.get(normName(lead.name)) || []).filter(
-    (w) => Math.abs((new Date(w.date) - new Date(lead.createdDate)) / 86400000) <= 3
-  );
-  const phone = phone10(lead.phone);
-  if (candidates.length) {
-    const exactPhone = phone && candidates.find((w) => w.phone === phone);
-    const w = exactPhone || candidates.reduce((a, b) => (b.date < a.date ? b : a));
-    return { campaignId: w.campaignId, campaignName: cache.campaignNames.get(w.campaignId) || '', adId: w.adId, adName: cache.adNames.get(w.adId) || '', contactSource: w.source, walkerDate: w.date };
-  }
-  const phoneMatches = (phone && byPhone.get(phone) || []).filter(
-    (w) => Math.abs((new Date(w.date) - new Date(lead.createdDate)) / 86400000) <= 3
-  );
-  if (!phoneMatches.length) return null;
-  const w = phoneMatches.reduce((a, b) => (b.date < a.date ? b : a));
+// Where a lead came from: the Walker log row for that exact submission — email/phone/name within
+// 3 days of the CRM date, same-day first, never a same-name row whose phone says it's someone else
+// (see origin-match.js). Some CRM rows name a relative the lead is calling about ("Jace Peterson
+// (son)") — those still match on phone.
+function findOrigin(lead, walkerLog) {
+  const w = pickOrigin(lead, walkerLog, { maxDays: 3 });
+  if (!w) return null;
   return { campaignId: w.campaignId, campaignName: cache.campaignNames.get(w.campaignId) || '', adId: w.adId, adName: cache.adNames.get(w.adId) || '', contactSource: w.source, walkerDate: w.date };
 }
 
@@ -197,17 +184,9 @@ async function pollAll() {
     const walkerLog = parseWalkerLog(walkerCsv);
     if (walkerLog.length < 1000) { console.warn(`[${new Date().toISOString()}] Walker PPL log looks broken (${walkerLog.length} rows) — keeping last known-good`); return; }
 
-    const byName = new Map();
-    const byPhone = new Map();
-    for (const w of walkerLog) {
-      if (!byName.has(w.name)) byName.set(w.name, []);
-      byName.get(w.name).push(w);
-      if (w.phone) { if (!byPhone.has(w.phone)) byPhone.set(w.phone, []); byPhone.get(w.phone).push(w); }
-    }
-
     const usedCampaignIds = new Set();
     const withOrigin = leads.map((l) => {
-      let origin = findOrigin(l, byName, byPhone);
+      let origin = findOrigin(l, walkerLog);
       // Walker's log carries no UTM for this one lead (blank campaign fields), and her CRM
       // Contact Source alone doesn't say why. Checked directly in GoHighLevel: her first and
       // latest attribution source is Organic Search, with no campaign anywhere in her activity

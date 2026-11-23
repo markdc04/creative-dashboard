@@ -13,7 +13,6 @@
     walker: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>',
     data: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15v3"/><path d="M11 11v7"/><path d="M15 7v11"/><path d="M19 4v14"/></svg>',
     b2b: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
-    clients: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
   };
 
   const nav = document.createElement('aside');
@@ -32,7 +31,6 @@
     '<a class="side-item' + (active === 'walker' ? ' is-active' : '') + '" href="/walker/" title="Walker PPL / Agency">' + icons.walker + '<span class="side-text">Walker PPL / Agency</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
     '<a class="side-item' + (active === 'walker-data' ? ' is-active' : '') + '" href="/walker-data/" title="Data Analysis">' + icons.data + '<span class="side-text">Data Analysis</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
     '<a class="side-item' + (active === 'b2b' ? ' is-active' : '') + '" href="/b2b/" title="B2B Dashboard">' + icons.b2b + '<span class="side-text">B2B Dashboard</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
-    '<a class="side-item' + (active === 'clients' ? ' is-active' : '') + '" href="/clients/" title="Clients">' + icons.clients + '<span class="side-text">Clients</span><span class="side-lock-slot">' + icons.lock + '</span></a>' +
     '<div class="side-spacer"></div>' +
     '<div class="side-user" id="side-user" hidden><strong id="side-user-name"></strong><a href="/logout">Log out</a></div>' +
     '<button class="side-collapse" id="side-collapse" type="button" title="Collapse">' + icons.collapse + '<span>Collapse</span></button>';
@@ -65,7 +63,7 @@
       return;
     }
     if (me.role === 'client' && me.scope === 'creative') {
-      ['sasooness', 'km', 'bryan', 'ruy', 'walker', 'walker-data', 'b2b', 'clients'].forEach((s) => { const el = nav.querySelector('.side-item[href="/' + s + '/"]'); if (el) el.remove(); });
+      ['sasooness', 'km', 'bryan', 'ruy', 'walker', 'walker-data', 'b2b'].forEach((s) => { const el = nav.querySelector('.side-item[href="/' + s + '/"]'); if (el) el.remove(); });
     }
     document.querySelectorAll('.side-lock-slot').forEach((el) => { el.hidden = true; });
     document.getElementById('side-user-name').textContent = me.name;

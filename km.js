@@ -30,23 +30,23 @@ function updateGoogleSpend(rows) {
 // KM's block is the first eight columns of ALL CLIENT CASES (other clients sit to the right).
 // The AD column holds either an ad ID or a plain ad name; IDs are resolved to names when known.
 function parseCases(csv) {
-  const byEmail = new Map();
+  const byKey = new Map();
+  const clean = (v) => String(v || '').replace(/[\u200b\ufeff]/g, '').trim();
   for (const r of parseCSVRows(csv).slice(2)) {
-    const [intake, conversion, name, email, , , ad] = r;
-    const rawKey = (email || '').trim().toLowerCase();
-    if (!rawKey || !toISODate(conversion)) continue;
-    // Some rows carry a placeholder like "Not in body" instead of a real email — several
-    // different people can share that exact placeholder, and deduping on it as if it were a real
-    // email silently collapses distinct signed cases into one (confirmed: "vize Rogers" and
-    // "Elianna Elizabeth Gregio-Philpot..." both had "Not in body", undercounting signed cases by
-    // 1). Only dedupe on values that actually look like an email; anything else is scoped to this
-    // row's own name + conversion date so it never collides with a different person's placeholder.
-    const key = rawKey.includes('@') ? rawKey : rawKey + '|' + (name || '').trim().toLowerCase() + '|' + toISODate(conversion);
-    const c = { name: (name || '').trim(), email: rawKey, intakeDate: toISODate(intake), conversionDate: toISODate(conversion), ad: (ad || '').trim() };
-    const prev = byEmail.get(key);
-    if (!prev || c.conversionDate < prev.conversionDate) byEmail.set(key, c);
+    const [intake, conversion, name, email, , , ad] = r.map(clean);
+    if (!toISODate(conversion) || !name) continue;
+    const rawKey = email.toLowerCase();
+    // One signed case per person. Different people can share one email (Skylur, Reauchean and
+    // Charles Epps; Shanna and Gabrielle Lawrence; Mark and Ronald Schrecengost), and some rows
+    // carry no email or a placeholder like "Not in body" — so the key is email + name, never the
+    // email alone, and a row without an email still counts. A person entered twice (same email,
+    // same name) is still one case, dated by the earlier conversion.
+    const key = (rawKey.includes('@') ? rawKey : '') + '|' + name.toLowerCase().replace(/\s+/g, ' ');
+    const c = { name, email: rawKey, intakeDate: toISODate(intake), conversionDate: toISODate(conversion), ad };
+    const prev = byKey.get(key);
+    if (!prev || c.conversionDate < prev.conversionDate) byKey.set(key, c);
   }
-  return [...byEmail.values()];
+  return [...byKey.values()];
 }
 
 // Each figure sits directly under its label cell ("$/Lead" -> 35, "AD Budget" -> 20000), so find the

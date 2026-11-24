@@ -77,7 +77,9 @@ function buildSummaryRows(leads, program, data) {
   } else {
     // Own-ad spend (Google/Meta campaigns) is account-wide, not attributable to one program's
     // leads individually — same assumption app.js's renderKpis makes for the Agency tiles.
-    const ownSpend = data.campaignSpend.reduce((a, r) => a + r.spend, 0);
+    // Same split as isWaOwnSpend() in app.js: the W2 WA campaign is Arizona's through 11/12 (its
+    // leads were misrouted to AZ) and Washington's from 11/13, so it's never counted in both.
+    const ownSpend = data.campaignSpend.filter((r) => !(/\bWA\b/.test(r.campaign || '') && r.date >= '2026-11-13')).reduce((a, r) => a + r.spend, 0);
     const partnerSpend = partnerDeduction(leads, data.walker);
     const totalSpend = ownSpend + partnerSpend;
     const cpl = total > 0 ? totalSpend / total : 0;

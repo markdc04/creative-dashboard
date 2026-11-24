@@ -11,6 +11,23 @@
   // second $75k payment) = $117,500.
   const AD_BUDGET_TOTAL = 117500;
   const AD_BUDGET_FROM = '2026-09-09';
+  // Agency invoices from 9/21 on: the marketing fee is a flat 35% of each invoice's TOTAL
+  // ($75,000 -> $26,250 fee, $48,750 ad budget), not a percentage of ad spend. An invoice's fee
+  // counts in full for any range that touches its period (its invoice date up to the day before
+  // the next invoice; the latest one is open-ended).
+  const AGENCY_INVOICES = [
+    { date: '2026-09-21', total: 75000 },
+    { date: '2026-10-21', total: 75000 },
+  ];
+  function invoiceFee(start, end) {
+    let fee = 0;
+    AGENCY_INVOICES.forEach((inv, i) => {
+      const next = AGENCY_INVOICES[i + 1];
+      const periodEnd = next ? toISO(addDays(new Date(next.date + 'T00:00:00'), -1)) : '9999-12-31';
+      if ((!end || inv.date <= end) && (!start || periodEnd >= start)) fee += inv.total * MARKETING_FEE_SHARE;
+    });
+    return fee;
+  }
   // The 10/21 top-up is new money — the first $68,750 (9/9 + 9/21 tranches) must be spent down to
   // zero before any of it counts as "left." See fifoRemaining().
   const AD_BUDGET_PREVIOUS = 68750;
@@ -608,8 +625,7 @@
         return from > to ? 0 : combinedAgencySpend(from, to);
       };
       const spendTranche1 = windowSpend(AD_BUDGET_FROM, AD_TRANCHE1_END);
-      const spendTranche2 = windowSpend(AZ_BUDGET_FROM, '9999-12-31');
-      const fee = feeBeforeSept + spendTranche1 * 0.375 + spendTranche2 * 0.35;
+      const fee = feeBeforeSept + spendTranche1 * 0.375 + (contractOk ? invoiceFee(state.range.start, budgetTo) : 0);
       const totalCost = totalSpend + fee;
       const cpcWithFee = signed > 0 && costsMeaningful && contractOk ? totalCost / signed : 0;
       const dash = '—';
@@ -622,7 +638,7 @@
         ['__break__'],
         ['', 'Ad Spend', money(totalSpend), money(ownSpend) + ' own ads + ' + money(partnerSpend) + ' Lead Prosper', ''],
         ['', 'Ad Budget Left', contractOk ? money(adBudgetLeft) : dash, contractOk ? adBudgetNote : '', ''],
-        ['', 'Marketing Fee', contractOk ? money(fee) : dash, contractOk ? 'monthly fee from the contract' : 'contract-level, not split by filter', ''],
+        ['', 'Marketing Fee', contractOk ? money(fee) : dash, contractOk ? '35% of each $75k invoice' : 'contract-level, not split by filter', ''],
         ['', 'Total Cost', contractOk ? money(totalCost) : dash, contractOk ? 'ad spend + marketing fee' : 'contract-level, not split by filter', ''],
         ['', 'Client CPC', cpcWithFee ? money(cpcWithFee) : dash, !costsMeaningful || !contractOk ? 'not split by filter' : signed ? 'what the client pays per case · ad spend + fee ÷ signed cases' : 'no signed cases yet', ''],
       ];
@@ -1185,7 +1201,7 @@
       const to = winTo < budgetTo ? winTo : budgetTo;
       return from > to ? 0 : combinedAgencySpend(from, to);
     };
-    const fee = feeBeforeSept + windowSpend(AD_BUDGET_FROM, AD_TRANCHE1_END) * 0.375 + windowSpend(AZ_BUDGET_FROM, '9999-12-31') * 0.35;
+    const fee = feeBeforeSept + windowSpend(AD_BUDGET_FROM, AD_TRANCHE1_END) * 0.375 + invoiceFee(win.start, win.end);
     const totalCost = totalSpend + fee;
     return {
       'Total Leads': total, 'Signed Cases': signed, 'Conversion Rate': total ? (signed / total) * 100 : 0, 'Rejected': rejected,

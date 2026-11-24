@@ -11,22 +11,48 @@
   // second $75k payment) = $117,500.
   const AD_BUDGET_TOTAL = 117500;
   const AD_BUDGET_FROM = '2026-09-09';
-  // Agency invoices from 9/21 on: the marketing fee is a flat 35% of each invoice's TOTAL
-  // ($75,000 -> $26,250 fee, $48,750 ad budget), not a percentage of ad spend. An invoice's fee
-  // counts in full for any range that touches its period (its invoice date up to the day before
-  // the next invoice; the latest one is open-ended).
+  // Agency (AZ) $75,000 invoices, spent down in order. Each invoice is 65% ad budget ($48,750)
+  // and a flat 35% marketing fee ($26,250) — the fee is 35% of the invoice TOTAL, never 35% of
+  // spend (35% of spend can't reach $26,250 on a $48,750 budget). Arizona's own campaign spend
+  // from AGENCY_INVOICE_FROM (incl. the W2 WA campaign's misrouted 11/7-11/12 spend, see
+  // WA_OWN_SPEND_FROM) draws down the first invoice; the day its $48,750 is used up, the next
+  // invoice starts the following day and any overspend carries into it. Rule from Mark,
+  // 2026-11-25: invoice 1 used up 11/11 ($49,119.75 Oct 1-Nov 11, $369.75 over); #1381 from 11/12.
+  const AGENCY_INVOICE_FROM = '2026-10-01';
   const AGENCY_INVOICES = [
-    { date: '2026-09-21', total: 75000 },
-    { date: '2026-10-21', total: 75000 },
+    { label: 'Invoice 1', total: 75000 },
+    { label: 'Invoice #1381', total: 75000 },
   ];
-  function invoiceFee(start, end) {
-    let fee = 0;
-    AGENCY_INVOICES.forEach((inv, i) => {
-      const next = AGENCY_INVOICES[i + 1];
-      const periodEnd = next ? toISO(addDays(new Date(next.date + 'T00:00:00'), -1)) : '9999-12-31';
-      if ((!end || inv.date <= end) && (!start || periodEnd >= start)) fee += inv.total * MARKETING_FEE_SHARE;
-    });
-    return fee;
+  // Every invoice's state as of `asOf` (YYYY-MM-DD): when it started, when it was used up, what
+  // it has spent (including carry-over) and what's left. Invoices not started yet are omitted.
+  function agencyInvoices(asOf) {
+    const byDay = new Map();
+    for (const r of azOwnSpendRows()) {
+      if (r.date < AGENCY_INVOICE_FROM || r.date > asOf) continue;
+      byDay.set(r.date, (byDay.get(r.date) || 0) + r.spend);
+    }
+    const days = [...byDay.keys()].sort();
+    const out = [];
+    let i = 0, spent = 0, from = AGENCY_INVOICE_FROM, carried = 0;
+    const cur = () => AGENCY_INVOICES[Math.min(i, AGENCY_INVOICES.length - 1)];
+    for (const d of days) {
+      spent += byDay.get(d);
+      const budget = cur().total * (1 - MARKETING_FEE_SHARE);
+      if (spent >= budget && i < AGENCY_INVOICES.length - 1) {
+        out.push({ ...cur(), index: i, from, usedUpOn: d, carriedIn: carried, spent, budget, left: budget - spent, fee: cur().total * MARKETING_FEE_SHARE });
+        carried = spent - budget; spent = carried; i++;
+        from = toISO(addDays(new Date(d + 'T00:00:00'), 1));
+      }
+    }
+    const budget = cur().total * (1 - MARKETING_FEE_SHARE);
+    if (asOf >= from) out.push({ ...cur(), index: i, from, usedUpOn: null, carriedIn: carried, spent, budget, left: budget - spent, fee: cur().total * MARKETING_FEE_SHARE });
+    return out;
+  }
+  // The invoice being spent down on `asOf` (null before AGENCY_INVOICE_FROM).
+  function currentAgencyInvoice(asOf) {
+    if (!asOf || asOf < AGENCY_INVOICE_FROM) return null;
+    const list = agencyInvoices(asOf);
+    return list[list.length - 1] || null;
   }
   // The 10/21 top-up is new money — the first $68,750 (9/9 + 9/21 tranches) must be spent down to
   // zero before any of it counts as "left." See fifoRemaining().
@@ -153,7 +179,9 @@
   const programOf = (l) => (l.channel === 'Lead Prosper WA' || l.channel === 'OG WA' ? 'ppl' : 'agency');
   // Only Lead Prosper WA leads are bought per lead ($425 each, counted toward invoices).
   const isLpWa = (l) => l.channel === 'Lead Prosper WA';
-  // Our own Google campaign for Washington ("W2 WA - Sasooness - 11 07 26"). A media-buying mistake
+  // Our own Google campaign for Washington ("W2 WA - Sasooness - 11 07 26"). A landing-page misroute
+  // sent ALL its leads to Arizona 11/7-11/12, so that $3,998.36 ($3,329.21 for 11/7-11/11 + $669.15
+  // on 11/12) is Arizona ad spend and never Washington's. Earlier note: a media-buying mistake
   // sent its leads to Arizona until 11/13, so its spend before then stays in the Agency (AZ) budget;
   // from 11/13 on its leads land on the OG WA tab and its spend is WA's, out of the PPL budget.
   const WA_OWN_SPEND_FROM = '2026-11-13';
@@ -625,7 +653,12 @@
         return from > to ? 0 : combinedAgencySpend(from, to);
       };
       const spendTranche1 = windowSpend(AD_BUDGET_FROM, AD_TRANCHE1_END);
-      const fee = feeBeforeSept + spendTranche1 * 0.375 + (contractOk ? invoiceFee(state.range.start, budgetTo) : 0);
+      // From 10/1 on, the fee and budget are the current $75k invoice's (see agencyInvoices).
+      const inv = currentAgencyInvoice(budgetTo);
+      const fee = inv ? inv.fee : feeBeforeSept + spendTranche1 * 0.375;
+      const shortD = (iso) => Number(iso.slice(5, 7)) + '/' + Number(iso.slice(8, 10));
+      const invFeeNote = inv ? inv.label + ' (from ' + shortD(inv.from) + ') · 35% of ' + money(inv.total) : 'monthly fee from the contract';
+      const invBudgetNote = inv ? 'of ' + money(inv.budget) + ' · ' + inv.label + (inv.carriedIn > 0 ? ' · ' + money(inv.carriedIn) + ' carried over' : '') : adBudgetNote;
       const totalCost = totalSpend + fee;
       const cpcWithFee = signed > 0 && costsMeaningful && contractOk ? totalCost / signed : 0;
       const dash = '—';
@@ -637,8 +670,8 @@
         ['', 'CPC (Cost / Case)', costPerCase ? money(costPerCase) : dash, !costsMeaningful ? noSplit : signed ? 'ad spend ÷ signed cases' : 'no signed cases yet', ''],
         ['__break__'],
         ['', 'Ad Spend', money(totalSpend), money(ownSpend) + ' own ads + ' + money(partnerSpend) + ' Lead Prosper', ''],
-        ['', 'Ad Budget Left', contractOk ? money(adBudgetLeft) : dash, contractOk ? adBudgetNote : '', ''],
-        ['', 'Marketing Fee', contractOk ? money(fee) : dash, contractOk ? '35% of each $75k invoice' : 'contract-level, not split by filter', ''],
+        ['', 'Ad Budget Left', contractOk ? (inv ? (inv.left < 0 ? '-' : '') + '$' + Math.abs(inv.left).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : money(adBudgetLeft)) : dash, contractOk ? invBudgetNote : '', ''],
+        ['', 'Marketing Fee', contractOk ? money(fee) : dash, contractOk ? invFeeNote : 'contract-level, not split by filter', ''],
         ['', 'Total Cost', contractOk ? money(totalCost) : dash, contractOk ? 'ad spend + marketing fee' : 'contract-level, not split by filter', ''],
         ['', 'Client CPC', cpcWithFee ? money(cpcWithFee) : dash, !costsMeaningful || !contractOk ? 'not split by filter' : signed ? 'what the client pays per case · ad spend + fee ÷ signed cases' : 'no signed cases yet', ''],
       ];
@@ -1194,14 +1227,15 @@
       const partner = partnerDeduction(state.leads.filter((l) => programOf(l) === 'agency' && l.createdDate >= from && l.createdDate <= to)).total;
       return own + partner;
     };
-    const adBudgetLeft = AD_BUDGET_TOTAL - combinedAgencySpend(AD_BUDGET_FROM, budgetTo);
+    const adBudgetLeft = currentAgencyInvoice(budgetTo) ? currentAgencyInvoice(budgetTo).left : AD_BUDGET_TOTAL - combinedAgencySpend(AD_BUDGET_FROM, budgetTo);
     const AD_TRANCHE1_END = '2026-10-08';
     const windowSpend = (winFrom, winTo) => {
       const from = win.start && win.start > winFrom ? win.start : winFrom;
       const to = winTo < budgetTo ? winTo : budgetTo;
       return from > to ? 0 : combinedAgencySpend(from, to);
     };
-    const fee = feeBeforeSept + windowSpend(AD_BUDGET_FROM, AD_TRANCHE1_END) * 0.375 + invoiceFee(win.start, win.end);
+    const winInv = currentAgencyInvoice(win.end);
+    const fee = winInv ? winInv.fee : feeBeforeSept + windowSpend(AD_BUDGET_FROM, AD_TRANCHE1_END) * 0.375;
     const totalCost = totalSpend + fee;
     return {
       'Total Leads': total, 'Signed Cases': signed, 'Conversion Rate': total ? (signed / total) * 100 : 0, 'Rejected': rejected,

@@ -564,11 +564,17 @@ const server = http.createServer((req, res) => {
   }
 
   // All Clients Overview: only the allow-listed account(s) (auth.js OVERVIEW_USERS), admins
-  // included — everyone else gets a 403 on the data and is sent home from the page.
+  // included — everyone else gets a 403 on the data and a "You don't have access" page.
   if (url.pathname === '/overview' || url.pathname.startsWith('/overview/') || url.pathname.startsWith('/overview-api/')) {
     if (!auth.canSeeOverview(session)) {
       if (url.pathname.startsWith('/overview-api/')) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'forbidden' })); }
-      else { res.writeHead(302, { Location: session ? roleHome(session) : '/login' }); res.end(); }
+      else if (!session) { res.writeHead(302, { Location: '/login?next=' + encodeURIComponent(url.pathname) }); res.end(); }
+      else {
+        res.writeHead(403, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>No access — Loudr Media</title>' +
+          '<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#000;color:#eee;font:16px Inter,system-ui,sans-serif;padding:16px}div{max-width:420px;text-align:center}h1{font-size:22px;margin:0 0 10px}a{color:#f5c84b}</style></head>' +
+          '<body><div><h1>You don\'t have access</h1><p>The All Clients Overview is limited to specific accounts. Ask Jeremiah if you need it.</p><p><a href="' + roleHome(session) + '">Back to your dashboard</a></p></div></body></html>');
+      }
       return;
     }
     if (url.pathname === '/overview-api/data') {

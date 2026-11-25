@@ -67,3 +67,16 @@
 .ov-table td > div.ov-vs{white-space:normal;max-width:260px;}
 .ov-table td:nth-child(2){min-width:190px;white-space:normal;}
 .ov-big.c-grey{font-family:var(--font-body);font-size:18px;font-weight:700;}
+.ov-view{margin-top:auto;font-size:12.5px;font-weight:700;color:var(--accent);}
+.ov-view .ov-click{text-decoration:none;}
+.ov-view .ov-click:hover{text-decoration:underline;}
+.ov-tag{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;border:1px solid var(--border);font-size:10.5px;font-weight:700;color:var(--text-dim);vertical-align:middle;text-transform:lowercase;}
+.ov-flag{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:var(--surface-raised);font-size:11px;font-weight:700;color:var(--text);}
+.ov-chev{text-align:right;width:28px;}
+.ov-chev a{display:inline-block;font-size:22px;line-height:1;color:var(--text-faint);padding:0 4px;}
+.ov-chev a:hover{color:var(--accent);}
+.ov-filter-row td{background:var(--surface-raised);color:var(--text);font-weight:600;font-size:12.5px;}
+.ov-filter-row .ov-click{color:var(--accent);}
+.live-pill.ov-pill-red .live-dot{background:var(--ov-red);box-shadow:none;animation:none;}
+.live-pill.ov-pill-orange .live-dot{background:var(--ov-orange);box-shadow:none;animation:none;}
+.live-pill.ov-pill-green .live-dot{background:var(--ov-green);}

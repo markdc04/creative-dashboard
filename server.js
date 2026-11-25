@@ -8,6 +8,7 @@ const { csvUrl: sharedCsvUrl, fetchText, parseCSV, num, toISODate } = require('.
 const sasooness = require('./sasooness');
 const { syncSasoonessSheet } = require('./sasooness-sheet-sync');
 const { syncClientSheets } = require('./client-sheet-sync');
+const overview = require('./overview');
 const km = require('./km');
 const bryan = require('./bryan');
 const ruy = require('./ruy');
@@ -69,6 +70,7 @@ function pageLabel(pathname) {
   if (pathname.startsWith('/km')) return 'KM';
   if (pathname.startsWith('/bryan')) return 'Bryan';
   if (pathname.startsWith('/ruy')) return 'Ruy Mireles';
+  if (pathname.startsWith('/overview')) return 'All Clients Overview';
   return pathname;
 }
 function recordVisit(name, page) {
@@ -557,8 +559,27 @@ const server = http.createServer((req, res) => {
 
   if (url.pathname === '/api/me') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    res.end(JSON.stringify(session));
+    res.end(JSON.stringify({ ...session, overview: auth.canSeeOverview(session) }));
     return;
+  }
+
+  // All Clients Overview: only the allow-listed account(s) (auth.js OVERVIEW_USERS), admins
+  // included — everyone else gets a 403 on the data and is sent home from the page.
+  if (url.pathname === '/overview' || url.pathname.startsWith('/overview/') || url.pathname.startsWith('/overview-api/')) {
+    if (!auth.canSeeOverview(session)) {
+      if (url.pathname.startsWith('/overview-api/')) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'forbidden' })); }
+      else { res.writeHead(302, { Location: session ? roleHome(session) : '/login' }); res.end(); }
+      return;
+    }
+    if (url.pathname === '/overview-api/data') {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify(overview.getData()));
+      return;
+    }
+    if (url.pathname === '/overview-api/refresh' && req.method === 'POST') {
+      overview.poll().finally(() => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(overview.getData())); });
+      return;
+    }
   }
 
   // KPI tile ordering, per dashboard + program. Anyone logged in can read the saved order (so
@@ -749,12 +770,14 @@ const server = http.createServer((req, res) => {
   if (rel === '/walker') { res.writeHead(301, { Location: '/walker/' }); res.end(); return; }
   if (rel === '/walker-data') { res.writeHead(301, { Location: '/walker-data/' }); res.end(); return; }
   if (rel === '/b2b') { res.writeHead(301, { Location: '/b2b/' }); res.end(); return; }
+  if (rel === '/overview') { res.writeHead(301, { Location: '/overview/' }); res.end(); return; }
   // The old Clients overview page was removed — send old bookmarks to the dashboard.
   if (rel === '/clients' || rel.startsWith('/clients/')) { res.writeHead(301, { Location: '/dashboard/' }); res.end(); return; }
   if (rel.startsWith('/dashboard/')) { root = 'public'; rel = rel.slice('/dashboard'.length); }
   if (rel.startsWith('/walker-data/')) { root = 'walker-data-public'; rel = rel.slice('/walker-data'.length); }
   else if (rel.startsWith('/walker/')) { root = 'walker-public'; rel = rel.slice('/walker'.length); }
   else if (rel.startsWith('/b2b/')) { root = 'b2b-public'; rel = rel.slice('/b2b'.length); }
+  else if (rel.startsWith('/overview/')) { root = 'overview-public'; rel = rel.slice('/overview'.length); }
   else if (rel.startsWith('/ruy/')) { root = 'ruy-public'; rel = rel.slice('/ruy'.length); }
   // A client-role session gets the shared, limited client-view app for any of the three client
   // dashboards instead of the internal one admins/creative see at the same URL — one small static
@@ -798,6 +821,7 @@ const server = http.createServer((req, res) => {
 
 pollAll();
 setInterval(pollAll, POLL_MS);
+overview.start();
 async function pollSasoonessAndSync() {
   // Must await pollAll() before reading getData() — otherwise the sheet sync reads whatever was
   // cached before this poll (empty, on the very first call after a fresh deploy).

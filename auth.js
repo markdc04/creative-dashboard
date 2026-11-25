@@ -53,13 +53,13 @@ function verifyLogin(username, password) {
   const [salt, hash] = (user ? user.hash : '00$' + '0'.repeat(64)).split('$');
   const attempt = crypto.scryptSync(String(password || ''), salt, 32);
   const ok = crypto.timingSafeEqual(attempt, Buffer.from(hash, 'hex'));
-  return user && ok ? { name: user.name, role: user.role || 'admin', scope: user.scope || null } : null;
+  return user && ok ? { name: user.name, role: user.role || 'admin', scope: user.scope || null, username: normalizeUsername(username) } : null;
 }
 
 function sign(payload) { return crypto.createHmac('sha256', SECRET).update(payload).digest('hex'); }
 
 function makeSession(user) {
-  const payload = Buffer.from(JSON.stringify({ n: user.name, r: user.role, s: user.scope, e: Date.now() + SESSION_MS })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ n: user.name, r: user.role, s: user.scope, u: user.username || null, e: Date.now() + SESSION_MS })).toString('base64url');
   return payload + '.' + sign(payload);
 }
 
@@ -71,8 +71,8 @@ function readSession(cookieHeader) {
   const expected = sign(payload);
   if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
   try {
-    const { n, r, s, e } = JSON.parse(Buffer.from(payload, 'base64url').toString());
-    return e > Date.now() ? { name: n, role: r || 'admin', scope: s || null } : null;
+    const { n, r, s, u, e } = JSON.parse(Buffer.from(payload, 'base64url').toString());
+    return e > Date.now() ? { name: n, role: r || 'admin', scope: s || null, username: u || null } : null;
   } catch (err) { return null; }
 }
 
@@ -88,4 +88,10 @@ function isLocked(ip) {
 function noteFailure(ip) { failures.set(ip, [...(failures.get(ip) || []), Date.now()]); }
 function clearFailures(ip) { failures.delete(ip); }
 
-module.exports = { verifyLogin, makeSession, readSession, isLocked, noteFailure, clearFailures, SESSION_MS };
+// All Clients Overview allow-list (login usernames, comma-separated). Defaults to Jeremiah only.
+// Override with the OVERVIEW_USERS env var on Render. Sessions from before this field existed carry
+// no username, so an allowed user logs in once more to get access.
+const OVERVIEW_USERS = (process.env.OVERVIEW_USERS || 'jeremiah,jeremiah@loudrmedia.com').split(',').map(normalizeUsername).filter(Boolean);
+function canSeeOverview(session) { return !!(session && session.username && OVERVIEW_USERS.includes(session.username)); }
+
+module.exports = { canSeeOverview, verifyLogin, makeSession, readSession, isLocked, noteFailure, clearFailures, SESSION_MS };

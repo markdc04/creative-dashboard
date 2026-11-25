@@ -311,7 +311,7 @@ function parsePacks(rows, warnings) {
   const c = {
     client: findCol(h, 'client'), state: findCol(h, 'state'), packSize: findCol(h, 'pack size'), delivered: findCol(h, 'leads delivered'),
     remaining: findCol(h, 'leads remaining'), pctDelivered: findCol(h, '% delivered'), pace: findCol(h, 'pace'),
-    flag: findCol(h, /flag/),
+    flag: findCol(h, /flag/), refundRate: findCol(h, 'refund rate'), refundsApproved: findCol(h, 'refunds approved'),
   };
   const out = [];
   for (const r of rows.slice(hi + 1)) {
@@ -321,6 +321,7 @@ function parsePacks(rows, warnings) {
       client, state: String(r[c.state] || '').trim(), packSize: num(r[c.packSize]), delivered: num(r[c.delivered]),
       remaining: num(r[c.remaining]), pctDelivered: num(r[c.pctDelivered]), pace: c.pace >= 0 ? String(r[c.pace] || '') : '',
       flag: c.flag >= 0 ? String(r[c.flag] || '') : '',
+      refundRate: c.refundRate >= 0 ? num(r[c.refundRate]) : null, refundsApproved: c.refundsApproved >= 0 ? num(r[c.refundsApproved]) : null,
     });
   }
   return out;
@@ -458,10 +459,9 @@ async function agencyBalance() {
 // A Summary cell reading "n/a…" means the metric doesn't apply to that deal (e.g. replacement for
 // an agency fee). Anything else that isn't a number is missing data.
 const notApplicable = (m) => /^n\/a/i.test(String((m && m.text) || '').trim());
-const worst = (cs) => (cs.includes('red') ? 'red' : cs.includes('orange') ? 'orange' : 'green');
 
 function clientRow(r, rows, ctx) {
-  const { settings, band, isSummaryRange, hasLeadSource } = ctx;
+  const { settings, band, isSummaryRange, hasLeadSource, pack } = ctx;
   const t = sumRows(rows);
   const dn = displayName(r.key, r.client);
   const isWalker = /^walker/i.test(r.key);
@@ -485,12 +485,17 @@ function clientRow(r, rows, ctx) {
   const pplApplies = !notApplicable(r.profitPerLead);
   const profitPerLead = pplApplies && leads && t.sent > 0 ? t.profit / t.sent : null;
 
-  // Replacement = returned / sent, only where returns are actually reported
+  // Replacement rate, first source that has a value: Summary column T ("Replacement rate MTD
+  // (returned / sent)", month to date only), raw_current leads_returned ÷ leads_sent, then Mark's
+  // tracker (from_mark_ppl "Refund rate"). Settings B4: orange at or above; B3: red above.
   const replApplies = !notApplicable(r.replacement);
   const retRows = rows.filter((x) => x.returned != null);
-  const replacement = replApplies && retRows.length && t.sent > 0 ? retRows.reduce((a, x) => a + x.returned, 0) / t.sent : null;
+  let replacement = null, replSource = '';
+  if (replApplies && isSummaryRange && r.replacement.value != null) { replacement = r.replacement.value; replSource = 'Summary column T'; }
+  else if (replApplies && retRows.length && t.sent > 0) { replacement = retRows.reduce((a, x) => a + x.returned, 0) / t.sent; replSource = 'raw_current leads_returned ÷ leads_sent'; }
+  else if (replApplies && pack && pack.refundRate != null) { replacement = pack.refundRate; replSource = 'from_mark_ppl Refund rate'; }
   const replColour = replacement == null ? 'grey'
-    : replacement > (settings.maxReplacement ?? 0.2) ? 'red' : replacement > (settings.orangeReplacement ?? 0.15) ? 'orange' : 'green';
+    : replacement > (settings.maxReplacement ?? 0.2) ? 'red' : replacement >= (settings.orangeReplacement ?? 0.15) ? 'orange' : 'green';
 
   // Cost per case: the QMVA / signed-case counts only exist on Summary, so the value is Summary's,
   // shown only when the page range is Summary's own range.
@@ -498,11 +503,13 @@ function clientRow(r, rows, ctx) {
   const costPerCase = caseApplies && isSummaryRange ? r.costPerCase.value : null;
   const targetApplies = !notApplicable(r.target);
   const target = tSet && tSet.targetCostPerCase != null ? tSet.targetCostPerCase : (targetApplies ? r.target.value : null);
+  const pricePerCase = tSet && tSet.pricePerCase != null ? tSet.pricePerCase : null; // Settings price_per_case
   const caseColour = costPerCase == null || target == null ? 'grey'
     : costPerCase > target ? 'red' : costPerCase > target * (1 - band) ? 'orange' : 'green';
 
-  // Status: red whenever the client loses money. Otherwise grey if any metric that applies to the
-  // deal is missing (replacement, cost per case, target); otherwise the worst colour.
+  // Status starts from Summary's own "STATUS (worst metric)" (column U) — not recalculated here.
+  // Two overrides so it can never show green on missing data: grey if replacement, cost per case
+  // or target is missing; red (Off Track) whenever the client is losing money.
   const missing = [];
   if (replApplies && replacement == null) missing.push('replacement rate');
   if (caseApplies && costPerCase == null) missing.push(isWalker ? 'cost per QMVA' : 'cost per signed case');
@@ -511,20 +518,17 @@ function clientRow(r, rows, ctx) {
   let status, statusNote;
   if (t.profit < 0) { status = 'red'; statusNote = 'Losing money in this range'; }
   else if (missing.length) { status = 'grey'; statusNote = 'Missing: ' + missing.join(', '); }
-  else {
-    const cs = [profitColour, replApplies ? replColour : null, caseApplies ? caseColour : null, cplApplies && pricePerLead != null ? cplColour : null].filter(Boolean);
-    status = worst(cs); statusNote = '';
-  }
+  else { status = r.status; statusNote = r.status === 'grey' ? 'No status on Summary' : ''; }
 
   return {
     key: r.key, sheetName: r.client, name: dn.name, line: dn.line, state: r.state, dealType: r.dealType, href: clientHref(r.key),
     status, statusNote, revenue: t.revenue, cost: t.cost, profit: t.profit, margin, profitColour, revenueMissing: t.revenueMissing,
     leads, costPerLead, pricePerLead, cplColour, cplApplies, profitPerLead, pplApplies,
-    replacement, replColour, replApplies, replNote: replApplies && replacement == null ? (r.replacement.text || 'Returns not reported') : '',
-    caseLabel: isWalker ? 'Cost per QMVA' : 'Cost per signed case', costPerCase, caseApplies, caseColour, target, targetApplies,
+    replacement, replColour, replApplies, replSource, replNote: replApplies && replacement == null ? (r.replacement.text || 'Returns not reported') : '',
+    caseLabel: isWalker ? 'Cost per QMVA' : 'Cost per signed case', costPerCase, caseApplies, caseColour, target, targetApplies, pricePerCase,
     caseNote: caseApplies && costPerCase == null ? (isSummaryRange ? (r.costPerCase.text || 'No data') : 'Counts only on Summary (month to date)') : '',
     targetNote: targetApplies && target == null ? (r.target.text || 'No target set') : '',
-    isPack: rule === 'ppl' && !isWalker, rows: rows.length,
+    isPack: (rule === 'ppl' && !isWalker) || !!pack, rows: rows.length,
   };
 }
 
@@ -556,6 +560,8 @@ function build({ grid, settingsRows, rawRows, packRows }, nowMs = Date.now()) {
   }
 
   const active = summary.rows.filter((r) => r.state && !/^unmapped/i.test(r.client));
+  // Hidden: Summary rows with a blank State (column X) — inactive, paused or catch-all.
+  const hidden = summary.rows.filter((r) => !r.state || /^unmapped/i.test(r.client)).map((r) => ({ client: r.client, row: r.sheetRow, why: r.statusNote || 'No state on Summary' }));
   const activeKeys = new Set(active.map((r) => norm(r.key)));
   const hasLeadSource = (key) => raw.some((x) => norm(x.client) === norm(key) && (/lead prosper/i.test(x.source) || x.sent > 0));
   const unmappedKeys = [...new Set(daily.filter((d) => !activeKeys.has(norm(d.client))).map((d) => d.client))];
@@ -571,11 +577,10 @@ function build({ grid, settingsRows, rawRows, packRows }, nowMs = Date.now()) {
     const isSummaryRange = p.start === summaryWindow.start && p.end === summaryWindow.end;
     const clients = active.map((r) => {
       const rows = daily.filter((d) => inRange(d) && norm(d.client) === norm(r.key));
-      const c = clientRow(r, rows, { settings, band, isSummaryRange, hasLeadSource: hasLeadSource(r.key) });
-      if (c.isPack) {
-        const pack = packs.find((x) => norm(x.client) === norm(r.key) && (!x.state || norm(x.state) === norm(r.state))) || packs.find((x) => norm(r.client).startsWith(norm(x.client)));
-        c.pack = pack ? { pace: pack.pace, remaining: pack.remaining, packSize: pack.packSize, flag: pack.flag } : null;
-      }
+      const pack = packs.find((x) => norm(x.client) === norm(r.key) && (!x.state || norm(x.state) === norm(r.state)))
+        || packs.find((x) => norm(r.client).startsWith(norm(x.client)) && (!x.state || norm(x.state) === norm(r.state))) || null;
+      const c = clientRow(r, rows, { settings, band, isSummaryRange, hasLeadSource: hasLeadSource(r.key), pack });
+      if (c.isPack) c.pack = pack ? { delivered: pack.delivered, packSize: pack.packSize, remaining: pack.remaining, pace: pack.pace, flag: pack.flag } : null;
       return c;
     });
     // Raw rows for clients not on Summary still count, in their own "Unmapped" group, so the
@@ -639,7 +644,7 @@ function build({ grid, settingsRows, rawRows, packRows }, nowMs = Date.now()) {
     range: { start: periodDefs.mtd.start, end, basis: RANGE_END === 'raw' ? 'raw_current' : 'Summary' },
     summaryWindow, rawLatest,
     settings: { orangeBand: band, maxReplacement: settings.maxReplacement, orangeReplacement: settings.orangeReplacement },
-    periods, freshness: freshness(raw, nowMs, summary.dataThrough), checks, detail,
+    periods, freshness: freshness(raw, nowMs, summary.dataThrough), checks, detail, hidden,
   };
 }
 const round2 = (n) => Math.round(n * 100) / 100;

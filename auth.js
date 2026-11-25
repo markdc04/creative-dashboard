@@ -88,10 +88,10 @@ function isLocked(ip) {
 function noteFailure(ip) { failures.set(ip, [...(failures.get(ip) || []), Date.now()]); }
 function clearFailures(ip) { failures.delete(ip); }
 
-// All Clients Overview allow-list (login usernames, comma-separated). Defaults to Jeremiah only.
+// All Clients Overview allow-list (login usernames, comma-separated). Defaults to Jeremiah and Mark.
 // Override with the OVERVIEW_USERS env var on Render. Sessions from before this field existed carry
 // no username, so an allowed user logs in once more to get access.
-const OVERVIEW_USERS = (process.env.OVERVIEW_USERS || 'jeremiah,jeremiah@loudrmedia.com').split(',').map(normalizeUsername).filter(Boolean);
+const OVERVIEW_USERS = (process.env.OVERVIEW_USERS || 'jeremiah,jeremiah@loudrmedia.com,mark,mark@loudrmedia.com').split(',').map(normalizeUsername).filter(Boolean);
 function canSeeOverview(session) { return !!(session && session.username && OVERVIEW_USERS.includes(session.username)); }
 
 module.exports = { canSeeOverview, verifyLogin, makeSession, readSession, isLocked, noteFailure, clearFailures, SESSION_MS };

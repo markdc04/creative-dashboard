@@ -54,3 +54,16 @@
 .ov-d-src td:first-child{padding-left:26px;}
 .ov-table-wrap{max-height:none;overflow-x:auto;}
 .ov-table .ov-vs{font-family:var(--font-body);}
+
+.topbar{align-items:flex-end;gap:16px;flex-wrap:wrap;}
+.ov-range{font-size:15px;font-weight:700;color:var(--text);margin:4px 0 2px;}
+.ov-total td{font-weight:800;color:var(--text);border-top:2px solid var(--border);}
+.ov-name{font-weight:600;}
+.ov-nd{font-size:12px;}
+.ov-stale{margin:0;padding:0 0 0 16px;font-size:12px;color:var(--text-dim);}
+.ov-stale li{margin:2px 0;}
+.ov-states b{font-weight:700;color:var(--text);} .ov-states b.c-red{color:var(--ov-red);}
+
+.ov-table td > div.ov-vs{white-space:normal;max-width:260px;}
+.ov-table td:nth-child(2){min-width:190px;white-space:normal;}
+.ov-big.c-grey{font-family:var(--font-body);font-size:18px;font-weight:700;}

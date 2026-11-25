@@ -35,7 +35,11 @@
     <div>
       <p class="brand-eyebrow">Client Profitability</p>
       <h1>All Clients Overview</h1>
-      <p class="topbar-sub" id="sub">&mdash;</p>
+      <p class="ov-range" id="range">&mdash;</p>
+      <p class="topbar-sub" id="sub"></p>
+    </div>
+    <div class="ov-periods" role="group" aria-label="Date range">
+      <button data-period="yesterday">Latest day</button><button data-period="wtd">Week to date</button><button data-period="mtd" class="is-on">Month to date</button>
     </div>
   </div>
 
@@ -44,18 +48,18 @@
   <div class="ov-tiles" id="tiles"></div>
 
   <div class="panel">
-    <div class="panel-head"><h2 class="panel-title">Clients by state</h2><span class="panel-sub" id="table-sub"></span></div>
+    <div class="panel-head"><h2 class="panel-title">Clients by state</h2></div>
     <div class="ov-table-wrap">
       <table class="ov-table">
         <thead><tr>
-          <th>Client</th><th>Status</th><th class="num">Profit MTD</th><th class="num">Margin</th><th class="num">Profit / lead</th>
-          <th class="num">Cost / lead vs price</th><th class="num">Cost per case vs our price vs target</th><th class="num">Replacement</th>
+          <th>Client</th><th>Status</th><th class="num">Profit</th><th class="num">Margin</th><th class="num">Profit / lead</th>
+          <th class="num">Cost / lead vs price</th><th class="num">Cost per case vs target</th><th class="num">Replacement</th>
           <th class="num">Leads sent / accepted</th><th>Pack pace</th>
         </tr></thead>
         <tbody id="client-body"></tbody>
       </table>
     </div>
-    <p class="footnote ov-legend">Red: losing money. Orange: margin under 15%. Green: 15%+. Multi-state buyers get one row per state. Targets set per client per state. Click any number for detail.</p>
+    <p class="footnote ov-legend">Red: losing money. Orange: margin under 15%. Green: 15%+. Multi-state buyers get one row per state. Targets set per client per state. Grey “No data” = missing data or target (never counted as green). Click any number for detail (client → day → source).</p>
   </div>
 
 </div>

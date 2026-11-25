@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>(function(){try{if(localStorage.getItem("loudr_sidebar_collapsed")==="1")document.documentElement.classList.add("side-collapsed");}catch(e){}document.documentElement.classList.add("has-sidebar");})();</script>
+<title>All Clients Overview — Loudr Media</title>
+<link rel="icon" href="/walker/favicon.svg">
+<link rel="manifest" href="/shared/manifest.json">
+<meta name="theme-color" content="#000000">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="apple-touch-icon" href="/shared/apple-touch-icon.png">
+<script src="/shared/pwa.js" defer></script>
+<link rel="stylesheet" href="/walker/style.css">
+<link rel="stylesheet" href="/shared/sidebar.css">
+<link rel="stylesheet" href="/shared/back-to-top.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brandbar">
+    <img src="/shared/logo-loudr.png" alt="Loudr Media" class="brandlogo">
+    <div class="brandbar-right">
+      <button id="refresh-btn" class="refresh-btn" title="Re-read the sheet now" aria-label="Refresh now">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+      </button>
+      <span id="live-pill" class="live-pill"><span class="live-dot"></span><span id="live-text">Loading&hellip;</span></span>
+    </div>
+  </div>
+
+  <div class="topbar">
+    <div>
+      <p class="brand-eyebrow">Client Profitability</p>
+      <h1>All Clients Overview</h1>
+      <p class="topbar-sub" id="sub">&mdash;</p>
+    </div>
+  </div>
+
+  <div id="notices"></div>
+
+  <div class="ov-tiles" id="tiles"></div>
+
+  <div class="panel">
+    <div class="panel-head"><h2 class="panel-title">Clients by state</h2><span class="panel-sub" id="table-sub"></span></div>
+    <div class="ov-table-wrap">
+      <table class="ov-table">
+        <thead><tr>
+          <th>Client</th><th>Status</th><th class="num">Profit MTD</th><th class="num">Margin</th><th class="num">Profit / lead</th>
+          <th class="num">Cost / lead vs price</th><th class="num">Cost per case vs our price vs target</th><th class="num">Replacement</th>
+          <th class="num">Leads sent / accepted</th><th>Pack pace</th>
+        </tr></thead>
+        <tbody id="client-body"></tbody>
+      </table>
+    </div>
+    <p class="footnote ov-legend">Red: losing money. Orange: margin under 15%. Green: 15%+. Multi-state buyers get one row per state. Targets set per client per state. Click any number for detail.</p>
+  </div>
+
+</div>
+
+<div class="ov-drawer" id="drawer" aria-hidden="true">
+  <div class="ov-drawer-head">
+    <div><div class="ov-drawer-title" id="drawer-title"></div><div class="panel-sub" id="drawer-sub"></div></div>
+    <button class="ov-drawer-close" id="drawer-close" aria-label="Close">&times;</button>
+  </div>
+  <div class="ov-drawer-body" id="drawer-body"></div>
+</div>
+<div class="ov-scrim" id="scrim"></div>
+
+<script src="/shared/sidebar.js" data-active="overview"></script>
+<script src="app.js"></script>
+</body>
+</html>

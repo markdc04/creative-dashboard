@@ -4,9 +4,10 @@
 // grouped by state.
 //
 // Rules (from the page spec, claude-prompt-all-clients-overview.md):
-// - Colours are never recomputed here: per-metric colours are the Summary cells' own background
-//   colours, the overall status is Summary's "STATUS (worst metric)" column, and cutoffs come from
-//   the Settings tab. Missing data/targets are grey, never 0 or green.
+// - One date range for the whole page; every money figure is summed from raw_current over it, so
+//   tiles, state chips and the table tie out. Colour cutoffs come from the Settings tab. Status is
+//   red when a client loses money, grey when replacement / cost per case / target is missing,
+//   otherwise the worst metric colour. Missing data is grey "No data", never 0 or green.
 // - No bank cash, AR, or account numbers: Summary's cash/days-to-pay columns and its header notes
 //   (which name bank feeds) are never read into the payload.
 // - Headers are read by name; the few the sheet leaves blank fall back to a fixed column and are
@@ -239,9 +240,12 @@ function parseSummary(grid, warnings) {
     profit: findCol(headers, /^profit mtd$/, /^profit$/),
   };
   // Fallbacks for the unlabelled money columns (J, K, L).
-  if (col.revenue < 0) { col.revenue = 9; warnings.push('Summary: column J has no header — read as Revenue MTD. Please label it "Revenue MTD".'); }
-  if (col.cost < 0) { col.cost = 10; warnings.push('Summary: column K has no header — read as Cost MTD. Please label it "Cost MTD".'); }
-  if (col.profit < 0) { col.profit = 11; warnings.push('Summary: column L has no header — read as Profit MTD. Please label it "Profit MTD".'); }
+  // J/K/L carry no header text; they're Revenue / Cost / Profit MTD (the TOTAL row's note says
+  // "All-in (revenue J20 - all cost K20)"). build() confirms L = J - K on every row before using them.
+  const unlabelledMoney = col.revenue < 0 || col.cost < 0 || col.profit < 0;
+  if (col.revenue < 0) col.revenue = 9;
+  if (col.cost < 0) col.cost = 10;
+  if (col.profit < 0) col.profit = 11;
   for (const [k, v] of Object.entries(col)) if (v < 0) warnings.push('Summary: column "' + k + '" not found by header.');
   const cell = (r, i) => (i >= 0 && r[i]) || { text: '', bg: null };
   const label = (r) => String(cell(r, 0).text || '');
@@ -268,7 +272,7 @@ function parseSummary(grid, warnings) {
       replacement: metric('replacement'),
     });
   }
-  return { rows, dataThrough: isoDate(findLabel(/^data through/)), periodStart: isoDate(findLabel(/^period start/)) };
+  return { rows, unlabelledMoney, dataThrough: isoDate(findLabel(/^data through/)), periodStart: isoDate(findLabel(/^period start/)) };
 }
 
 // raw_current: one row per date + client + source + platform. Column A (date) and column I
@@ -292,7 +296,7 @@ function parseRaw(rows, warnings) {
     if (!date || !client) continue;
     out.push({
       date, client, dealType: String(r[c.dealType] || ''), source: String(r[c.source] || ''), platform: String(r[c.platform] || ''),
-      sent: num(r[c.sent]) || 0, accepted: num(r[c.accepted]) || 0, returned: num(r[c.returned]) || 0,
+      sent: num(r[c.sent]) || 0, accepted: num(r[c.accepted]) || 0, returned: num(r[c.returned]), // null = not reported
       price: num(r[c.price]), spend: num(r[c.spend]) || 0, revenue: num(r[c.revenue]), signed: num(r[c.signed]) || 0,
       loadedAt: String(r[c.loadedAt] || ''),
     });
@@ -323,13 +327,14 @@ function parsePacks(rows, warnings) {
 }
 
 // --- daily profit from raw_current -----------------------------------------------------------
-// Revenue per day comes from raw_current itself where it's reported (Walker portal rows); for
-// the other deal types it follows each deal's written terms, the same terms the sheet's Summary
-// uses (listed in its notes / the Settings targets notes):
+// Every money figure on the page (tiles, state chips, table, subtotals) is summed from these daily
+// rows over ONE date range, so they always tie out. Revenue per day follows each deal's terms, the
+// same terms the sheet's Summary uses:
+//   reported (Walker CA/NW): revenue_reported from the Walker portal
 //   agency  (Walker Agency): revenue = WAGENCY spend x 1.35   -> profit = 35% fee
 //   hybrid  (Sasooness AZ):  revenue = media / 0.65           ($75,000 round covers $48,750 media)
 //   retainer (KM Law):       revenue = media x 1.35           ($20,000 media + $7,000 fee)
-//   pay-per-lead:            revenue = leads sent x price per lead (raw row, else Settings, else Summary)
+//   pay-per-lead:            revenue = leads sent x price per lead
 // Clients with no revenue terms (B2B) are cost only.
 function revenueRule(client, dealType) {
   const t = norm(dealType), c = norm(client);
@@ -343,7 +348,7 @@ function revenueRule(client, dealType) {
 const RULE_TEXT = {
   reported: 'Revenue = Walker portal (revenue_reported)', agency: 'Revenue = WAGENCY spend × 1.35 (35% fee)',
   hybrid: 'Revenue = media ÷ 0.65 ($75K round = $48,750 media)', retainer: 'Revenue = media × 1.35 ($20K media + $7K fee)',
-  ppl: 'Revenue = leads sent × (Summary Revenue MTD ÷ leads sent MTD)', none: 'No client revenue (cost only)',
+  ppl: 'Revenue = leads sent × price per lead', none: 'No client revenue (cost only)',
 };
 function groupOf(client) {
   const c = norm(client);
@@ -352,11 +357,26 @@ function groupOf(client) {
   return 'other';
 }
 
+// Names as the sidebar shows them, so the table and the sidebar agree. The second part says which
+// line of business the row is (one client can have several rows).
+function displayName(key, sheetName) {
+  const k = norm(key);
+  if (k === 'walker ca') return { name: 'Walker PPL / Agency', line: 'PPL · California' };
+  if (k === 'walker nw') return { name: 'Walker PPL / Agency', line: 'PPL · Nationwide' };
+  if (k === 'walker agency') return { name: 'Walker PPL / Agency', line: 'Agency (35% fee)' };
+  if (k === 'sasooness az') return { name: 'Sasooness Law Group, APC', line: 'Hybrid · Arizona' };
+  if (k === 'sasooness wa') return { name: 'Sasooness Law Group, APC', line: 'PPL · Washington' };
+  if (/^km/.test(k)) return { name: 'KM Law Firm PLLC', line: 'Retainer' };
+  if (/bryan/.test(k)) return { name: 'Bryan Rodriguez', line: 'PPL' };
+  if (/ruy/.test(k)) return { name: 'Ruy Mireles Law Firm', line: 'PPL' };
+  if (/^b2b/.test(k)) return { name: 'B2B Dashboard', line: 'Loudr demand-gen (cost only)' };
+  return { name: sheetName || key, line: '' };
+}
+
 function buildDaily(raw, summaryRows, settings, window) {
-  // Pay-per-lead price: the sheet prices these on its Revenue & Payments tab (batch prices in
-  // date order, own-campaign leads, etc.), so rather than re-deriving that, each lead is valued at
-  // Summary's Revenue MTD ÷ raw_current leads sent over Summary's own MTD window. MTD then matches
-  // Summary exactly, and days/weeks split it by leads. Settings price_per_lead is the fallback.
+  // Pay-per-lead price: the sheet prices these on its Revenue & Payments tab (batch prices in date
+  // order, etc.), so each lead is valued at Summary's Revenue MTD ÷ raw_current leads sent over
+  // Summary's own window. Summary's MTD then matches exactly. Settings price_per_lead is the fallback.
   const summaryFor = (client) => summaryRows.find((x) => norm(x.key) === norm(client) || norm(x.client) === norm(client));
   const impliedPrice = new Map();
   for (const s of summaryRows) {
@@ -369,7 +389,6 @@ function buildDaily(raw, summaryRows, settings, window) {
     const t = settings.targets.find((x) => norm(x.client) === norm(client));
     return t && t.pricePerLead != null ? t.pricePerLead : null;
   };
-  const stateFor = (client) => { const s = summaryFor(client); return s ? s.state : ''; };
   return raw.map((r) => {
     const rule = revenueRule(r.client, r.dealType);
     let revenue = 0, revenueMissing = false;
@@ -382,7 +401,8 @@ function buildDaily(raw, summaryRows, settings, window) {
       if (r.sent && price == null) revenueMissing = true;
       revenue = r.sent * (price || 0);
     }
-    return { ...r, rule, ruleText: RULE_TEXT[rule], revenue, cost: r.spend, profit: revenue - r.spend, revenueMissing, group: groupOf(r.client), state: stateFor(r.client) };
+    const s = summaryFor(r.client);
+    return { ...r, rule, ruleText: RULE_TEXT[rule], revenue, cost: r.spend, profit: revenue - r.spend, revenueMissing, group: groupOf(r.client), state: s && s.state ? s.state : 'Unmapped' };
   });
 }
 
@@ -394,9 +414,10 @@ function sumRows(rows) {
 }
 
 // --- freshness -------------------------------------------------------------------------------
-// Red: any source's latest load is more than 24h old. Orange: the most recent 10:15 AM PT run
-// hasn't restated yesterday (no raw_current loaded_at after it). Otherwise green.
-function freshness(raw, now = Date.now()) {
+// Red: any source's latest load is more than 24h old, or Summary is more than a day behind.
+// Orange: the most recent 10:15 AM PT run hasn't restated yesterday. Otherwise green.
+function ageText(h) { return h >= 48 ? (h / 24).toFixed(1) + ' days' : Math.round(h) + 'h'; }
+function freshness(raw, now = Date.now(), summaryThrough = '') {
   const bySource = new Map();
   for (const r of raw) {
     const t = Date.parse(r.loadedAt);
@@ -410,22 +431,22 @@ function freshness(raw, now = Date.now()) {
   const p = pacificParts(new Date(now));
   const todayRun = pacificToEpoch(p.date, 10, 15);
   const lastRun = now >= todayRun ? todayRun : pacificToEpoch(addDaysIso(p.date, -1), 10, 15);
+  const yesterday = addDaysIso(p.date, -1);
+  const summaryDaysBehind = summaryThrough ? Math.round((Date.parse(yesterday) - Date.parse(summaryThrough)) / 86400000) : null;
+  const stale = sources.filter((s) => s.ageHours > 24).map((s) => ({ source: s.source, age: ageText(s.ageHours) }));
+  if (summaryDaysBehind != null && summaryDaysBehind > 1) stale.unshift({ source: 'Summary tab', age: 'through ' + Number(summaryThrough.slice(5, 7)) + '/' + Number(summaryThrough.slice(8, 10)) + ' (' + summaryDaysBehind + ' days behind)' });
   let colour = 'green', reason = '';
-  const stale = sources.filter((s) => s.ageHours > 24);
-  if (!sources.length) { colour = 'red'; reason = 'No loaded_at timestamps in raw_current.'; }
-  else if (stale.length) { colour = 'red'; reason = stale.map((s) => s.source).join(', ') + ' more than 24h old'; }
+  if (!sources.length) { colour = 'red'; reason = 'No loaded_at timestamps in raw_current'; }
+  else if (stale.length) { colour = 'red'; reason = stale.map((s) => s.source + ' ' + s.age + (/^through/.test(s.age) ? '' : ' old')).join(' · '); }
   else if (latest < lastRun) { colour = 'orange'; reason = 'Yesterday not restated since the ' + new Date(lastRun).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' PT run'; }
-  return { colour, reason, latest: latest ? new Date(latest).toISOString() : null, lastRun: new Date(lastRun).toISOString(), sources };
+  return { colour, reason, stale, summaryThrough, latest: latest ? new Date(latest).toISOString() : null, lastRun: new Date(lastRun).toISOString(), sources };
 }
 
 // --- agency tracker --------------------------------------------------------------------------
 async function agencyBalance() {
   if (!AGENCY_TRACKER_ID || !AGENCY_TRACKER_RANGE) return { connected: false };
   try {
-    const [vals] = await (async () => {
-      const id = AGENCY_TRACKER_ID;
-      return batchValues(id, [AGENCY_TRACKER_RANGE]);
-    })();
+    const [vals] = await batchValues(AGENCY_TRACKER_ID, [AGENCY_TRACKER_RANGE]);
     const v = num(((vals || [])[0] || [])[0]);
     return v == null ? { connected: true, value: null, error: 'Range is empty or not a number' } : { connected: true, value: v };
   } catch (err) {
@@ -433,107 +454,198 @@ async function agencyBalance() {
   }
 }
 
+// --- per-client metrics + status -------------------------------------------------------------
+// A Summary cell reading "n/a…" means the metric doesn't apply to that deal (e.g. replacement for
+// an agency fee). Anything else that isn't a number is missing data.
+const notApplicable = (m) => /^n\/a/i.test(String((m && m.text) || '').trim());
+const worst = (cs) => (cs.includes('red') ? 'red' : cs.includes('orange') ? 'orange' : 'green');
+
+function clientRow(r, rows, ctx) {
+  const { settings, band, isSummaryRange, hasLeadSource } = ctx;
+  const t = sumRows(rows);
+  const dn = displayName(r.key, r.client);
+  const isWalker = /^walker/i.test(r.key);
+  const rule = revenueRule(r.key, r.dealType);
+  const tSet = settings.targets.find((x) => norm(x.client) === norm(r.key) && norm(x.state) === norm(r.state))
+    || settings.targets.find((x) => norm(x.client) === norm(r.key));
+
+  // Profit / margin
+  const margin = t.revenue > 0 ? t.profit / t.revenue : null;
+  const profitColour = t.profit < 0 ? 'red' : margin == null ? 'grey' : margin < band ? 'orange' : 'green';
+
+  // Leads (only for clients whose leads are loaded into raw_current)
+  const leads = hasLeadSource ? { sent: t.sent, accepted: t.accepted } : null;
+
+  // Cost / profit per lead and price per lead, over the same range
+  const cplApplies = !notApplicable(r.costPerLead);
+  const costPerLead = cplApplies && leads && t.sent > 0 ? t.cost / t.sent : null;
+  const pricePerLead = cplApplies && leads && t.sent > 0 && (rule === 'ppl' || rule === 'reported') && t.revenue > 0 ? t.revenue / t.sent : null;
+  const cplColour = costPerLead == null || pricePerLead == null ? 'grey'
+    : costPerLead > pricePerLead ? 'red' : costPerLead > pricePerLead * (1 - band) ? 'orange' : 'green';
+  const pplApplies = !notApplicable(r.profitPerLead);
+  const profitPerLead = pplApplies && leads && t.sent > 0 ? t.profit / t.sent : null;
+
+  // Replacement = returned / sent, only where returns are actually reported
+  const replApplies = !notApplicable(r.replacement);
+  const retRows = rows.filter((x) => x.returned != null);
+  const replacement = replApplies && retRows.length && t.sent > 0 ? retRows.reduce((a, x) => a + x.returned, 0) / t.sent : null;
+  const replColour = replacement == null ? 'grey'
+    : replacement > (settings.maxReplacement ?? 0.2) ? 'red' : replacement > (settings.orangeReplacement ?? 0.15) ? 'orange' : 'green';
+
+  // Cost per case: the QMVA / signed-case counts only exist on Summary, so the value is Summary's,
+  // shown only when the page range is Summary's own range.
+  const caseApplies = !notApplicable(r.costPerCase);
+  const costPerCase = caseApplies && isSummaryRange ? r.costPerCase.value : null;
+  const targetApplies = !notApplicable(r.target);
+  const target = tSet && tSet.targetCostPerCase != null ? tSet.targetCostPerCase : (targetApplies ? r.target.value : null);
+  const caseColour = costPerCase == null || target == null ? 'grey'
+    : costPerCase > target ? 'red' : costPerCase > target * (1 - band) ? 'orange' : 'green';
+
+  // Status: red whenever the client loses money. Otherwise grey if any metric that applies to the
+  // deal is missing (replacement, cost per case, target); otherwise the worst colour.
+  const missing = [];
+  if (replApplies && replacement == null) missing.push('replacement rate');
+  if (caseApplies && costPerCase == null) missing.push(isWalker ? 'cost per QMVA' : 'cost per signed case');
+  if (targetApplies && target == null) missing.push('target');
+  if (!rows.length) missing.push('no rows in range');
+  let status, statusNote;
+  if (t.profit < 0) { status = 'red'; statusNote = 'Losing money in this range'; }
+  else if (missing.length) { status = 'grey'; statusNote = 'Missing: ' + missing.join(', '); }
+  else {
+    const cs = [profitColour, replApplies ? replColour : null, caseApplies ? caseColour : null, cplApplies && pricePerLead != null ? cplColour : null].filter(Boolean);
+    status = worst(cs); statusNote = '';
+  }
+
+  return {
+    key: r.key, sheetName: r.client, name: dn.name, line: dn.line, state: r.state, dealType: r.dealType, href: clientHref(r.key),
+    status, statusNote, revenue: t.revenue, cost: t.cost, profit: t.profit, margin, profitColour, revenueMissing: t.revenueMissing,
+    leads, costPerLead, pricePerLead, cplColour, cplApplies, profitPerLead, pplApplies,
+    replacement, replColour, replApplies, replNote: replApplies && replacement == null ? (r.replacement.text || 'Returns not reported') : '',
+    caseLabel: isWalker ? 'Cost per QMVA' : 'Cost per signed case', costPerCase, caseApplies, caseColour, target, targetApplies,
+    caseNote: caseApplies && costPerCase == null ? (isSummaryRange ? (r.costPerCase.text || 'No data') : 'Counts only on Summary (month to date)') : '',
+    targetNote: targetApplies && target == null ? (r.target.text || 'No target set') : '',
+    isPack: rule === 'ppl' && !isWalker, rows: rows.length,
+  };
+}
+
 // --- build -----------------------------------------------------------------------------------
+// One date range for the whole page. RANGE_END decides where it stops:
+//   'summary' (default): Summary's "Data through" date — the only tab with QMVA / signed-case
+//                        counts, so every column can be filled for the same days.
+//   'raw':               the latest date in raw_current (fresher; cost per case goes grey).
+const RANGE_END = (process.env.OVERVIEW_RANGE_END || 'summary').toLowerCase();
+
 function build({ grid, settingsRows, rawRows, packRows }, nowMs = Date.now()) {
   const warnings = [];
   const settings = parseSettings(settingsRows, warnings);
   const summary = parseSummary(grid, warnings);
   const raw = parseRaw(rawRows, warnings);
   const packs = parsePacks(packRows, warnings);
+  const band = settings.orangeBand != null ? settings.orangeBand : 0.15;
   const today = pacificParts(new Date(nowMs)).date;
   const yesterday = addDaysIso(today, -1);
-  const mtdStart = summary.periodStart || yesterday.slice(0, 8) + '01';
-  const mtdEnd = summary.dataThrough || yesterday;
-  const daily = buildDaily(raw, summary.rows, settings, { start: mtdStart, end: mtdEnd });
-  const periods = {
-    yesterday: { label: 'Yesterday', start: yesterday, end: yesterday },
-    wtd: { label: 'Week to date', start: mondayOf(yesterday), end: yesterday },
-    mtd: { label: 'Month to date', start: yesterday.slice(0, 8) + '01', end: yesterday },
-  };
-  const profit = {};
-  for (const [k, p] of Object.entries(periods)) {
-    const rows = daily.filter((r) => r.date >= p.start && r.date <= p.end);
-    const g = (name) => sumRows(rows.filter((r) => r.group === name));
-    const byState = {};
-    for (const r of rows) (byState[r.state || '—'] = byState[r.state || '—'] || []).push(r);
-    profit[k] = {
-      ...p, walkerPpl: g('walkerPpl'), walkerAgency: g('walkerAgency'), other: g('other'), total: sumRows(rows),
-      byState: Object.entries(byState).map(([state, rs]) => ({ state, label: STATE_LABELS[state] || state, ...sumRows(rs) }))
-        .sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state)),
-      lastDataDate: rows.reduce((m, r) => (r.date > m ? r.date : m), ''),
-    };
+  const rawLatest = raw.reduce((m, r) => (r.date > m && r.date <= yesterday ? r.date : m), '');
+  const end = (RANGE_END === 'raw' ? rawLatest : summary.dataThrough) || rawLatest || yesterday;
+  const summaryWindow = { start: summary.periodStart || end.slice(0, 8) + '01', end: summary.dataThrough || end };
+  const daily = buildDaily(raw, summary.rows, settings, summaryWindow);
+
+  // J/K/L are read by position; make sure they really are revenue / cost / profit.
+  if (summary.unlabelledMoney) {
+    const bad = summary.rows.filter((r) => r.revenue.value != null && r.cost.value != null && r.profit.value != null && Math.abs(r.revenue.value - r.cost.value - r.profit.value) > 2);
+    if (bad.length) warnings.push('Summary J/K/L do not read as revenue/cost/profit on: ' + bad.map((r) => r.client).join(', '));
   }
 
-  // Client table: Summary rows with a state (blank = inactive/unmapped, hidden).
-  const statusCounts = { red: 0, orange: 0, green: 0, grey: 0 };
-  const clients = summary.rows.filter((r) => r.state && !/^unmapped/i.test(r.client)).map((r) => {
-    statusCounts[r.status]++;
-    const t = settings.targets.find((x) => norm(x.client) === norm(r.key) && norm(x.state) === norm(r.state))
-      || settings.targets.find((x) => norm(x.client) === norm(r.key));
-    const rawMtd = daily.filter((d) => norm(d.client) === norm(r.key) && d.date >= mtdStart && d.date <= mtdEnd);
-    const isWalker = /walker/i.test(r.dealType) || /^walker/i.test(r.client);
-    const pack = packs.find((p) => norm(p.client) === norm(r.key) && (!p.state || norm(p.state) === norm(r.state)))
-      || packs.find((p) => norm(r.client).startsWith(norm(p.client)));
-    const isPack = /ppl|pack|pay-per-lead/i.test(r.dealType) && !isWalker;
-    const revenue = r.revenue.value, profitV = r.profit.value;
-    return {
-      ...r, targetCell: r.target, href: clientHref(r.client), isWalker, isPack,
-      caseLabel: isWalker ? 'Cost per QMVA' : isPack ? 'Cost per signed case' : 'Cost per case',
-      margin: revenue && profitV != null ? profitV / revenue : null,
-      target: { costPerCase: t ? t.targetCostPerCase : null, pricePerLead: t ? t.pricePerLead : null, pricePerCase: t ? t.pricePerCase : null, notes: t ? t.notes : '' },
-      leads: { sent: rawMtd.reduce((a, d) => a + d.sent, 0), accepted: rawMtd.reduce((a, d) => a + d.accepted, 0), hasRaw: rawMtd.length > 0 },
-      pack: isPack ? (pack || null) : undefined,
-    };
-  });
-  const groups = STATE_ORDER.concat([...new Set(clients.map((c) => c.state))].filter((s) => !STATE_ORDER.includes(s)))
-    .map((state) => {
-      const rows = clients.filter((c) => c.state === state);
-      if (!rows.length) return null;
-      const s = (k) => rows.reduce((a, c) => a + (c[k].value || 0), 0);
-      const revenue = s('revenue'), cost = s('cost'), profitV = s('profit');
+  const active = summary.rows.filter((r) => r.state && !/^unmapped/i.test(r.client));
+  const activeKeys = new Set(active.map((r) => norm(r.key)));
+  const hasLeadSource = (key) => raw.some((x) => norm(x.client) === norm(key) && (/lead prosper/i.test(x.source) || x.sent > 0));
+  const unmappedKeys = [...new Set(daily.filter((d) => !activeKeys.has(norm(d.client))).map((d) => d.client))];
+
+  const periodDefs = {
+    yesterday: { label: 'Latest day', start: end, end },
+    wtd: { label: 'Week to date', start: mondayOf(end), end },
+    mtd: { label: 'Month to date', start: end.slice(0, 8) + '01', end },
+  };
+  const periods = {};
+  for (const [k, p] of Object.entries(periodDefs)) {
+    const inRange = (d) => d.date >= p.start && d.date <= p.end;
+    const isSummaryRange = p.start === summaryWindow.start && p.end === summaryWindow.end;
+    const clients = active.map((r) => {
+      const rows = daily.filter((d) => inRange(d) && norm(d.client) === norm(r.key));
+      const c = clientRow(r, rows, { settings, band, isSummaryRange, hasLeadSource: hasLeadSource(r.key) });
+      if (c.isPack) {
+        const pack = packs.find((x) => norm(x.client) === norm(r.key) && (!x.state || norm(x.state) === norm(r.state))) || packs.find((x) => norm(r.client).startsWith(norm(x.client)));
+        c.pack = pack ? { pace: pack.pace, remaining: pack.remaining, packSize: pack.packSize, flag: pack.flag } : null;
+      }
+      return c;
+    });
+    // Raw rows for clients not on Summary still count, in their own "Unmapped" group, so the
+    // tiles and the table always add up to the same total.
+    for (const key of unmappedKeys) {
+      const rows = daily.filter((d) => inRange(d) && d.client === key);
+      if (!rows.length) continue;
+      const t = sumRows(rows);
+      clients.push({ key, sheetName: key, name: key, line: 'Not on Summary', state: 'Unmapped', status: t.profit < 0 ? 'red' : 'grey', statusNote: 'Client not on the Summary tab', revenue: t.revenue, cost: t.cost, profit: t.profit, margin: t.margin, profitColour: t.profit < 0 ? 'red' : 'grey', leads: t.sent ? { sent: t.sent, accepted: t.accepted } : null, caseLabel: 'Cost per signed case', rows: rows.length });
+    }
+    const order = STATE_ORDER.concat([...new Set(clients.map((c) => c.state))].filter((s) => !STATE_ORDER.includes(s)));
+    const groups = order.map((state) => {
+      const cs = clients.filter((c) => c.state === state);
+      if (!cs.length) return null;
+      const revenue = cs.reduce((a, c) => a + c.revenue, 0), cost = cs.reduce((a, c) => a + c.cost, 0), profit = cs.reduce((a, c) => a + c.profit, 0);
+      const withLeads = cs.filter((c) => c.leads);
       return {
-        state, label: STATE_LABELS[state] || state, clients: rows,
-        subtotal: { incomplete: rows.some((c) => c.profit.value == null || c.revenue.value == null), revenue, cost, profit: profitV, margin: revenue ? profitV / revenue : null, sent: rows.reduce((a, c) => a + c.leads.sent, 0), accepted: rows.reduce((a, c) => a + c.leads.accepted, 0) },
+        state, label: STATE_LABELS[state] || state, clients: cs,
+        subtotal: { revenue, cost, profit, margin: revenue > 0 ? profit / revenue : null, incomplete: cs.some((c) => c.revenueMissing),
+          leads: withLeads.length ? { sent: withLeads.reduce((a, c) => a + c.leads.sent, 0), accepted: withLeads.reduce((a, c) => a + c.leads.accepted, 0) } : null },
       };
     }).filter(Boolean);
+    const tot = (f) => clients.filter(f).reduce((a, c) => ({ revenue: a.revenue + c.revenue, cost: a.cost + c.cost, profit: a.profit + c.profit }), { revenue: 0, cost: 0, profit: 0 });
+    const withMargin = (x) => ({ ...x, margin: x.revenue > 0 ? x.profit / x.revenue : null });
+    const statusCounts = { red: 0, orange: 0, green: 0, grey: 0 };
+    for (const c of clients) statusCounts[c.status]++;
+    periods[k] = {
+      ...p, isSummaryRange,
+      walkerPpl: withMargin(tot((c) => groupOf(c.key) === 'walkerPpl')), walkerAgency: withMargin(tot((c) => groupOf(c.key) === 'walkerAgency')),
+      other: withMargin(tot((c) => groupOf(c.key) === 'other')), total: withMargin(tot(() => true)),
+      byState: groups.map((g) => ({ state: g.state, label: g.label, profit: g.subtotal.profit })),
+      groups, statusCounts,
+    };
+  }
 
-  // Checks: each client row vs raw_current over Summary's own MTD window, and the MTD tile vs
-  // Summary's total over the same window.
+  // Checks: Summary J/K/L vs raw_current over Summary's own window.
   const checks = [];
   const tol = (a, b) => Math.abs(a - b) <= Math.max(2, Math.abs(b) * 0.005);
-  for (const c of clients) {
-    const rows = daily.filter((d) => norm(d.client) === norm(c.key) && d.date >= mtdStart && d.date <= mtdEnd);
-    const t = sumRows(rows);
-    for (const [k, label] of [['revenue', 'Revenue MTD'], ['cost', 'Cost MTD'], ['profit', 'Profit MTD']]) {
-      const sheet = c[k].value;
+  for (const r of active) {
+    const t = sumRows(daily.filter((d) => norm(d.client) === norm(r.key) && d.date >= summaryWindow.start && d.date <= summaryWindow.end));
+    for (const [k, label] of [['revenue', 'Revenue'], ['cost', 'Cost'], ['profit', 'Profit']]) {
+      const sheet = r[k].value;
       if (sheet == null) continue;
-      if (!tol(t[k], sheet)) checks.push({ client: c.client, state: c.state, metric: label, summary: sheet, raw: Math.round(t[k] * 100) / 100, diff: Math.round((t[k] - sheet) * 100) / 100 });
+      if (!tol(t[k], sheet)) checks.push({ client: displayName(r.key, r.client).name + (displayName(r.key, r.client).line ? ' (' + displayName(r.key, r.client).line + ')' : ''), metric: label, summary: sheet, raw: round2(t[k]), diff: round2(t[k] - sheet) });
     }
   }
-  const summaryTotal = summary.rows.filter((r) => r.state).reduce((a, r) => a + (r.profit.value || 0), 0);
-  const rawTotal = sumRows(daily.filter((d) => d.date >= mtdStart && d.date <= mtdEnd && summary.rows.some((s) => s.state && norm(s.key) === norm(d.client)))).profit;
-  if (!tol(rawTotal, summaryTotal)) checks.push({ client: 'All active clients', state: '', metric: 'Profit MTD', summary: summaryTotal, raw: Math.round(rawTotal * 100) / 100, diff: Math.round((rawTotal - summaryTotal) * 100) / 100 });
 
-  // Click-through rows: client → day → source, Pacific dates. Only what the page needs.
-  const detail = daily.filter((d) => d.date >= addDaysIso(today, -62)).map((d) => ({
-    date: d.date, client: d.client, state: d.state, group: d.group, source: d.source, platform: d.platform,
-    sent: d.sent, accepted: d.accepted, returned: d.returned, cost: round2(d.cost), revenue: round2(d.revenue), profit: round2(d.profit),
-    rule: d.ruleText, revenueMissing: d.revenueMissing, loadedAt: d.loadedAt,
-  }));
+  // Click-through rows: client → day → source, Pacific dates.
+  const detail = daily.filter((d) => d.date >= addDaysIso(today, -62)).map((d) => {
+    const dn = displayName(d.client, d.client);
+    return {
+      date: d.date, client: d.client, name: dn.name + (dn.line ? ' · ' + dn.line : ''), state: d.state, group: d.group, source: d.source, platform: d.platform,
+      sent: d.sent, accepted: d.accepted, returned: d.returned, cost: round2(d.cost), revenue: round2(d.revenue), profit: round2(d.profit),
+      rule: d.ruleText, revenueMissing: d.revenueMissing, loadedAt: d.loadedAt,
+    };
+  });
 
-  const mtd = profit.mtd;
+  if (warnings.length) console.warn('overview sheet notes:', warnings.join(' | '));
   return {
     generatedAt: new Date(nowMs).toISOString(), today, yesterday,
-    summaryWindow: { start: mtdStart, end: mtdEnd },
-    settings: { orangeBand: settings.orangeBand, maxReplacement: settings.maxReplacement, orangeReplacement: settings.orangeReplacement },
-    profit, margin: { ...mtd.total, start: mtd.start, end: mtd.end },
-    statusCounts, freshness: freshness(raw, nowMs), groups, checks, warnings, detail,
+    range: { start: periodDefs.mtd.start, end, basis: RANGE_END === 'raw' ? 'raw_current' : 'Summary' },
+    summaryWindow, rawLatest,
+    settings: { orangeBand: band, maxReplacement: settings.maxReplacement, orangeReplacement: settings.orangeReplacement },
+    periods, freshness: freshness(raw, nowMs, summary.dataThrough), checks, detail,
   };
 }
 const round2 = (n) => Math.round(n * 100) / 100;
 
 // --- polling ---------------------------------------------------------------------------------
-let cache = null, lastError = null, polling = false, rawForFreshness = [];
+let cache = null, lastError = null, polling = false, rawForFreshness = [], summaryThrough = '';
 async function poll() {
   if (polling) return;
   polling = true;
@@ -546,6 +658,7 @@ async function poll() {
     const [settingsRows, rawRows, packRows] = values;
     cache = { ...build({ grid, settingsRows, rawRows, packRows }), agency };
     rawForFreshness = parseRaw(rawRows, []);
+    summaryThrough = cache.freshness.summaryThrough;
     lastError = null;
   } catch (err) {
     lastError = err.message;
@@ -558,7 +671,7 @@ function start() { poll(); setInterval(poll, POLL_MS); }
 function getData() {
   if (!cache) return { loading: !lastError, error: lastError };
   // Freshness depends on the clock, so it's re-evaluated per request rather than per poll.
-  return { ...cache, freshness: freshness(rawForFreshness), error: lastError };
+  return { ...cache, freshness: freshness(rawForFreshness, Date.now(), summaryThrough), error: lastError };
 }
 
 module.exports = { start, poll, getData, build, freshness, colourName, _internal: { parseSummary, parseSettings, parseRaw, parsePacks } };

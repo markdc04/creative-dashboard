@@ -53,6 +53,9 @@ function parseLeads(csv) {
       // Filled by hand in the sheet when a deal closes — Closed Deals/Revenue are dated by this,
       // not by when the lead came in.
       closeDate: leadDate(r['Latest Close Date'] || r['Close Date']) || null,
+      // Optional: the date the payment hit the bank, if the synced sheet ever gets this column.
+      // A deal only counts as closed once its payment is received (see b2b-public/app.js).
+      paymentDate: leadDate(r['Payment Received Date'] || r['Payment Date']) || null,
     });
   }
   return leads;

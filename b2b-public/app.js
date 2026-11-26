@@ -114,13 +114,21 @@
     return 'B2B (' + label + ') Report: ' + dates;
   }
 
-  // Closed deals are leads at the "Won (Payment Recieved)" stage in GHL. The synced tab has no
-  // deal-value column, so each won deal's value is listed here by lead name (lowercase) until
-  // one is synced from GHL — a won deal missing from this list counts as a closed deal with $0.
-  const DEAL_VALUES = { 'ruy mireles': 25000 };
+  // Rule (Jeremiah): a deal is NOT closed until the payment has been received and hit our bank
+  // account. GHL's "Won (Payment Recieved)" stage alone doesn't count — deals get moved there
+  // before the money lands. A deal counts only once its payment is confirmed: either listed here
+  // (lead name, lowercase -> amount and the date it hit the bank) or, if the synced sheet ever gets
+  // a "Payment Received Date" column, by that date. Closed Deals and Revenue are dated by payment.
+  const PAYMENTS_RECEIVED = {
+    'ruy mireles': { amount: 25000, date: '2026-11-03' },     // $25,000 pack, cash on Client Profitability (Nov)
+    'bryan rodriguez': { amount: 30000, date: '2026-11-07' }, // $30,000 pack paid 11/07 (#00000006)
+  };
   const isQualified = (l) => /^qualified$/i.test(l.status || '');
-  const isWon = (l) => /^won\b/i.test(l.stage || '');
-  const dealValue = (l) => DEAL_VALUES[(l.name || '').trim().toLowerCase()] || 0;
+  const isWonStage = (l) => /^won\b/i.test(l.stage || '');
+  const paymentOf = (l) => PAYMENTS_RECEIVED[(l.name || '').trim().toLowerCase()] || (l.paymentDate ? { amount: 0, date: l.paymentDate } : null);
+  const isWon = (l) => isWonStage(l) && !!paymentOf(l); // closed = won in GHL AND payment received
+  const paidDate = (l) => (paymentOf(l) || {}).date || null;
+  const dealValue = (l) => (paymentOf(l) || {}).amount || 0;
 
   // Leads matching every active filter except `skip`. Leads are dated by their lead date; with the
   // Closed Deals filter on, won deals are dated by their Close Date instead (same as the tile).
@@ -128,7 +136,7 @@
     const f = state.filters;
     return state.leads.filter((l) => {
       const kind = skip === 'kind' ? null : f.kind;
-      if (kind === 'won') { if (!isWon(l) || !inRange(l.closeDate || l.date)) return false; }
+      if (kind === 'won') { if (!isWon(l) || !inRange(paidDate(l))) return false; }
       else if (!inRange(l.date)) return false;
       if (kind === 'qualified' && !isQualified(l)) return false;
       for (const k of Object.keys(FIELD_OF)) {
@@ -164,10 +172,12 @@
     const totalSpend = f.ad ? spendRows.reduce((s, r) => s + r.spend, 0) : state.adSpendDaily.filter((d) => inRange(d.date)).reduce((s, d) => s + d.spend, 0);
     const cpl = leads.length ? totalSpend / leads.length : 0;
     const qualified = leads.filter(isQualified).length;
-    // A won deal lands on its Close Date (when it was actually closed), falling back to the lead's
-    // own date only when no close date has been entered yet.
+    // A closed deal lands on the date its payment hit the bank. Deals won in GHL but not yet paid
+    // are listed under the tile as awaiting payment, and not counted.
     const won = state.filters.kind === 'won' ? filteredLeads() : (() => { const k = f.kind; f.kind = 'won'; const w = filteredLeads(); f.kind = k; return w; })();
     const revenue = won.reduce((s, l) => s + dealValue(l), 0);
+    const awaiting = state.leads.filter((l) => isWonStage(l) && !paymentOf(l) && inRange(l.closeDate || l.date));
+    const awaitingText = awaiting.length ? 'Won in GHL, awaiting payment (not counted): ' + awaiting.map((l) => l.firmName || l.name).join(', ') : '';
     const tile = ([label, value, sub, kind]) => {
       const selected = kind !== undefined && (kind ? f.kind === kind : false);
       return '<div class="kpi kpi--highlight' + (kind !== undefined ? ' is-clickable' : '') + (selected ? ' is-selected' : '') + '"' + (kind !== undefined ? ' data-kind="' + kind + '" title="' + (kind ? 'Click to filter by this' : 'Click to show all leads') + '"' : '') + '><div class="kpi-label">' + label + '</div><div class="kpi-value num">' + value + '</div>' + (sub ? '<div class="kpi-sub">' + escapeHtml(sub) + '</div>' : '') + '</div>';
@@ -182,8 +192,8 @@
     $('#b2b-kpis-2').innerHTML = [
       ['Qualified Leads', fmtInt(qualified), 'leads with Status “Qualified”', 'qualified'],
       ['Cost / Qualified Lead', qualified ? fmtMoney(totalSpend / qualified) : '—', 'ad spent ÷ qualified leads', 'qualified'],
-      ['Closed Deals', fmtInt(won.length), won.length ? won.map((l) => (l.firmName || l.name) + (l.closeDate ? ' · closed ' + shortMd(l.closeDate) : '')).join(', ') : 'stage “Won (Payment Received)”', 'won'],
-      ['Revenue', fmtMoney(revenue), 'value of the closed deals', 'won'],
+      ['Closed Deals', fmtInt(won.length), [won.length ? won.map((l) => (l.firmName || l.name) + ' · paid ' + shortMd(paidDate(l))).join(', ') : 'counted once payment hits the bank', awaitingText].filter(Boolean).join(' · '), 'won'],
+      ['Revenue', fmtMoney(revenue), 'payments received for closed deals', 'won'],
     ].map(tile).join('');
     renderAds(filteredLeads('ad'));
     renderLeadDetail();
@@ -221,7 +231,7 @@
 
   function renderLeadDetail() {
     const won = state.filters.kind === 'won';
-    const dateOf = (l) => (won ? l.closeDate || l.date : l.date);
+    const dateOf = (l) => (won ? paidDate(l) || l.date : l.date);
     const filtered = filteredLeads().sort((a, b) => (dateOf(a) < dateOf(b) ? 1 : -1));
     const term = ($('#lead-search').value || '').trim().toLowerCase();
     const searched = term ? filtered.filter((l) => [l.name, l.firmName, l.state, l.source, l.utmContent, l.stage, l.status].join(' ').toLowerCase().includes(term)) : filtered;

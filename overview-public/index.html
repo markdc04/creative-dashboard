@@ -21,27 +21,24 @@
 <body>
 <div class="wrap">
 
-  <div class="brandbar">
-    <img src="/shared/logo-loudr.png" alt="Loudr Media" class="brandlogo">
-    <div class="brandbar-right">
+  <!-- One header row: title block on the left; freshness pill, refresh and range toggle on the
+       right. No logo here — the sidebar already shows it. -->
+  <header class="ov-head">
+    <div class="ov-head-title">
+      <p class="brand-eyebrow">Client Profitability</p>
+      <h1>All Clients Overview</h1>
+      <p class="ov-range"><span id="range">&mdash;</span> <span class="ov-head-sub" id="sub"></span></p>
+    </div>
+    <div class="ov-head-controls">
+      <span id="live-pill" class="live-pill"><span class="live-dot"></span><span id="live-text">Checking&hellip;</span></span>
       <button id="refresh-btn" class="refresh-btn" title="Re-read the sheet now" aria-label="Refresh now">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
       </button>
-      <span id="live-pill" class="live-pill"><span class="live-dot"></span><span id="live-text">Checking&hellip;</span></span>
+      <div class="ov-periods" role="group" aria-label="Date range">
+        <button data-period="yesterday">Latest day</button><button data-period="wtd">Week to date</button><button data-period="mtd" class="is-on">Month to date</button>
+      </div>
     </div>
-  </div>
-
-  <div class="topbar">
-    <div>
-      <p class="brand-eyebrow">Client Profitability</p>
-      <h1>All Clients Overview</h1>
-      <p class="ov-range" id="range">&mdash;</p>
-      <p class="topbar-sub" id="sub"></p>
-    </div>
-    <div class="ov-periods" role="group" aria-label="Date range">
-      <button data-period="yesterday">Latest day</button><button data-period="wtd">Week to date</button><button data-period="mtd" class="is-on">Month to date</button>
-    </div>
-  </div>
+  </header>
 
   <div id="notices"></div>
 
@@ -51,10 +48,11 @@
     <div class="panel-head"><h2 class="panel-title">Clients by state</h2></div>
     <div class="ov-table-wrap">
       <table class="ov-table">
+        <colgroup><col class="w-client"><col class="w-status"><col class="w-profit"><col class="w-margin"><col class="w-ppl"><col class="w-cpl"><col class="w-case"><col class="w-repl"><col class="w-leads"><col class="w-pack"><col class="w-chev"></colgroup>
         <thead><tr>
-          <th>Client</th><th>Status</th><th class="num">Profit</th><th class="num">Margin</th><th class="num">Profit / lead</th>
-          <th class="num">Cost / lead vs price</th><th class="num">Cost per case vs our price · target</th><th class="num">Replacement</th>
-          <th class="num">Leads sent / accepted</th><th>Pack pace</th><th aria-label="Open client page"></th>
+          <th class="ov-client">Client</th><th class="ov-status">Status</th><th class="num">Profit</th><th class="num">Margin</th><th class="num">Profit / lead</th>
+          <th class="num">Cost / lead<br><span>vs price</span></th><th class="num">Cost per case<br><span>vs our price · target</span></th><th class="num">Replace&shy;ment</th>
+          <th class="num">Leads<br><span>sent / acc.</span></th><th class="num">Pack pace</th><th class="ov-chev" aria-label="Open client page"></th>
         </tr></thead>
         <tbody id="client-body"></tbody>
       </table>

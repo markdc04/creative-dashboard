@@ -31,17 +31,20 @@
   const viewLink = (spec) => '<div class="ov-view">' + clickable('View details &rsaquo;', spec) + '</div>';
 
   // ---------------------------------------------------------------- tiles
+  // Layout: the Profit card spans the full first row (4 metric tiles on one line, state chips in an
+  // aligned grid below); Margin, Client status, Data freshness and the agency balance share row 2.
   function renderTiles() {
     const p = P();
     const split = [
       ['Walker PPL', p.walkerPpl, { group: 'walkerPpl' }], ['Walker Agency fee', p.walkerAgency, { group: 'walkerAgency' }],
       ['Non-Walker clients', p.other, { group: 'other' }], ['Total', p.total, {}],
-    ].map(([k, t, f]) => '<div><div class="ov-k">' + k + '</div><div class="ov-v ' + (t.profit < 0 ? 'c-red' : '') + '">' +
+    ].map(([k, t, f]) => '<div class="ov-metric' + (k === 'Total' ? ' is-total' : '') + '"><div class="ov-k">' + k + '</div><div class="ov-v ' + (t.profit < 0 ? 'c-red' : '') + '">' +
       clickable(money(t.profit), rowsSpec(k + ' profit', f)) + '</div></div>').join('');
-    const chips = p.byState.map((s) => '<span>' + esc(s.label) + ' ' + clickable('<b class="' + (s.profit < 0 ? 'c-red' : '') + '">' + money(s.profit) + '</b>', rowsSpec(s.label + ' profit', { states: [s.state] })) + '</span>').join('');
-    const profitTile = '<div class="ov-tile ov-profit"><div class="ov-tile-label">Profit · ' + esc(p.label) + '</div>' +
+    const chips = p.byState.map((s) => '<div class="ov-chip"><span class="ov-chip-k">' + esc(shortState(s)) + '</span>' +
+      clickable('<b class="' + (s.profit < 0 ? 'c-red' : '') + '">' + money(s.profit) + '</b>', rowsSpec(s.label + ' profit', { states: [s.state] })) + '</div>').join('');
+    const profitTile = '<div class="ov-tile ov-profit"><div class="ov-tile-head"><div class="ov-tile-label">Profit · ' + esc(p.label) + '</div>' + viewLink(rowsSpec('Profit · all clients', {})) + '</div>' +
       '<div class="ov-split">' + split + '</div><div class="ov-states">' + chips + '</div>' +
-      '<div class="ov-sub">State amounts are the table’s state subtotals and add up to the total.</div>' + viewLink(rowsSpec('Profit · all clients', {})) + '</div>';
+      '<div class="ov-sub">By state: the table’s state subtotals, which add up to the total.</div></div>';
 
     const t = p.total;
     const marginTile = '<div class="ov-tile"><div class="ov-tile-label">Margin · ' + esc(p.label) + '</div><div class="ov-big ' + (t.profit < 0 ? 'c-red' : '') + '">' +
@@ -50,8 +53,8 @@
 
     const sc = p.statusCounts;
     const statusTile = '<div class="ov-tile"><div class="ov-tile-label">Client status</div><div class="ov-counts">' +
-      ['red', 'orange', 'green', 'grey'].map((c) => '<div class="b-' + c + '">' + clickable(String(sc[c]), { kind: 'filter', colour: c }) + '<small>' + WORD[c] + '</small></div>').join('') +
-      '</div><div class="ov-sub">From Summary’s status. Off Track = losing money. No data = replacement, cost per case or target missing.</div>' +
+      ['red', 'orange', 'green', 'grey'].map((c) => clickable('<b>' + sc[c] + '</b> ' + WORD[c], { kind: 'filter', colour: c }, 'ov-pill b-' + c)).join('') +
+      '</div><div class="ov-sub">Off Track = losing money. No data = replacement, cost per case or target missing.</div>' +
       viewLink({ kind: 'filter', colour: ['red', 'orange', 'green', 'grey'].find((c) => sc[c]) || 'grey' }) + '</div>';
 
     const f = data.freshness;
@@ -65,48 +68,57 @@
 
     const a = data.agency || { connected: false };
     const agencyTile = '<div class="ov-tile"><div class="ov-tile-label">Walker Agency media balance</div>' +
-      (!a.connected ? '<div class="ov-big c-grey">Tracker not connected yet</div>' + viewLink({ kind: 'agency' })
+      (!a.connected ? '<div class="ov-big c-grey">Tracker not connected yet</div>'
         : a.value == null ? '<div class="ov-big">' + nd(a.error) + '</div>'
-          : '<div class="ov-big">' + money(a.value) + '</div><div class="ov-sub">left before the next Walker invoice</div>' + viewLink({ kind: 'agency' })) + '</div>';
+          : '<div class="ov-big">' + money(a.value) + '</div><div class="ov-sub">left before the next Walker invoice</div>') + viewLink({ kind: 'agency' }) + '</div>';
 
-    $('#tiles').innerHTML = profitTile + marginTile + statusTile + freshTile + agencyTile;
+    $('#tiles').innerHTML = profitTile + '<div class="ov-row2">' + marginTile + statusTile + freshTile + agencyTile + '</div>';
   }
+  // Chip label: state code names, with Walker's NW / Multi spelled out as on the sheet's key.
+  const shortState = (s) => (s.state === 'NW' ? 'Nationwide' : s.state === 'Multi' ? 'Multi-state' : s.label);
 
   // ---------------------------------------------------------------- client table
-  const td = (inner, c) => '<td class="num ' + (c || '') + '">' + inner + '</td>';
+  const td = (inner, c, title) => '<td class="num ' + (c || '') + '"' + (title ? ' title="' + esc(title) + '"' : '') + '>' + inner + '</td>';
+  // Compact grey dash for a missing half of a pair ("$90 / —"), reason on hover.
+  const dash = (why) => '<span class="c-grey" title="' + esc(why || 'No data') + '">—</span>';
   function clientCells(c) {
     const spec = (what) => rowsSpec(fullName(c) + ' · ' + what, { clients: [c.key] });
-    const tag = multiState.has(c.name) ? ' <span class="ov-tag" title="This buyer has rows in more than one state">multi-state</span>' : '';
-    const name = '<div class="ov-name">' + (c.href ? '<a href="' + c.href + '">' + esc(c.name) + '</a>' : esc(c.name)) + tag + '</div>' + (c.line ? '<div class="ov-vs">' + esc(c.line) + '</div>' : '');
-    const status = '<td title="' + esc(c.statusNote || '') + '"><span class="ov-dot ' + c.status + '"></span>' + WORD[c.status] +
-      (c.statusNote ? '<div class="ov-vs">' + esc(c.statusNote) + '</div>' : '') + '</td>';
+    const tag = multiState.has(c.name) ? '<span class="ov-tag" title="This buyer has rows in more than one state">multi-state</span>' : '';
+    const nameLink = c.href ? '<a href="' + c.href + '" title="Open ' + esc(c.name) + '’s dashboard">' + esc(c.name) + '</a>' : esc(c.name);
+    const name = '<td class="ov-client" title="' + esc(fullName(c)) + '"><div class="ov-name">' + nameLink + '</div><div class="ov-line">' + (c.line ? '<span class="ov-vs">' + esc(c.line) + '</span>' : '') + tag + '</div></td>';
+    // Status: dot + word on line 1; the reason on one truncated line, full text on hover.
+    const status = '<td class="ov-status" title="' + esc(c.statusNote || WORD[c.status]) + '"><div><span class="ov-dot ' + c.status + '"></span>' + WORD[c.status] + '</div>' +
+      '<div class="ov-note">' + esc(c.statusNote || '') + '</div></td>';
     const profit = td(clickable(money(c.profit), spec('Profit')), cls(c.profitColour === 'grey' ? '' : c.profitColour));
     const margin = c.margin == null ? td(nd(c.revenue ? '' : 'No revenue in this range')) : td(clickable(pct(c.margin), spec('Margin')), cls(c.profitColour));
     const ppl = c.profitPerLead == null ? td(nd(c.pplApplies === false ? 'Not applicable to this deal' : 'No leads in range'))
       : td(clickable(money(c.profitPerLead), spec('Profit per lead')), c.profitPerLead < 0 ? 'c-red' : '');
+    // Cost / lead vs price: "$249 / $307", or "$90 / —" when there's no per-lead price.
     const cpl = c.costPerLead == null ? td(nd(c.cplApplies === false ? 'Not applicable to this deal' : 'No leads in range'))
-      : td(clickable(money(c.costPerLead), spec('Cost per lead')) + ' <span class="ov-vs">vs price</span> ' +
-        (c.pricePerLead == null ? nd('No per-lead price for this deal') : clickable(money(c.pricePerLead), spec('Price per lead'))), cls(c.cplColour));
-    const caseV = c.costPerCase == null ? nd(c.caseApplies === false ? 'Not applicable to this deal' : c.caseNote) : clickable(money(c.costPerCase), spec(c.caseLabel));
-    const tgtV = c.target == null ? nd(c.targetApplies === false ? 'Not applicable to this deal' : c.targetNote) : money(c.target);
-    const priceV = c.pricePerCase == null ? nd('No price_per_case on Settings for this client/state') : money(c.pricePerCase);
-    // "$795 vs $1,900 price · target $1,000" — coloured only against the target (grey without one).
-    const caseCell = td('<span class="ov-vs">' + esc(c.caseLabel) + '</span> ' + caseV + ' <span class="ov-vs">vs</span> ' + priceV + ' <span class="ov-vs">price · target</span> ' + tgtV,
-      c.costPerCase != null && c.target != null ? cls(c.caseColour) : '');
-    const repl = c.replacement == null ? td(nd(c.replApplies === false ? 'Not applicable to this deal' : c.replNote)) : td('<span title="' + esc(c.replSource || '') + '">' + clickable(pct(c.replacement), spec('Replacement')) + '</span>', cls(c.replColour));
+      : td(clickable(money(c.costPerLead), spec('Cost per lead')) + ' <span class="ov-slash">/</span> ' +
+        (c.pricePerLead == null ? dash('No per-lead price for this deal') : clickable(money(c.pricePerLead), spec('Price per lead'))), cls(c.cplColour), 'Cost per lead / price per lead');
+    // Cost per case, 2 lines: "Cost per QMVA: $1,327 / —" (cost / our price), then muted "Target: —".
+    // Coloured only against the target (grey without one).
+    const caseV = c.costPerCase == null ? dash(c.caseApplies === false ? 'Not applicable to this deal' : c.caseNote) : clickable(money(c.costPerCase), spec(c.caseLabel));
+    const priceV = c.pricePerCase == null ? dash('No price_per_case on Settings for this client/state') : money(c.pricePerCase);
+    const tgtV = c.target == null ? dash(c.targetApplies === false ? 'Not applicable to this deal' : c.targetNote) : money(c.target);
+    const caseCell = td('<div><span class="ov-vs">' + esc(c.caseLabel) + ':</span> ' + caseV + ' <span class="ov-slash">/</span> ' + priceV + '</div><div class="ov-vs">Target: ' + tgtV + '</div>',
+      'ov-case ' + (c.costPerCase != null && c.target != null ? cls(c.caseColour) : ''), c.caseLabel + ' / our price per case · target');
+    const repl = c.replacement == null ? td(nd(c.replApplies === false ? 'Not applicable to this deal' : c.replNote))
+      : td(clickable(pct(c.replacement), spec('Replacement')), cls(c.replColour), c.replSource || '');
     const leads = c.leads ? td(clickable(int(c.leads.sent) + ' / ' + int(c.leads.accepted), spec('Leads'))) : td(nd('Leads for this client are not loaded into raw_current'));
     let pack;
-    if (!c.isPack) pack = '<td>' + nd('Not a lead pack') + '</td>';
-    else if (!c.pack) pack = '<td>' + nd('No rows on from_mark_ppl yet') + '</td>';
-    else if (c.pack.delivered == null || c.pack.packSize == null) pack = '<td>' + nd('Tracker row has no leads delivered / pack size') + '</td>';
+    if (!c.isPack) pack = td(nd('Not a lead pack'));
+    else if (!c.pack) pack = td(nd('No rows on from_mark_ppl yet'));
+    else if (c.pack.delivered == null || c.pack.packSize == null) pack = td(nd('Tracker row has no leads delivered / pack size'));
     else {
       // "46/50", plus "Pack about to run out" when the tracker flags it, with its own flag text.
       const runningOut = /run(ning)?\s*out|almost|low|reorder|renew/i.test(c.pack.flag || '');
-      pack = '<td>' + int(c.pack.delivered) + '/' + int(c.pack.packSize) +
-        (runningOut ? ' <span class="ov-flag">Pack about to run out</span>' : '') + (c.pack.flag ? ' <span class="ov-vs">' + esc(c.pack.flag) + '</span>' : '') + '</td>';
+      pack = td(int(c.pack.delivered) + '/' + int(c.pack.packSize) +
+        (runningOut ? '<div><span class="ov-flag">Pack about to run out</span></div>' : '') + (c.pack.flag ? '<div class="ov-vs">' + esc(c.pack.flag) + '</div>' : ''));
     }
     const chev = '<td class="ov-chev">' + (c.href ? '<a href="' + c.href + '" aria-label="Open ' + esc(c.name) + '">&rsaquo;</a>' : '') + '</td>';
-    return '<td>' + name + '</td>' + status + profit + margin + ppl + cpl + caseCell + repl + leads + pack + chev;
+    return name + status + profit + margin + ppl + cpl + caseCell + repl + leads + pack + chev;
   }
   function renderTable() {
     let html = '';
@@ -116,26 +128,32 @@
     multiState = new Set([...names].filter(([, st]) => st.size > 1).map(([n]) => n));
     if (statusFilter) {
       const n = groupsAll.reduce((a, g) => a + g.clients.filter((c) => c.status === statusFilter).length, 0);
-      html += '<tr class="ov-filter-row"><td colspan="11">Showing ' + n + ' ' + WORD[statusFilter] + ' client' + (n === 1 ? '' : 's') + ' · <span class="ov-click" data-clear-filter="1">Show all</span></td></tr>';
+      html += '<tr class="ov-filter-row"><td colspan="11"><span class="ov-sticky">Showing ' + n + ' ' + WORD[statusFilter] + ' client' + (n === 1 ? '' : 's') + ' · <span class="ov-click" data-clear-filter="1">Show all</span></span></td></tr>';
     }
     for (const g of groupsAll) {
       const shown = statusFilter ? g.clients.filter((c) => c.status === statusFilter) : g.clients;
       if (!shown.length) continue;
-      html += '<tr class="ov-state-row"><td colspan="11">' + esc(g.label) + '</td></tr>';
-      for (const c of shown) html += '<tr>' + clientCells(c) + '</tr>';
-      if (statusFilter || g.clients.length < 2) continue; // a one-row state's subtotal would just repeat the row
+      // Every state's header bar carries its subtotal, in the same columns as the rows: summed
+      // profit and leads, margin recomputed from the summed dollars (never an average of %s).
       const s = g.subtotal;
       const keys = g.clients.map((c) => c.key);
       const spec = (what) => rowsSpec(g.label + ' · ' + what, { clients: keys });
-      html += '<tr class="ov-subtotal"><td>' + esc(g.label) + ' subtotal' + (s.incomplete ? ' <span class="c-grey" title="A client in this state has leads with no price">(incomplete)</span>' : '') + '</td><td></td>' +
-        td(clickable(money(s.profit), spec('Profit')), s.profit < 0 ? 'c-red' : '') +
-        (s.margin == null ? td(nd()) : td(clickable(pct(s.margin), spec('Margin')))) +
-        '<td colspan="4"></td>' + (s.leads ? td(clickable(int(s.leads.sent) + ' / ' + int(s.leads.accepted), spec('Leads'))) : td(nd())) + '<td></td><td></td></tr>';
+      html += '<tr class="ov-state-row"><td class="ov-client" colspan="2"><span class="ov-sticky">' + esc(g.label) +
+        (s.incomplete ? ' <span class="c-grey" title="A client in this state has leads with no price">(incomplete)</span>' : '') + '</span></td>' +
+        td(clickable(money(s.profit), spec('Profit')), s.profit < 0 ? 'c-red' : '', 'State subtotal') +
+        (s.margin == null ? td(dash('No revenue in this state')) : td(clickable(pct(s.margin), spec('Margin')), '', 'Margin from the summed dollars')) +
+        '<td></td><td></td><td></td><td></td>' +
+        (s.leads ? td(clickable(int(s.leads.sent) + ' / ' + int(s.leads.accepted), spec('Leads')), '', 'Summed leads') : td(dash('No leads loaded'))) + '<td></td><td></td></tr>';
+      for (const c of shown) html += '<tr class="ov-row">' + clientCells(c) + '</tr>';
     }
     const t = P().total;
-    html += '<tr class="ov-total"><td>All clients</td><td></td>' + td(clickable(money(t.profit), rowsSpec('All clients · Profit', {})), t.profit < 0 ? 'c-red' : '') +
-      (t.margin == null ? td(nd()) : td(clickable(pct(t.margin), rowsSpec('All clients · Margin', {})))) + '<td colspan="7"></td></tr>';
-    if (statusFilter) html = html.replace(/<tr class="ov-total">[\s\S]*$/, '');
+    if (!statusFilter) {
+      const sent = groupsAll.reduce((a, g) => a + (g.subtotal.leads ? g.subtotal.leads.sent : 0), 0);
+      const acc = groupsAll.reduce((a, g) => a + (g.subtotal.leads ? g.subtotal.leads.accepted : 0), 0);
+      html += '<tr class="ov-total"><td class="ov-client" colspan="2"><span class="ov-sticky">All clients</span></td>' + td(clickable(money(t.profit), rowsSpec('All clients · Profit', {})), t.profit < 0 ? 'c-red' : '') +
+        (t.margin == null ? td(dash()) : td(clickable(pct(t.margin), rowsSpec('All clients · Margin', {})))) + '<td></td><td></td><td></td><td></td>' +
+        td(clickable(int(sent) + ' / ' + int(acc), rowsSpec('All clients · Leads', {}))) + '<td></td><td></td></tr>';
+    }
     $('#client-body').innerHTML = html;
   }
 
@@ -218,7 +236,7 @@
     details.length = 0;
     const p = P();
     $('#range').textContent = rangeText(p) + ' · Pacific time';
-    $('#sub').textContent = 'Data through ' + longDate(data.range.end) + ' (' + (data.range.basis === 'Summary' ? 'Summary tab' : 'raw_current') + ') · Client Profitability sheet';
+    $('#sub').textContent = '· data through ' + longDate(data.range.end) + ' (' + (data.range.basis === 'Summary' ? 'Summary tab' : 'raw_current') + ')';
     document.querySelectorAll('[data-period]').forEach((b) => b.classList.toggle('is-on', b.dataset.period === period));
     renderNotices(); renderTiles(); renderTable();
   }

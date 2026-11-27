@@ -160,7 +160,7 @@
   // ---------------------------------------------------------------- notices (data problems only)
   function renderNotices() {
     let html = '';
-    if (data.error) html += '<div class="ov-notice is-error">Last sheet read failed: ' + esc(data.error) + ' — showing the last good read.</div>';
+    if (data.error) html += '<div class="ov-notice is-error">Can’t reach the Client Profitability sheet right now — showing the last good read' + (data.lastGoodAt ? ' from ' + ptTime(data.lastGoodAt) : '') + '.</div>';
     if (data.checks && data.checks.length) {
       html += '<details class="ov-notice is-error"><summary>Summary and raw_current disagree on ' + data.checks.length + ' number' + (data.checks.length > 1 ? 's' : '') + ' (' + shortDate(data.summaryWindow.start) + '–' + shortDate(data.summaryWindow.end) + ')</summary><ul>' +
         data.checks.map((c) => '<li>' + esc(c.client) + ' — ' + esc(c.metric) + ': Summary ' + money2(c.summary) + ' vs raw_current ' + money2(c.raw) + ' (' + money2(c.diff) + ')</li>').join('') + '</ul></details>';

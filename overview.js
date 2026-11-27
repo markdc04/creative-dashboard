@@ -651,22 +651,38 @@ const round2 = (n) => Math.round(n * 100) / 100;
 
 // --- polling ---------------------------------------------------------------------------------
 let cache = null, lastError = null, polling = false, rawForFreshness = [], summaryThrough = '';
+let lastGoodAt = null, failingSince = null;
+// A dropped connection to Google (TLS reset, socket hang-up, timeout) is usually gone a second
+// later, so a read is retried up to 3 times before the poll counts as failed.
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function readSheet() {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await Promise.all([
+        summaryGrid(),
+        batchValues(SHEET_ID, ["'Settings'!A1:H80", "'raw_current'!A1:N6000", "'from_mark_ppl'!A1:Z300"]),
+        agencyBalance(),
+      ]);
+    } catch (err) {
+      if (attempt >= 3) throw err;
+      console.warn('overview read attempt ' + attempt + ' failed, retrying:', err.message);
+      await sleep(attempt * 3000);
+    }
+  }
+}
 async function poll() {
   if (polling) return;
   polling = true;
   try {
-    const [grid, values, agency] = await Promise.all([
-      summaryGrid(),
-      batchValues(SHEET_ID, ["'Settings'!A1:H80", "'raw_current'!A1:N6000", "'from_mark_ppl'!A1:Z300"]),
-      agencyBalance(),
-    ]);
+    const [grid, values, agency] = await readSheet();
     const [settingsRows, rawRows, packRows] = values;
     cache = { ...build({ grid, settingsRows, rawRows, packRows }), agency };
     rawForFreshness = parseRaw(rawRows, []);
     summaryThrough = cache.freshness.summaryThrough;
-    lastError = null;
+    lastError = null; lastGoodAt = Date.now(); failingSince = null;
   } catch (err) {
     lastError = err.message;
+    if (!failingSince) failingSince = Date.now();
     console.error('overview poll error:', err.message);
   } finally {
     polling = false;
@@ -676,7 +692,10 @@ function start() { poll(); setInterval(poll, POLL_MS); }
 function getData() {
   if (!cache) return { loading: !lastError, error: lastError };
   // Freshness depends on the clock, so it's re-evaluated per request rather than per poll.
-  return { ...cache, freshness: freshness(rawForFreshness, Date.now(), summaryThrough), error: lastError };
+  // Only surface a read failure once reads have kept failing for 15 minutes (3 polls); a single
+  // blip just means the page keeps showing the last good read, which is what it does anyway.
+  const failing = lastError && failingSince && Date.now() - failingSince >= 15 * 60 * 1000;
+  return { ...cache, freshness: freshness(rawForFreshness, Date.now(), summaryThrough), error: failing ? lastError : null, lastGoodAt: lastGoodAt ? new Date(lastGoodAt).toISOString() : null };
 }
 
 module.exports = { start, poll, getData, build, freshness, colourName, _internal: { parseSummary, parseSettings, parseRaw, parsePacks } };
